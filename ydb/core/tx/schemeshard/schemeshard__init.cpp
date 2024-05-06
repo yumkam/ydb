@@ -4063,9 +4063,9 @@ struct TSchemeShard::TTxInit : public TTransactionBase<TSchemeShard> {
                 Self->TabletCounters->Simple()[COUNTER_TABLE_COUNT].Add(1);
             } else if (path->IsPQGroup()) {
                 Self->TabletCounters->Simple()[COUNTER_PQ_GROUP_COUNT].Add(1);
-            } if (path->IsSubDomainRoot()) {
+            } else if (path->IsSubDomainRoot()) {
                 Self->TabletCounters->Simple()[COUNTER_SUB_DOMAIN_COUNT].Add(1);
-            } if (path->IsExternalSubDomainRoot()) {
+            } if (path->IsExternalSubDomainRoot()) { // XXX FIXME Should this be 'if' on separate line or 'else if'? (see IsSubDomainRoot() definition!, ydb/core/tx/schemeshard/schemeshard_path_element.cpp)
                 Self->TabletCounters->Simple()[COUNTER_EXTSUB_DOMAIN_COUNT].Add(1);
             } else if (path->IsBlockStoreVolume()) {
                 Self->TabletCounters->Simple()[COUNTER_BLOCKSTORE_VOLUME_COUNT].Add(1);
