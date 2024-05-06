@@ -485,7 +485,7 @@ Y_UNIT_TEST_SUITE(SqlParsingOnly) {
                 const bool isValueFromA = TString::npos != line.find(Quote("a.value"));
                 const bool isValueFromB = TString::npos != line.find(Quote("b.value"));
                 UNIT_ASSERT(isValueFromA || isValueFromB);
-            } if (word == "Write!") {
+            } else if (word == "Write!") {
                 UNIT_ASSERT_VALUES_EQUAL(TString::npos, line.find("a.a."));
                 UNIT_ASSERT_VALUES_EQUAL(TString::npos, line.find("b.b."));
             }

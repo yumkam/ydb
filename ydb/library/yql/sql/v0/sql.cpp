@@ -2052,7 +2052,7 @@ TNodePtr TSqlExpression::BinOperList(const TString& opName, TVector<TNodePtr>::c
     Y_DEBUG_ABORT_UNLESS(opCount >= 2);
     if (opCount == 2) {
         return BuildBinaryOp(pos, opName, *begin, *(begin+1));
-    } if (opCount == 3) {
+    } else if (opCount == 3) {
         return BuildBinaryOp(pos, opName, BuildBinaryOp(pos, opName, *begin, *(begin+1)), *(begin+2));
     } else {
         auto mid = begin + opCount / 2;

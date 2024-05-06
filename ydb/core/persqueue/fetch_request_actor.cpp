@@ -117,7 +117,8 @@ public:
             if (p.Topic.empty()) {
                 Response = CreateErrorReply(Ydb::StatusIds::BAD_REQUEST, "Empty topic in fetch request");
                 return;
-            } if (!p.MaxBytes) {
+            }
+            if (!p.MaxBytes) {
                 Response = CreateErrorReply(Ydb::StatusIds::BAD_REQUEST, "No maxBytes for partition in fetch request");
                 return;
             }

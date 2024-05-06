@@ -231,11 +231,13 @@ private:
 
         if (ResolveNamesResult->ResultSet.front().TableId.IsSystemView()) {
             return ScanSystemView(ctx);
-        } if (TryParseLocalDbPath(ResolveNamesResult->ResultSet.front().Path)) {
-            return ScanLocalDbTable(ctx);
-        } else {
-            return ResolveShards(ctx);
         }
+
+        if (TryParseLocalDbPath(ResolveNamesResult->ResultSet.front().Path)) {
+            return ScanLocalDbTable(ctx);
+        }
+
+        return ResolveShards(ctx);
     }
 
     void ScanSystemView(const NActors::TActorContext& ctx) {

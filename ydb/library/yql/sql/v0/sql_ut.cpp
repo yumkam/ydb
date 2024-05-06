@@ -327,7 +327,7 @@ Y_UNIT_TEST_SUITE(SqlParsingOnly) {
                 const bool isValueFromA = TString::npos != line.find(Quote("a.value"));
                 const bool isValueFromB = TString::npos != line.find(Quote("b.value"));
                 UNIT_ASSERT(isValueFromA || isValueFromB);
-            } if (word == "Write!") {
+            } else if (word == "Write!") {
                 const bool noDuplicateSourceInA = TString::npos == line.find("a.a.");
                 const bool noDuplicateSourceInB = TString::npos == line.find("b.b.");
                 UNIT_ASSERT(noDuplicateSourceInA || noDuplicateSourceInB);

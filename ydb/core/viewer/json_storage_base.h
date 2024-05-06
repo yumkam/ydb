@@ -140,7 +140,7 @@ protected:
         Filter = params.Get("filter");
         if (params.Get("with") == "missing") {
             With = EWith::MissingDisks;
-        } if (params.Get("with") == "space") {
+        } else if (params.Get("with") == "space") {
             With = EWith::SpaceProblems;
         }
     }

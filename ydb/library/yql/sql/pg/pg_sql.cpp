@@ -314,7 +314,7 @@ public:
                 BlockEngineEnabled = true;
             } else if (flag == "BlockEngineForce") {
                 BlockEngineForce = true;
-            } if (flag == "UnorderedResult") {
+            } else if (flag == "UnorderedResult") {
                 UnorderedResult = true;
             }
         }

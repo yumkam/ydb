@@ -108,7 +108,7 @@ public:
             return DeserializeFromProto(proto, defaultOwnerId);
         } else if (proto.HasValue()) {
             return DeserializeFromString(proto.GetValue().GetData());
-        } if (secretInfo) {
+        } else if (secretInfo) {
             return DeserializeFromString(secretInfo, defaultOwnerId);
         } else {
             return {};
