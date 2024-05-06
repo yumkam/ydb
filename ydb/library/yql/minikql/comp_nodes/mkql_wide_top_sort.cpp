@@ -563,8 +563,8 @@ private:
 
     bool HasMemoryForProcessing() const {
         // TODO: Change to enable spilling
-        // return !TlsAllocState->IsMemoryYellowZoneEnabled();
-        return true;
+        return !TlsAllocState->IsMemoryYellowZoneEnabled();
+        // return true;
     }
 
     bool IsReadFromChannelFinished() const {
