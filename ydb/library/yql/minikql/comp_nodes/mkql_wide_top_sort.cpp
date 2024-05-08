@@ -563,6 +563,7 @@ private:
 
     bool HasMemoryForProcessing() const {
         // TODO: Change to enable spilling
+        std::clog << "Spilling wide_top_sort: " << TlsAllocState->IsMemoryYellowZoneEnabled() << ' ' << 100*TlsAllocState->GetUsed()/TlsAllocState->GetLimit() << '%' << ' ' <<TlsAllocState->GetUsed() << ' ' << TlsAllocState->GetLimit() << std::endl;
         return !TlsAllocState->IsMemoryYellowZoneEnabled();
         // return true;
     }
