@@ -10,6 +10,7 @@
 #include <ydb/library/yql/utils/cast.h>
 
 #include <ydb/library/yql/utils/sort.h>
+#include <sys/resource.h>
 
 
 namespace NKikimr {
@@ -563,6 +564,16 @@ private:
 
     bool HasMemoryForProcessing() const {
         // TODO: Change to enable spilling
+#if 1 // TO BE REMOVED
+        bool enable = TlsAllocState->IsMemoryYellowZoneEnabled();
+        static ui64 cnt;
+        if (enable || cnt++ == 0) {
+            struct rusage ru;
+            getrusage(RUSAGE_SELF, &ru);
+            std::clog << "Spilling " << __PRETTY_FUNCTION__ << ": " << enable << ' ' << 100*TlsAllocState->GetUsed()/TlsAllocState->GetLimit() << '%' << ' ' <<TlsAllocState->GetUsed() << ' ' << TlsAllocState->GetLimit() << ' ' << ru.ru_maxrss << " skips=" << cnt << std::endl;
+            if (enable) cnt = 0;
+        }
+#endif
         return !TlsAllocState->IsMemoryYellowZoneEnabled();
         // return true;
     }
