@@ -363,6 +363,37 @@ private:
     TFields Fields;
 };
 
+#if 1 // TO BE REMOVED
+static struct SpillingStaticics {
+    ui64 cnt = 0;
+    size_t MaxUsed = 0, MaxLimit = 0;
+    void operator() (const char *func) {
+        bool enable = TlsAllocState->IsMemoryYellowZoneEnabled();
+        if (enable || cnt++ == 0) {
+            struct rusage ru;
+            getrusage(RUSAGE_SELF, &ru);
+            auto used = TlsAllocState->GetUsed();
+            auto limit = TlsAllocState->GetLimit();
+            if (limit >= MaxLimit) {
+                if (limit > MaxLimit) {
+                    MaxLimit = limit;
+                    MaxUsed = 0;
+                }
+                if (used > MaxUsed)
+                    MaxUsed = used;
+            }
+            std::clog << "Spilling " << func << ": " << enable << ' ' << (100*used/limit) << '%' << ' ' << used << ' ' << limit << ' ' << ru.ru_maxrss << " skips=" << cnt << std::endl;
+            if (enable) cnt = 0;
+        }
+    }
+    ~SpillingStaticics() {
+        struct rusage ru;
+        getrusage(RUSAGE_SELF, &ru);
+        std::clog << "Spilling final " << __PRETTY_FUNCTION__ << "(" << __FILE__ << ' ' << __LINE__ << "): " << (MaxLimit ? 100*MaxUsed/MaxLimit : 0) << '%' << ' ' << MaxUsed << ' ' << MaxLimit << ' ' << ru.ru_maxrss << " skips=" << cnt << std::endl;
+    }
+} useStat {};
+#endif
+
 template <bool Sort, bool HasCount>
 class TSpillingSupportState : public TComputationValue<TSpillingSupportState<Sort, HasCount>> {
 using TBase = TComputationValue<TSpillingSupportState<Sort, HasCount>>;
@@ -564,14 +595,7 @@ private:
 
     bool HasMemoryForProcessing() const {
 #if 1 // TO BE REMOVED
-        bool enable = TlsAllocState->IsMemoryYellowZoneEnabled();
-        static ui64 cnt;
-        if (enable || cnt++ == 0) {
-            struct rusage ru;
-            getrusage(RUSAGE_SELF, &ru);
-            std::clog << "Spilling " << __PRETTY_FUNCTION__ << ": " << enable << ' ' << 100*TlsAllocState->GetUsed()/TlsAllocState->GetLimit() << '%' << ' ' <<TlsAllocState->GetUsed() << ' ' << TlsAllocState->GetLimit() << ' ' << ru.ru_maxrss << " skips=" << cnt << std::endl;
-            if (enable) cnt = 0;
-        }
+        useStat(__PRETTY_FUNCTION__);
 #endif
         return !TlsAllocState->IsMemoryYellowZoneEnabled();
     }
