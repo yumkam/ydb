@@ -15,6 +15,9 @@
 
 #include <util/string/cast.h>
 
+#include <sys/time.h>
+#include <sys/resource.h>
+
 namespace NKikimr {
 namespace NMiniKQL {
 
@@ -705,6 +708,16 @@ private:
     bool IsSwitchToSpillingModeCondition() const {
         // return false;
         // TODO: YQL-18033
+#if 1 // TO BE REMOVED
+        bool enable = TlsAllocState->IsMemoryYellowZoneEnabled();
+        static ui64 cnt;
+        if (enable || cnt++ == 0) {
+            struct rusage ru;
+            getrusage(RUSAGE_SELF, &ru);
+            std::clog << "Spilling " << __PRETTY_FUNCTION__ << ": " << enable << ' ' << 100*TlsAllocState->GetUsed()/TlsAllocState->GetLimit() << '%' << ' ' <<TlsAllocState->GetUsed() << ' ' << TlsAllocState->GetLimit() << ' ' << ru.ru_maxrss << " skips=" << cnt << std::endl;
+            if (enable) cnt = 0;
+        }
+#endif
         return !HasMemoryForProcessing();
     }
 
