@@ -18,6 +18,7 @@
 #include <sys/time.h>
 #include <sys/resource.h>
 
+
 namespace NKikimr {
 namespace NMiniKQL {
 
@@ -317,6 +318,37 @@ private:
     TStorage Storage;
     TStates States;
 };
+
+#if 1 // TO BE REMOVED
+static struct SpillingStaticics {
+    ui64 cnt = 0;
+    size_t MaxUsed = 0, MaxLimit = 0;
+    void operator() (const char *func) {
+        bool enable = TlsAllocState->IsMemoryYellowZoneEnabled();
+        if (enable || cnt++ == 0) {
+            auto used = TlsAllocState->GetUsed();
+            auto limit = TlsAllocState->GetLimit();
+            if (limit >= MaxLimit) {
+                if (limit > MaxLimit) {
+                    MaxLimit = limit;
+                    MaxUsed = 0;
+                }
+                if (used > MaxUsed)
+                    MaxUsed = used;
+            }
+            struct rusage ru;
+            getrusage(RUSAGE_SELF, &ru);
+            std::clog << "Spilling " << func << ": " << enable << ' ' << (100*used/limit) << '%' << ' ' << used << ' ' << limit << ' ' << ru.ru_maxrss << " skips=" << cnt << std::endl;
+            if (enable) cnt = 0;
+        }
+    }
+    ~SpillingStaticics() {
+        struct rusage ru;
+        getrusage(RUSAGE_SELF, &ru);
+        std::clog << "Spilling final " << __PRETTY_FUNCTION__ << "(" << __FILE__ << ' ' << __LINE__ << "): 0 " << (MaxLimit ? 100*MaxUsed/MaxLimit : 0) << '%' << ' ' << MaxUsed << ' ' << MaxLimit << ' ' << ru.ru_maxrss << " skips=" << cnt << std::endl;
+    }
+} useStat {};
+#endif
 
 class TSpillingSupportState : public TComputationValue<TSpillingSupportState> {
     typedef TComputationValue<TSpillingSupportState> TBase;
@@ -705,22 +737,15 @@ private:
     }
 
     bool HasMemoryForProcessing() const {
+#if 1 // TO BE REMOVED
+        useStat(__PRETTY_FUNCTION__);
+#endif
         return !TlsAllocState->IsMemoryYellowZoneEnabled();
     }
 
     bool IsSwitchToSpillingModeCondition() const {
         // return false;
         // TODO: YQL-18033
-#if 1 // TO BE REMOVED
-        bool enable = TlsAllocState->IsMemoryYellowZoneEnabled();
-        static ui64 cnt;
-        if (enable || cnt++ == 0) {
-            struct rusage ru;
-            getrusage(RUSAGE_SELF, &ru);
-            std::clog << "Spilling " << __PRETTY_FUNCTION__ << ": " << enable << ' ' << 100*TlsAllocState->GetUsed()/TlsAllocState->GetLimit() << '%' << ' ' <<TlsAllocState->GetUsed() << ' ' << TlsAllocState->GetLimit() << ' ' << ru.ru_maxrss << " skips=" << cnt << std::endl;
-            if (enable) cnt = 0;
-        }
-#endif
         return !HasMemoryForProcessing();
     }
 
