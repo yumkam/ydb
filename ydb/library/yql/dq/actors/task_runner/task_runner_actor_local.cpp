@@ -435,10 +435,11 @@ private:
             }
         }
 
-        // if (settings.GetEnableSpilling()) { // FIXME
+        //LOG_I("GetEnableSpilling = " << settings.GetEnableSpilling());
+        if (settings.GetEnableSpilling()) {
             auto wakeUpCallback = ev->Get()->ExecCtx->GetWakeupCallback();
             TaskRunner->SetSpillerFactory(std::make_shared<TDqSpillerFactory>(TxId, NActors::TActivationContext::ActorSystem(), wakeUpCallback));
-        // }
+        }
 
         auto event = MakeHolder<TEvTaskRunnerCreateFinished>(
             TaskRunner->GetSecureParams(),

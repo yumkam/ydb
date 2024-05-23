@@ -12,6 +12,7 @@
 #include <ydb/library/yql/minikql/mkql_stats_registry.h>
 #include <ydb/library/yql/minikql/defs.h>
 #include <ydb/library/yql/utils/cast.h>
+#include <ydb/library/yql/utils/log/log.h>
 
 #include <util/string/cast.h>
 
@@ -467,6 +468,11 @@ private:
                         static_cast<NUdf::TUnboxedValue *>(InMemoryProcessingState.Throat)
                     );
                     if (AllowSpilling && ctx.SpillerFactory && IsSwitchToSpillingModeCondition()) {
+                        const auto used = TlsAllocState->GetUsed();
+                        const auto limit = TlsAllocState->GetLimit();
+
+                        YQL_LOG(INFO) << "yellow zone in Memory mode " << (used*100/limit) << "%=" << used << "/" << limit << " switching to Spilling";
+
                         SwitchMode(EOperatingMode::Spilling, ctx);
                         return EFetchResult::Yield;
                     }
@@ -548,7 +554,10 @@ private:
         UpdateSpillingBuckets();
 
         if (!HasMemoryForProcessing()) {
+            const auto used = TlsAllocState->GetUsed();
+            const auto limit = TlsAllocState->GetLimit();
             bool isWaitingForReduce = TryToReduceMemory();
+            YQL_LOG(DEBUG) << "yellow zone in spilling mode " << (used*100/limit) << "%=" << used << "/" << limit << " reduced=" << isWaitingForReduce;
             if (isWaitingForReduce) return;
         }
 
@@ -630,6 +639,7 @@ private:
 
         if (finishedCount != SpilledBuckets.size()) return;
 
+        YQL_LOG(INFO) << "swithing to ProcessSpilled";
         SwitchMode(EOperatingMode::ProcessSpilled, ctx);
     }
 
@@ -737,16 +747,14 @@ private:
     }
 
     bool HasMemoryForProcessing() const {
-#if 1 // TO BE REMOVED
-        useStat(__PRETTY_FUNCTION__);
-#endif
         return !TlsAllocState->IsMemoryYellowZoneEnabled();
     }
 
     bool IsSwitchToSpillingModeCondition() const {
+        bool result = !HasMemoryForProcessing();
         // return false;
         // TODO: YQL-18033
-        return !HasMemoryForProcessing();
+        return result;
     }
 
 private:
@@ -1622,6 +1630,8 @@ IComputationNode* WrapWideCombinerT(TCallable& callable, const TComputationNodeF
         keyAndStateItemTypes.push_back(type);
         nodes.InitResultNodes.push_back(LocateNode(ctx.NodeLocator, callable, index++));
     }
+
+    YQL_LOG_IF(INFO, !allowSpilling) << "found non-serializable type, spilling disabled";
 
     index += stateSize;
     nodes.UpdateResultNodes.reserve(stateSize);
