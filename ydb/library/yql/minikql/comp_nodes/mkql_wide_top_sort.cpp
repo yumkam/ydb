@@ -8,6 +8,7 @@
 #include <ydb/library/yql/minikql/mkql_node_cast.h>
 #include <ydb/library/yql/minikql/defs.h>
 #include <ydb/library/yql/utils/cast.h>
+#include <ydb/library/yql/utils/log/log.h>
 
 #include <ydb/library/yql/utils/sort.h>
 #include <sys/resource.h>
@@ -476,6 +477,9 @@ private:
                 case EFetchResult::One:
                     if (Put()) {
                         if (ctx.SpillerFactory && !HasMemoryForProcessing()) {
+                            const auto used = TlsAllocState->GetUsed();
+                            const auto limit = TlsAllocState->GetLimit();
+                            YQL_LOG(INFO) << "yellow zone in Memory mode " << (used*100/limit) << "%=" << used << "/" << limit << " switching to Spilling";
                             SwitchMode(EOperatingMode::Spilling, ctx);
                             return EFetchResult::Yield;
                         }
@@ -513,6 +517,7 @@ private:
         }
         ResetFields();
         auto nextMode = (IsReadFromChannelFinished() ? EOperatingMode::ProcessSpilled : EOperatingMode::InMemory);
+        YQL_LOG(INFO) << (nextMode ==  EOperatingMode::ProcessSpilled ? "swithing to ProcessSpilled" :  "swithing to InMemory");
         SwitchMode(nextMode, ctx);
         return EFetchResult::Yield;
     }
@@ -594,7 +599,7 @@ private:
     EOperatingMode GetMode() const { return Mode; }
 
     bool HasMemoryForProcessing() const {
-#if 1 // TO BE REMOVED
+#if 0 // TO BE REMOVED
         useStat(__PRETTY_FUNCTION__);
 #endif
         return !TlsAllocState->IsMemoryYellowZoneEnabled();
