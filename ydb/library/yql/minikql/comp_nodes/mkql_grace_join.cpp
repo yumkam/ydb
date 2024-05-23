@@ -767,6 +767,8 @@ private:
 
             bool isYield = FetchAndPackData(ctx);
             if (ctx.SpillerFactory && IsSwitchToSpillingModeCondition()) {
+                YQL_LOG(DEBUG) << "switching Memory mode to Spilling";
+
                 SwitchMode(EOperatingMode::Spilling, ctx);
                 return EFetchResult::Yield;
             }
@@ -829,6 +831,7 @@ void DoCalculateWithSpilling(TComputationContext& ctx) {
 
     if (!HasMemoryForProcessing()) {
         bool isWaitingForReduce = TryToReduceMemoryAndWait();
+        YQL_LOG(DEBUG) << "Spilling mode isWaitingForReduce=" << isWaitingForReduce;
         if (isWaitingForReduce) return;
     }
 
@@ -847,6 +850,7 @@ void DoCalculateWithSpilling(TComputationContext& ctx) {
 
             if (HasRunningAsyncOperation()) return;
         }
+        YQL_LOG(DEBUG) << "switching to ProcessSpilled";
         SwitchMode(EOperatingMode::ProcessSpilled, ctx);
         return;
     }
