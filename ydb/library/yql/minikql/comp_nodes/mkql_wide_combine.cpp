@@ -12,6 +12,7 @@
 #include <ydb/library/yql/minikql/mkql_stats_registry.h>
 #include <ydb/library/yql/minikql/defs.h>
 #include <ydb/library/yql/utils/cast.h>
+#include <ydb/library/yql/utils/log/log.h>
 
 #include <util/string/cast.h>
 
@@ -432,6 +433,11 @@ private:
                         static_cast<NUdf::TUnboxedValue *>(InMemoryProcessingState.Throat)
                     );
                     if (AllowSpilling && ctx.SpillerFactory && IsSwitchToSpillingModeCondition()) {
+                        const auto used = TlsAllocState->GetUsed();
+                        const auto limit = TlsAllocState->GetLimit();
+                        YQL_LOG(DEBUG) << "yellow zone reached " << (used*100/limit) << "%=" << used << "/" << limit;
+                        YQL_LOG(INFO) << "switching Memory mode to Spilling";
+
                         SwitchMode(EOperatingMode::Spilling, ctx);
                         return EFetchResult::Yield;
                     }
@@ -513,7 +519,13 @@ private:
         UpdateSpillingBuckets();
 
         if (!HasMemoryForProcessing()) {
+            const auto used = TlsAllocState->GetUsed();
+            const auto limit = TlsAllocState->GetLimit();
+
             bool isWaitingForReduce = TryToReduceMemory();
+
+            YQL_LOG(TRACE) << "yellow zone reached in Spilling mode " << (used*100/limit) << "%=" << used << "/" << limit << " isWaitingForReduce=" << isWaitingForReduce;
+
             if (isWaitingForReduce) return;
         }
 
@@ -595,6 +607,7 @@ private:
 
         if (finishedCount != SpilledBuckets.size()) return;
 
+        YQL_LOG(DEBUG) << "switching to ProcessSpilled";
         SwitchMode(EOperatingMode::ProcessSpilled, ctx);
     }
 
@@ -1585,6 +1598,8 @@ IComputationNode* WrapWideCombinerT(TCallable& callable, const TComputationNodeF
         keyAndStateItemTypes.push_back(type);
         nodes.InitResultNodes.push_back(LocateNode(ctx.NodeLocator, callable, index++));
     }
+
+    YQL_LOG_IF(DEBUG, !allowSpilling) << "Found non-serializable type, spilling disabled";
 
     index += stateSize;
     nodes.UpdateResultNodes.reserve(stateSize);
