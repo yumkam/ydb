@@ -639,7 +639,7 @@ private:
 
         if (finishedCount != SpilledBuckets.size()) return;
 
-        YQL_LOG(INFO) << "swithing to ProcessSpilled";
+        YQL_LOG(INFO) << "switching to ProcessSpilled";
         SwitchMode(EOperatingMode::ProcessSpilled, ctx);
     }
 

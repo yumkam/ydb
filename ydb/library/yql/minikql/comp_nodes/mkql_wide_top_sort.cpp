@@ -517,7 +517,7 @@ private:
         }
         ResetFields();
         auto nextMode = (IsReadFromChannelFinished() ? EOperatingMode::ProcessSpilled : EOperatingMode::InMemory);
-        YQL_LOG(INFO) << (nextMode ==  EOperatingMode::ProcessSpilled ? "swithing to ProcessSpilled" :  "swithing to InMemory");
+        YQL_LOG(INFO) << (nextMode ==  EOperatingMode::ProcessSpilled ? "switching to ProcessSpilled" :  "switching to InMemory");
         SwitchMode(nextMode, ctx);
         return EFetchResult::Yield;
     }
