@@ -1179,10 +1179,7 @@ void TTable::FinalizeSpilling() {
             TableBucketsSpillers[bucket].SpillBucket(std::move(TableBuckets[bucket]));
             TableBuckets[bucket] = TTableBucket{};
             TableBucketsSpillers[bucket].Finalize();
-        } else {
-            std::cerr << std::format("[MISHA] bucket {} in memory\n", bucket);
         }
-
     }
 }
 
