@@ -388,12 +388,14 @@ void TTable::Join( TTable & t1, TTable & t2, EJoinKind joinKind, bool hasMoreLef
             it2 += keysValSize;
             tuple2Idx ++;
         }
+        Y_ENSURE(tuple2Idx == tuplesNum2);
 
 
         ui32 tuple1Idx = 0;
         auto it1 = bucket1->KeyIntVals.begin();
         while ( it1 < bucket1->KeyIntVals.end() ) {
 
+            Y_ENSURE(tuple1Idx < tuplesNum1);
             ui64 keysValSize;
             if ( table1HasKeyStringColumns || table1HasKeyIColumns ) {
                 keysValSize = headerSize1 + *(it1 + headerSize1 - 1) ;
@@ -506,6 +508,7 @@ void TTable::Join( TTable & t1, TTable & t2, EJoinKind joinKind, bool hasMoreLef
             it1 += keysValSize;
             tuple1Idx ++;
         }
+        Y_ENSURE(tuple1Idx == tuplesNum1);
 
         std::sort(joinResults.begin(), joinResults.end(), [](JoinTuplesIds a, JoinTuplesIds b)
         {
