@@ -770,7 +770,7 @@ private:
                 const auto used = TlsAllocState->GetUsed();
                 const auto limit = TlsAllocState->GetLimit();
 
-                YQL_LOG(DEBUG) << "yellow zone reached " << (used*100/limit) << "%=" << used << "/" << limit;
+                YQL_LOG(INFO) << "yellow zone reached " << (used*100/limit) << "%=" << used << "/" << limit;
                 YQL_LOG(INFO) << "switching Memory mode to Spilling";
 
                 SwitchMode(EOperatingMode::Spilling, ctx);
@@ -835,7 +835,7 @@ void DoCalculateWithSpilling(TComputationContext& ctx) {
 
         bool isWaitingForReduce = TryToReduceMemoryAndWait();
 
-        YQL_LOG(TRACE) << "yellow zone reached in Spilling mode " << (used*100/limit) << "%=" << used << "/" << limit << " isWaitingForReduce=" << isWaitingForReduce;
+        YQL_LOG(INFO) << "yellow zone reached in Spilling mode " << (used*100/limit) << "%=" << used << "/" << limit << " isWaitingForReduce=" << isWaitingForReduce;
 
         if (isWaitingForReduce) return;
     }
@@ -855,7 +855,7 @@ void DoCalculateWithSpilling(TComputationContext& ctx) {
 
             if (HasRunningAsyncOperation()) return;
         }
-        YQL_LOG(DEBUG) << "switching to ProcessSpilled";
+        YQL_LOG(INFO) << "switching to ProcessSpilled";
         SwitchMode(EOperatingMode::ProcessSpilled, ctx);
         return;
     }

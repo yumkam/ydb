@@ -435,7 +435,7 @@ private:
                     if (AllowSpilling && ctx.SpillerFactory && IsSwitchToSpillingModeCondition()) {
                         const auto used = TlsAllocState->GetUsed();
                         const auto limit = TlsAllocState->GetLimit();
-                        YQL_LOG(DEBUG) << "yellow zone reached " << (used*100/limit) << "%=" << used << "/" << limit;
+                        YQL_LOG(INFO) << "yellow zone reached " << (used*100/limit) << "%=" << used << "/" << limit;
                         YQL_LOG(INFO) << "switching Memory mode to Spilling";
 
                         SwitchMode(EOperatingMode::Spilling, ctx);
@@ -1599,7 +1599,7 @@ IComputationNode* WrapWideCombinerT(TCallable& callable, const TComputationNodeF
         nodes.InitResultNodes.push_back(LocateNode(ctx.NodeLocator, callable, index++));
     }
 
-    YQL_LOG_IF(DEBUG, !allowSpilling) << "Found non-serializable type, spilling disabled";
+    YQL_LOG_IF(INFO, !allowSpilling) << "Found non-serializable type, spilling disabled";
 
     index += stateSize;
     nodes.UpdateResultNodes.reserve(stateSize);
