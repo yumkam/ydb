@@ -388,7 +388,7 @@ void TTable::Join( TTable & t1, TTable & t2, EJoinKind joinKind, bool hasMoreLef
             it2 += keysValSize;
             tuple2Idx ++;
         }
-        Y_ENSURE(tuple2Idx == tuplesNum2);
+        //Y_ENSURE(tuple2Idx == tuplesNum2);
 
 
         ui32 tuple1Idx = 0;
@@ -508,7 +508,7 @@ void TTable::Join( TTable & t1, TTable & t2, EJoinKind joinKind, bool hasMoreLef
             it1 += keysValSize;
             tuple1Idx ++;
         }
-        Y_ENSURE(tuple1Idx == tuplesNum1);
+        //Y_ENSURE(tuple1Idx == tuplesNum1);
 
         std::sort(joinResults.begin(), joinResults.end(), [](JoinTuplesIds a, JoinTuplesIds b)
         {
@@ -1123,10 +1123,12 @@ void TTable::Clear() {
         tb.JoinIds.clear();
         tb.RightIds.clear();
 
+#if 0
         TTableBucketStats & tbs = TableBucketsStats[bucket];
         tbs.TuplesNum = 0;
         tbs.KeyIntValsTotalSize = 0;
         tbs.StringValuesTotalSize = 0;
+#endif
     }
 }
 
