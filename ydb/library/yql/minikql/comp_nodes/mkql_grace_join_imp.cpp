@@ -348,6 +348,7 @@ void TTable::Join( TTable & t1, TTable & t2, EJoinKind joinKind, bool hasMoreLef
         auto it2 = bucket2->KeyIntVals.begin();
         while (it2 != bucket2->KeyIntVals.end() ) {
 
+            Y_ENSURE(tuple2Idx < tuplesNum2);
             ui64 keysValSize;
             if ( table2HasKeyStringColumns || table2HasKeyIColumns) {
                 keysValSize = headerSize2 + *(it2 + headerSize2 - 1) ;
