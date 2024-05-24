@@ -714,9 +714,10 @@ private:
     }
 
     bool IsSwitchToSpillingModeCondition() const {
-        return false;
+        bool result = !HasMemoryForProcessing();
+        // return false;
         // TODO: YQL-18033
-        // return !HasMemoryForProcessing();
+        return result;
     }
 
 private:
