@@ -1181,8 +1181,11 @@ void TTable::FinalizeSpilling() {
         if (!TableBucketsSpillers[bucket].IsInMemory()) {
             TableBucketsSpillers[bucket].SpillBucket(std::move(TableBuckets[bucket]));
             TableBuckets[bucket] = TTableBucket{};
+            TableBucketsSpillers[bucket].Finalize();
+        } else {
+            std::cerr << "[MISHA] bucket " << bucket << " in memory\n";
         }
-        TableBucketsSpillers[bucket].Finalize();
+
     }
 }
 
@@ -1204,6 +1207,7 @@ void TTable::StartLoadingBucket(ui32 bucket) {
 }
 
 void TTable::ExtractBucket(ui64 bucket) {
+    if (GetSizeOfBucket(bucket) != 0) return;
     TableBuckets[bucket] = std::move(TableBucketsSpillers[bucket].ExtractBucket());
 }
 
