@@ -580,19 +580,24 @@ inline void TTable::GetTupleData(ui32 bucketNum, ui32 tupleId, TupleData & td) {
         keyIntsOffset = HeaderSize * tupleId;
     }
 
-
+    if (!tb.KeyIntVals.size()) {
+        std::cerr << bucketNum << ' ' << TableBuckets.size() << ' ' << NumberOfKeyIntColumns << ' ' << NullsBitmapSize_ << std::endl;
+    }
+    Y_ENSURE(tb.KeyIntVals.size());
     for ( ui64 i = 0; i < NumberOfKeyIntColumns + NullsBitmapSize_; ++i) {
         td.IntColumns[i] = tb.KeyIntVals[keyIntsOffset + HashSize + i];
     }
 
     dataIntsOffset = NumberOfDataIntColumns * tupleId;
 
+    Y_ENSURE(NumberOfDataIntColumns == 0 || tb.DataIntVals.size());
     for ( ui64 i = 0; i < NumberOfDataIntColumns; ++i) {
         td.IntColumns[NumberOfKeyIntColumns + NullsBitmapSize_ + i] = tb.DataIntVals[dataIntsOffset + i];
     }
 
     char *strPtr = nullptr;
     if(NumberOfKeyStringColumns != 0 || NumberOfKeyIColumns != 0) {
+        Y_ENSURE(tb.StringsOffsets.size());
         keyStringsOffset = tb.StringsOffsets[stringsOffsetsIdx] + HeaderSize;
 
         strPtr = reinterpret_cast<char *>(tb.KeyIntVals.data() + keyStringsOffset);
