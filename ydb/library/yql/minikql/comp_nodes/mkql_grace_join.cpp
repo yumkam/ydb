@@ -597,7 +597,6 @@ public:
     }
 
     EFetchResult FetchValues(TComputationContext& ctx, NUdf::TUnboxedValue*const* output) {
-        std::cerr << "[MISHA] join\n";
         while (true) {
             switch(GetMode()) {
                 case EOperatingMode::InMemory: {
@@ -640,7 +639,6 @@ private:
 
 
     void SwitchMode(EOperatingMode mode, TComputationContext& ctx) {
-        std::cerr << std::format("[MISHA] switching {}->{}\n", (int)Mode, (int)mode);
         switch(mode) {
             case EOperatingMode::InMemory: {
                 MKQL_ENSURE(false, "Internal logic error");
