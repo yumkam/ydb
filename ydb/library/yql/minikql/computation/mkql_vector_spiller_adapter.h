@@ -111,12 +111,14 @@ public:
     ///State will be changed to DataREady without any async read operation. ExtractVector is expected
     ///to be called immediately.
     void RequestNextVector() {
+        if (State != EState::RestoringData) {
         MKQL_ENSURE(State == EState::AcceptingDataRequests, "Internal logic error");
         MKQL_ENSURE(CurrentVector.empty(), "Internal logic error");
         MKQL_ENSURE(!StoredChunksElementsCount.empty(), "Internal logic error");
 
         CurrentVector.reserve(StoredChunksElementsCount.front());
         State = EState::RestoringData;
+        }
 
         LoadNextVector();
     }
