@@ -1165,28 +1165,32 @@ bool TTable::TryToReduceMemoryAndWait() {
 
     if (largestBucketSize == 0) return false;
 
-    TableBucketsSpillers[largestBucketIndex].SpillBucket(std::move(TableBuckets[largestBucketIndex]));
+    bool res = TableBucketsSpillers[largestBucketIndex].SpillBucket(std::move(TableBuckets[largestBucketIndex]));
     TableBuckets[largestBucketIndex] = TTableBucket{};
 
-    return TableBucketsSpillers[largestBucketIndex].HasRunningAsyncIoOperation();
+    return !res;
 }
 
-void TTable::UpdateSpilling() {
+bool TTable::UpdateSpilling() {
+    bool ok = true;
     for (ui64 i = 0; i < NumberOfBuckets; ++i) {
-        TableBucketsSpillers[i].Update();
+        ok &= TableBucketsSpillers[i].Update();
     }
+    return ok;
 }
 
-void TTable::FinalizeSpilling() {
+bool TTable::FinalizeSpilling() {
     MKQL_ENSURE(!HasRunningAsyncIoOperation(), "Internal logic error");
 
+    bool ok = true;
     for (ui32 bucket = 0; bucket < NumberOfBuckets; ++bucket) {
         if (!TableBucketsSpillers[bucket].IsInMemory()) {
-            TableBucketsSpillers[bucket].SpillBucket(std::move(TableBuckets[bucket]));
+            ok &= TableBucketsSpillers[bucket].SpillBucket(std::move(TableBuckets[bucket]));
             TableBuckets[bucket] = TTableBucket{};
             TableBucketsSpillers[bucket].Finalize();
         }
     }
+    return ok;
 }
 
 bool TTable::HasRunningAsyncIoOperation() const {
@@ -1207,10 +1211,10 @@ bool TTable::IsBucketInMemory(ui32 bucket) const {
     return TableBucketsSpillers[bucket].IsInMemory();
 }
 
-void TTable::StartLoadingBucket(ui32 bucket) {
+bool TTable::StartLoadingBucket(ui32 bucket) {
     MKQL_ENSURE(!TableBucketsSpillers[bucket].IsInMemory(), "Internal logic error");
 
-    TableBucketsSpillers[bucket].StartBucketRestoration();
+    return TableBucketsSpillers[bucket].StartBucketRestoration();
 }
 
 void TTable::PrepareBucket(ui64 bucket) {
@@ -1280,15 +1284,17 @@ TTableBucketSpiller::TTableBucketSpiller(ISpiller::TPtr spiller, size_t sizeLimi
     {
     }
 
-void TTableBucketSpiller::Update() {
+bool TTableBucketSpiller::Update() {
     StateUi64Adapter.Update();
     StateUi32Adapter.Update();
     StateCharAdapter.Update();
 
     if (State == EState::Spilling) {
-        ProcessBucketSpilling();
+        return ProcessBucketSpilling();
     } else if (State == EState::Restoring) {
-        ProcessBucketRestoration();
+        return ProcessBucketRestoration();
+    } else {
+        return true;
     }
 }
 
@@ -1296,7 +1302,7 @@ void TTableBucketSpiller::Finalize() {
     IsFinalizing = true;
 }
 
-void TTableBucketSpiller::SpillBucket(TTableBucket&& bucket) {
+bool TTableBucketSpiller::SpillBucket(TTableBucket&& bucket) {
     MKQL_ENSURE(NextVectorToProcess == ENextVectorToProcess::None, "Internal logic error");
     State = EState::Spilling;
     IsBucketOwnedBySpiller = true;
@@ -1304,7 +1310,7 @@ void TTableBucketSpiller::SpillBucket(TTableBucket&& bucket) {
     CurrentBucket = std::move(bucket);
     NextVectorToProcess = ENextVectorToProcess::KeyAndVals;
 
-    ProcessBucketSpilling();
+    return ProcessBucketSpilling();
 }
 
 TTableBucket&& TTableBucketSpiller::ExtractBucket() {
@@ -1328,50 +1334,50 @@ bool TTableBucketSpiller::IsExtractionRequired() const {
     return IsBucketOwnedBySpiller;
 }
 
-void TTableBucketSpiller::StartBucketRestoration() {
+bool TTableBucketSpiller::StartBucketRestoration() {
     MKQL_ENSURE(State == EState::Restoring, std::format("STATE: {}\n", (int)State));
-    if (NextVectorToProcess != ENextVectorToProcess::None) return;
+    if (NextVectorToProcess != ENextVectorToProcess::None) return false;
     MKQL_ENSURE(NextVectorToProcess == ENextVectorToProcess::None, std::format("NEXT VECTOR: {}\n", (int)NextVectorToProcess));
 
     NextVectorToProcess = ENextVectorToProcess::KeyAndVals;
-    ProcessBucketRestoration();
+    return ProcessBucketRestoration();
 }
 
-void TTableBucketSpiller::ProcessBucketSpilling() {
+bool TTableBucketSpiller::ProcessBucketSpilling() {
     while (NextVectorToProcess != ENextVectorToProcess::None) {
         switch (NextVectorToProcess) {
             case ENextVectorToProcess::KeyAndVals:
-                if (StateUi64Adapter.HasRunningAsyncIoOperation() || !StateUi64Adapter.IsAcceptingData()) return;
+                if (StateUi64Adapter.HasRunningAsyncIoOperation() || !StateUi64Adapter.IsAcceptingData()) return false;
 
                 StateUi64Adapter.AddData(std::move(CurrentBucket.KeyIntVals));
                 NextVectorToProcess = ENextVectorToProcess::DataIntVals;
                 break;
             case ENextVectorToProcess::DataIntVals:
-                if (StateUi64Adapter.HasRunningAsyncIoOperation() || !StateUi64Adapter.IsAcceptingData()) return;
+                if (StateUi64Adapter.HasRunningAsyncIoOperation() || !StateUi64Adapter.IsAcceptingData()) return false;
 
                 StateUi64Adapter.AddData(std::move(CurrentBucket.DataIntVals));
                 NextVectorToProcess = ENextVectorToProcess::StringsValues;
                 break;
             case ENextVectorToProcess::StringsValues:
-                if (StateCharAdapter.HasRunningAsyncIoOperation() || !StateCharAdapter.IsAcceptingData()) return;
+                if (StateCharAdapter.HasRunningAsyncIoOperation() || !StateCharAdapter.IsAcceptingData()) return false;
 
                 StateCharAdapter.AddData(std::move(CurrentBucket.StringsValues));
                 NextVectorToProcess = ENextVectorToProcess::StringsOffsets;
                 break;
             case ENextVectorToProcess::StringsOffsets:
-                if (StateUi32Adapter.HasRunningAsyncIoOperation() || !StateUi32Adapter.IsAcceptingData()) return;
+                if (StateUi32Adapter.HasRunningAsyncIoOperation() || !StateUi32Adapter.IsAcceptingData()) return false;
 
                 StateUi32Adapter.AddData(std::move(CurrentBucket.StringsOffsets));
                 NextVectorToProcess = ENextVectorToProcess::InterfaceValues;
                 break;
             case ENextVectorToProcess::InterfaceValues:
-                if (StateCharAdapter.HasRunningAsyncIoOperation() || !StateCharAdapter.IsAcceptingData()) return;
+                if (StateCharAdapter.HasRunningAsyncIoOperation() || !StateCharAdapter.IsAcceptingData()) return false;
 
                 StateCharAdapter.AddData(std::move(CurrentBucket.InterfaceValues));
                 NextVectorToProcess = ENextVectorToProcess::InterfaceOffsets;
                 break;
             case ENextVectorToProcess::InterfaceOffsets:
-                if (StateUi32Adapter.HasRunningAsyncIoOperation() || !StateUi32Adapter.IsAcceptingData()) return;
+                if (StateUi32Adapter.HasRunningAsyncIoOperation() || !StateUi32Adapter.IsAcceptingData()) return false;
 
                 StateUi32Adapter.AddData(std::move(CurrentBucket.InterfaceOffsets));
                 NextVectorToProcess = ENextVectorToProcess::None;
@@ -1379,7 +1385,8 @@ void TTableBucketSpiller::ProcessBucketSpilling() {
 
                 break;
             default:
-                return;
+                Y_ENSURE(false, "Impossible state");
+                return true;
         }
     }
     if (!HasRunningAsyncIoOperation() && IsFinalizing) {
@@ -1392,6 +1399,7 @@ void TTableBucketSpiller::ProcessBucketSpilling() {
             State = EState::Restoring;
         }
     }
+    return true;
 }
 
 template <class T>
@@ -1404,65 +1412,65 @@ void TTableBucketSpiller::AppendVector(std::vector<T, TMKQLAllocator<T>>& first,
     second.clear();
 }
 
-void TTableBucketSpiller::ProcessBucketRestoration() {
+bool TTableBucketSpiller::ProcessBucketRestoration() {
     while (NextVectorToProcess != ENextVectorToProcess::None) {
         switch (NextVectorToProcess) {
             case ENextVectorToProcess::KeyAndVals:
-                if (StateUi64Adapter.HasRunningAsyncIoOperation()) return;
+                if (StateUi64Adapter.HasRunningAsyncIoOperation()) return false;
 
                 if (!StateUi64Adapter.IsDataReady()) {
                     StateUi64Adapter.RequestNextVector();
-                    if (StateUi64Adapter.HasRunningAsyncIoOperation()) return;
+                    if (StateUi64Adapter.HasRunningAsyncIoOperation()) return false;
                 }
                 AppendVector(CurrentBucket.KeyIntVals, StateUi64Adapter.ExtractVector());
                 NextVectorToProcess = ENextVectorToProcess::DataIntVals;
                 break;
             case ENextVectorToProcess::DataIntVals:
-                if (StateUi64Adapter.HasRunningAsyncIoOperation()) return;
+                if (StateUi64Adapter.HasRunningAsyncIoOperation()) return false;
 
                 if (!StateUi64Adapter.IsDataReady()) {
                     StateUi64Adapter.RequestNextVector();
-                    if (StateUi64Adapter.HasRunningAsyncIoOperation()) return;
+                    if (StateUi64Adapter.HasRunningAsyncIoOperation()) return false;
                 }
                 AppendVector(CurrentBucket.DataIntVals, StateUi64Adapter.ExtractVector());
                 NextVectorToProcess = ENextVectorToProcess::StringsValues;
                 break;
             case ENextVectorToProcess::StringsValues:
-                if (StateCharAdapter.HasRunningAsyncIoOperation()) return;
+                if (StateCharAdapter.HasRunningAsyncIoOperation()) return false;
 
                 if (!StateCharAdapter.IsDataReady()) {
                     StateCharAdapter.RequestNextVector();
-                    if (StateCharAdapter.HasRunningAsyncIoOperation()) return;
+                    if (StateCharAdapter.HasRunningAsyncIoOperation()) return false;
                 }
                 AppendVector(CurrentBucket.StringsValues, StateCharAdapter.ExtractVector());
                 NextVectorToProcess = ENextVectorToProcess::StringsOffsets;
                 break;
             case ENextVectorToProcess::StringsOffsets:
-                if (StateUi32Adapter.HasRunningAsyncIoOperation()) return;
+                if (StateUi32Adapter.HasRunningAsyncIoOperation()) return false;
 
                 if (!StateUi32Adapter.IsDataReady()) {
                     StateUi32Adapter.RequestNextVector();
-                    if (StateUi32Adapter.HasRunningAsyncIoOperation()) return;
+                    if (StateUi32Adapter.HasRunningAsyncIoOperation()) return false;
                 }
                 AppendVector(CurrentBucket.StringsOffsets, StateUi32Adapter.ExtractVector());
                 NextVectorToProcess = ENextVectorToProcess::InterfaceValues;
                 break;
             case ENextVectorToProcess::InterfaceValues:
-                if (StateCharAdapter.HasRunningAsyncIoOperation()) return;
+                if (StateCharAdapter.HasRunningAsyncIoOperation()) return false;
 
                 if (!StateCharAdapter.IsDataReady()) {
                     StateCharAdapter.RequestNextVector();
-                    if (StateCharAdapter.HasRunningAsyncIoOperation()) return;
+                    if (StateCharAdapter.HasRunningAsyncIoOperation()) return false;
                 }
                 AppendVector(CurrentBucket.InterfaceValues, StateCharAdapter.ExtractVector());
                 NextVectorToProcess = ENextVectorToProcess::InterfaceOffsets;
                 break;
             case ENextVectorToProcess::InterfaceOffsets:
-                if (StateUi32Adapter.HasRunningAsyncIoOperation()) return;
+                if (StateUi32Adapter.HasRunningAsyncIoOperation()) return false;
 
                 if (!StateUi32Adapter.IsDataReady()) {
                     StateUi32Adapter.RequestNextVector();
-                    if (StateUi32Adapter.HasRunningAsyncIoOperation()) return;
+                    if (StateUi32Adapter.HasRunningAsyncIoOperation()) return false;
                 }
                 AppendVector(CurrentBucket.InterfaceOffsets, StateUi32Adapter.ExtractVector());
                 SpilledBucketsCount--;
@@ -1474,10 +1482,12 @@ void TTableBucketSpiller::ProcessBucketRestoration() {
                 }
                 break;
             default:
-                return;
+                Y_ENSURE(false, "Impossible state");
+                return true;
 
         }
     }
+    return true;
 }
 
 }

@@ -103,14 +103,14 @@ public:
     TTableBucketSpiller(ISpiller::TPtr spiller, size_t sizeLimit);
 
     // Takes the bucket and immediately starts spilling. Spilling continues until an async operation occurs.
-    void SpillBucket(TTableBucket&& bucket);
+    bool SpillBucket(TTableBucket&& bucket);
     // Starts bucket restoration after spilling. Restores and unites all the buckets from different iterations. Will pause in case of async operation.
-    void StartBucketRestoration();
+    bool StartBucketRestoration();
     // Extracts bucket restored from spilling. This bucket will contain all the data from different iterations of spilling.
     TTableBucket&& ExtractBucket();
 
     // Updates the states of spillers. This update should be called after async operation completion to resume spilling/resoration.
-    void Update();
+    bool Update();
     // Flushes all the data from inner spillers. Should be called when no more data is expected for spilling.
     void Finalize();
     // Checks if spillers are waiting for any running async operation. No calls other than update are allowed when the method returns true.
@@ -124,10 +124,10 @@ public:
     }
 
 private:
-    void ProcessBucketSpilling();
+    bool ProcessBucketSpilling();
     template <class T>
     void AppendVector(std::vector<T, TMKQLAllocator<T>>& first, std::vector<T, TMKQLAllocator<T>>&& second) const;
-    void ProcessBucketRestoration();
+    bool ProcessBucketRestoration();
 
 private:
     enum class EState {
@@ -281,10 +281,12 @@ public:
     bool TryToReduceMemoryAndWait();
 
     // Update state of spilling. Must be called during each DoCalculate.
-    void UpdateSpilling();
+    // Return false if retry with Yield required
+    bool UpdateSpilling();
 
     // Flushes all the spillers.
-    void FinalizeSpilling();
+    // Return false if retry with Yield required
+    bool FinalizeSpilling();
 
     // Checks if there any async operation running. If return value is true it's safe to return Yield.
     bool HasRunningAsyncIoOperation() const;
@@ -295,7 +297,7 @@ public:
     bool IsBucketInMemory(ui32 bucket) const;
 
     // Starts loading spilled bucket to memory.
-    void StartLoadingBucket(ui32 bucket);
+    bool StartLoadingBucket(ui32 bucket);
 
     // Prepares bucket for joining after spilling and restoring back.
     void PrepareBucket(ui64 bucket);

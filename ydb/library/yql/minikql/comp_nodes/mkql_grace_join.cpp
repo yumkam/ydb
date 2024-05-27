@@ -818,9 +818,11 @@ private:
         return isWaitingLeftForReduce || isWaitingRightForReduce;
     }
 
-    void UpdateSpilling() {
-        LeftPacker->TablePtr->UpdateSpilling();
-        RightPacker->TablePtr->UpdateSpilling();
+    bool UpdateSpilling() {
+        bool ok = true;
+        ok &= LeftPacker->TablePtr->UpdateSpilling();
+        ok &= RightPacker->TablePtr->UpdateSpilling();
+        return ok;
     }
 
     bool HasRunningAsyncOperation() const {
@@ -851,14 +853,14 @@ void DoCalculateWithSpilling(TComputationContext& ctx) {
     }
 
     if (!*HaveMoreLeftRows && !*HaveMoreRightRows) {
-        UpdateSpilling();
-        if (HasRunningAsyncOperation() || !IsProcessingFinished()) return;
+        if (!UpdateSpilling() || HasRunningAsyncOperation() || !IsProcessingFinished()) return;
         if (!IsSpillingFinalized) {
-            LeftPacker->TablePtr->FinalizeSpilling();
-            RightPacker->TablePtr->FinalizeSpilling();
+            bool ok = true;
+            ok &= LeftPacker->TablePtr->FinalizeSpilling();
+            ok &= RightPacker->TablePtr->FinalizeSpilling();
             IsSpillingFinalized = true;
 
-            if (HasRunningAsyncOperation()) return;
+            if (!ok) return;
         }
         YQL_LOG(INFO) << "switching to ProcessSpilled";
         SwitchMode(EOperatingMode::ProcessSpilled, ctx);
@@ -868,17 +870,17 @@ void DoCalculateWithSpilling(TComputationContext& ctx) {
 
 EFetchResult ProcessSpilledData(TComputationContext&, NUdf::TUnboxedValue*const* output) {
     while (NextBucketToJoin != GraceJoin::NumberOfBuckets) {
-        UpdateSpilling();
+        if (!UpdateSpilling() || HasRunningAsyncOperation()) return EFetchResult::Yield;
 
-        if (HasRunningAsyncOperation()) return EFetchResult::Yield;
-
+        bool ok = true;
         if (!LeftPacker->TablePtr->IsBucketInMemory(NextBucketToJoin)) {
-            LeftPacker->TablePtr->StartLoadingBucket(NextBucketToJoin);
+            ok &= LeftPacker->TablePtr->StartLoadingBucket(NextBucketToJoin);
         }
 
         if (!RightPacker->TablePtr->IsBucketInMemory(NextBucketToJoin)) {
-            RightPacker->TablePtr->StartLoadingBucket(NextBucketToJoin);
+            ok &= RightPacker->TablePtr->StartLoadingBucket(NextBucketToJoin);
         } 
+        if (!ok) return EFetchResult::Yield;
 
         if (LeftPacker->TablePtr->IsBucketInMemory(NextBucketToJoin) && RightPacker->TablePtr->IsBucketInMemory(NextBucketToJoin)) {
             if (*PartialJoinCompleted) {
