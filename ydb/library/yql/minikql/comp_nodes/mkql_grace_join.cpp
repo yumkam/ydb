@@ -636,7 +636,6 @@ private:
         return !HasMemoryForProcessing();
     }
 
-
     void SwitchMode(EOperatingMode mode, TComputationContext& ctx) {
         switch(mode) {
             case EOperatingMode::InMemory: {
@@ -822,8 +821,17 @@ private:
         RightPacker->TablePtr->UpdateSpilling();
     }
 
-    bool HasRunningAsyncOperation() const {
-        return LeftPacker->TablePtr->HasRunningAsyncIoOperation() || RightPacker->TablePtr->HasRunningAsyncIoOperation();
+
+    bool IsSpillingFinished() const {
+        return LeftPacker->TablePtr->IsSpillingFinished() && RightPacker->TablePtr->IsSpillingFinished();
+    }
+
+    bool IsReadyForSpilledDataProcessing() const {
+        return LeftPacker->TablePtr->IsSpillingAcceptingDataRequests() && RightPacker->TablePtr->IsSpillingAcceptingDataRequests();
+    }
+
+    bool IsRestoringSpilledBuckets() const {
+        return LeftPacker->TablePtr->IsRestoringSpilledBuckets() && RightPacker->TablePtr->IsRestoringSpilledBuckets();
     }
 
     bool IsProcessingFinished() {
@@ -850,16 +858,19 @@ void DoCalculateWithSpilling(TComputationContext& ctx) {
     }
 
     if (!*HaveMoreLeftRows && !*HaveMoreRightRows) {
-        UpdateSpilling();
-        if (HasRunningAsyncOperation() || !IsProcessingFinished()) return;
+        std::cerr << "[MISHA] everything fetched\n";
+        if (!IsSpillingFinished()) return;
         if (!IsSpillingFinalized) {
             LeftPacker->TablePtr->FinalizeSpilling();
             RightPacker->TablePtr->FinalizeSpilling();
             IsSpillingFinalized = true;
 
-            if (HasRunningAsyncOperation()) return;
+            UpdateSpilling();
         }
-        YQL_LOG(INFO) << "switching to ProcessSpilled";
+        if (!IsReadyForSpilledDataProcessing()) return;
+
+        LeftPacker->TablePtr->PrintSpillersState("LEFT");
+        RightPacker->TablePtr->PrintSpillersState("RIGHT");
         SwitchMode(EOperatingMode::ProcessSpilled, ctx);
         return;
     }
@@ -868,14 +879,25 @@ void DoCalculateWithSpilling(TComputationContext& ctx) {
 EFetchResult ProcessSpilledData(TComputationContext&, NUdf::TUnboxedValue*const* output) {
     while (NextBucketToJoin != GraceJoin::NumberOfBuckets) {
         UpdateSpilling();
+        if (IsRestoringSpilledBuckets()) return EFetchResult::Yield;
 
-        if (HasRunningAsyncOperation()) return EFetchResult::Yield;
+        if (LeftPacker->TablePtr->IsSpilledBucketWaitingForExtraction(NextBucketToJoin)) {
+            std::cerr << std::format("[MISHA][LEFT] extracting bucket {}\n", NextBucketToJoin);
+            LeftPacker->TablePtr->PrepareBucket(NextBucketToJoin);
+        }
+
+        if (RightPacker->TablePtr->IsSpilledBucketWaitingForExtraction(NextBucketToJoin)) {
+            std::cerr << std::format("[MISHA][RIGHT] extracting bucket {}\n", NextBucketToJoin);
+            RightPacker->TablePtr->PrepareBucket(NextBucketToJoin);
+        } 
 
         if (!LeftPacker->TablePtr->IsBucketInMemory(NextBucketToJoin)) {
+            std::cerr << std::format("[MISHA][LEFT] restoring bucket {}\n", NextBucketToJoin);
             LeftPacker->TablePtr->StartLoadingBucket(NextBucketToJoin);
         }
 
         if (!RightPacker->TablePtr->IsBucketInMemory(NextBucketToJoin)) {
+            std::cerr << std::format("[MISHA][RIGHT] restoring bucket {}\n", NextBucketToJoin);
             RightPacker->TablePtr->StartLoadingBucket(NextBucketToJoin);
         } 
 
@@ -897,8 +919,6 @@ EFetchResult ProcessSpilledData(TComputationContext&, NUdf::TUnboxedValue*const*
                 *PartialJoinCompleted = false;
                 NextBucketToJoin++;
             } else {
-                LeftPacker->TablePtr->PrepareBucket(NextBucketToJoin);
-                RightPacker->TablePtr->PrepareBucket(NextBucketToJoin);
                 *PartialJoinCompleted = true;
                 LeftPacker->StartTime = std::chrono::system_clock::now();
                 RightPacker->StartTime = std::chrono::system_clock::now();
