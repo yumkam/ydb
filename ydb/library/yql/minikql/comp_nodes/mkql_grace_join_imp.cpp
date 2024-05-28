@@ -155,21 +155,21 @@ void TTable::ResetIterator() {
 }
 
 // Checks if there are more tuples and sets bucketId and tupleId to next valid.
-inline bool HasMoreTuples(std::vector<TTableBucketStats> & tableBucketsStats, ui64 & bucketId, ui64 & tupleId ) {
+inline bool HasMoreTuples(std::vector<TTableBucketStats> & tableBucketsStats, ui64 & bucketId, ui64 & tupleId, ui64 bucketLimit ) {
 
-    if (bucketId >= tableBucketsStats.size()) return false;
+    if (bucketId >= bucketLimit) return false;
 
     if ( tupleId >= tableBucketsStats[bucketId].TuplesNum ) {
         tupleId = 0;
         bucketId ++;
 
-        if (bucketId == tableBucketsStats.size()) {
+        if (bucketId == bucketLimit) {
             return false;
         }
 
         while( tableBucketsStats[bucketId].TuplesNum == 0 ) {
            bucketId ++;
-            if (bucketId == tableBucketsStats.size()) {
+            if (bucketId == bucketLimit) {
                 return false;
             }
         }
@@ -182,7 +182,7 @@ inline bool HasMoreTuples(std::vector<TTableBucketStats> & tableBucketsStats, ui
 
 // Returns value of next tuple. Returs true if there are more tuples
 bool TTable::NextTuple(TupleData & td){
-    if (HasMoreTuples(TableBucketsStats, CurrIterBucket, CurrIterIndex )) {
+    if (HasMoreTuples(TableBucketsStats, CurrIterBucket, CurrIterIndex, TableBucketsStats.size())) {
         GetTupleData(CurrIterBucket, CurrIterIndex, td);
         CurrIterIndex++;
         return true;
@@ -773,15 +773,15 @@ inline bool HasRightIdMatch(ui64 currId, ui64 & rightIdIter, const std::vector<u
 }
 
 
-bool TTable::NextJoinedData( TupleData & td1, TupleData & td2) {
+bool TTable::NextJoinedData( TupleData & td1, TupleData & td2, ui64 bucketLimit) {
 
     if (JoinKind == EJoinKind::Cross) {
 
-        if (HasMoreTuples(JoinTable1->TableBucketsStats, JoinTable1->CurrIterBucket, JoinTable1->CurrIterIndex))
+        if (HasMoreTuples(JoinTable1->TableBucketsStats, JoinTable1->CurrIterBucket, JoinTable1->CurrIterIndex, bucketLimit))
         {
             JoinTable1->GetTupleData(JoinTable1->CurrIterBucket, JoinTable1->CurrIterIndex, td1);
 
-            if (HasMoreTuples(JoinTable2->TableBucketsStats, JoinTable2->CurrIterBucket, JoinTable2->CurrIterIndex))
+            if (HasMoreTuples(JoinTable2->TableBucketsStats, JoinTable2->CurrIterBucket, JoinTable2->CurrIterIndex, bucketLimit))
             {
                 JoinTable2->GetTupleData(JoinTable2->CurrIterBucket, JoinTable2->CurrIterIndex, td2);
                 JoinTable2->CurrIterIndex++;
@@ -792,7 +792,7 @@ bool TTable::NextJoinedData( TupleData & td1, TupleData & td2) {
                 JoinTable2->CurrIterBucket = 0;
                 JoinTable2->CurrIterIndex = 0;
                 JoinTable1->CurrIterIndex++;
-                return NextJoinedData(td1, td2);
+                return NextJoinedData(td1, td2, bucketLimit);
             }
         }
         else
@@ -800,7 +800,7 @@ bool TTable::NextJoinedData( TupleData & td1, TupleData & td2) {
     }
 
     if ( JoinKind == EJoinKind::Inner ) {
-        while(HasMoreTuples(JoinTable1->TableBucketsStats, JoinTable1->CurrIterBucket, JoinTable1->CurrIterIndex)) {
+        while(HasMoreTuples(JoinTable1->TableBucketsStats, JoinTable1->CurrIterBucket, JoinTable1->CurrIterIndex, bucketLimit)) {
             ui32 tupleId2;
             if (HasJoinedTupleId(JoinTable1, tupleId2))
             {
@@ -816,7 +816,7 @@ bool TTable::NextJoinedData( TupleData & td1, TupleData & td2) {
     }
 
     if ( JoinKind == EJoinKind::Left ) {
-        while (HasMoreTuples(JoinTable1->TableBucketsStats, JoinTable1->CurrIterBucket, JoinTable1->CurrIterIndex)) {
+        while (HasMoreTuples(JoinTable1->TableBucketsStats, JoinTable1->CurrIterBucket, JoinTable1->CurrIterIndex, bucketLimit)) {
             ui32 tupleId2;
             if (HasJoinedTupleId(JoinTable1, tupleId2))
             {
@@ -851,7 +851,7 @@ bool TTable::NextJoinedData( TupleData & td1, TupleData & td2) {
     }
 
     if (  JoinKind == EJoinKind::Right ) {
-        while(HasMoreTuples(JoinTable1->TableBucketsStats, JoinTable1->CurrIterBucket, JoinTable1->CurrIterIndex)) {
+        while(HasMoreTuples(JoinTable1->TableBucketsStats, JoinTable1->CurrIterBucket, JoinTable1->CurrIterIndex, bucketLimit)) {
             ui32 tupleId2;
             if (HasJoinedTupleId(JoinTable1, tupleId2))
             {
@@ -892,7 +892,7 @@ bool TTable::NextJoinedData( TupleData & td1, TupleData & td2) {
         if ( RightTableBatch_ && HasMoreRightTuples_ )
             return false;
 
-        while(HasMoreTuples(JoinTable1->TableBucketsStats, JoinTable1->CurrIterBucket, JoinTable1->CurrIterIndex)) {
+        while(HasMoreTuples(JoinTable1->TableBucketsStats, JoinTable1->CurrIterBucket, JoinTable1->CurrIterIndex, bucketLimit)) {
             ui32 tupleId2;
 
             bool globalMatchedId = false;
@@ -923,7 +923,7 @@ bool TTable::NextJoinedData( TupleData & td1, TupleData & td2) {
         if (LeftTableBatch_ && HasMoreLeftTuples_ )
             return false;
 
-        while(HasMoreTuples(JoinTable1->TableBucketsStats, JoinTable1->CurrIterBucket, JoinTable1->CurrIterIndex)) {
+        while(HasMoreTuples(JoinTable1->TableBucketsStats, JoinTable1->CurrIterBucket, JoinTable1->CurrIterIndex, bucketLimit)) {
             ui32 tupleId2;
 
             bool globalMatchedId = false;
@@ -955,7 +955,7 @@ bool TTable::NextJoinedData( TupleData & td1, TupleData & td2) {
         if (RightTableBatch_ && HasMoreRightTuples_ )
             return false;
 
-        while(HasMoreTuples(JoinTable1->TableBucketsStats, JoinTable1->CurrIterBucket, JoinTable1->CurrIterIndex)) {
+        while(HasMoreTuples(JoinTable1->TableBucketsStats, JoinTable1->CurrIterBucket, JoinTable1->CurrIterIndex, bucketLimit)) {
             ui32 tupleId2;
 
             if ( !RightTableBatch_  && HasJoinedTupleId(JoinTable1, tupleId2))
@@ -989,7 +989,7 @@ bool TTable::NextJoinedData( TupleData & td1, TupleData & td2) {
         if (LeftTableBatch_ && HasMoreLeftTuples_ )
             return false;
 
-        while(HasMoreTuples(JoinTable1->TableBucketsStats, JoinTable1->CurrIterBucket, JoinTable1->CurrIterIndex)) {
+        while(HasMoreTuples(JoinTable1->TableBucketsStats, JoinTable1->CurrIterBucket, JoinTable1->CurrIterIndex, bucketLimit)) {
             ui32 tupleId2;
             if ( !LeftTableBatch_ && HasJoinedTupleId(JoinTable1, tupleId2))
             {
@@ -1016,7 +1016,7 @@ bool TTable::NextJoinedData( TupleData & td1, TupleData & td2) {
     }
 
     if ( JoinKind == EJoinKind::Full ) {
-        if(HasMoreTuples(JoinTable1->TableBucketsStats, JoinTable1->CurrIterBucket, JoinTable1->CurrIterIndex)) {
+        if(HasMoreTuples(JoinTable1->TableBucketsStats, JoinTable1->CurrIterBucket, JoinTable1->CurrIterIndex, bucketLimit)) {
             ui32 tupleId2;
             if (HasJoinedTupleId(JoinTable1, tupleId2))
             {
@@ -1042,7 +1042,7 @@ bool TTable::NextJoinedData( TupleData & td1, TupleData & td2) {
             Table2Initialized_ = true;
         }
 
-        while (HasMoreTuples(JoinTable2->TableBucketsStats, JoinTable2->CurrIterBucket, JoinTable2->CurrIterIndex)) {
+        while (HasMoreTuples(JoinTable2->TableBucketsStats, JoinTable2->CurrIterBucket, JoinTable2->CurrIterIndex, bucketLimit)) {
 
             if (CurrIterBucket != JoinTable2->CurrIterBucket) {
                 CurrIterBucket = JoinTable2->CurrIterBucket;
@@ -1066,7 +1066,7 @@ bool TTable::NextJoinedData( TupleData & td1, TupleData & td2) {
     }
 
     if ( JoinKind == EJoinKind::Exclusion ) {
-        while (HasMoreTuples(JoinTable1->TableBucketsStats, JoinTable1->CurrIterBucket, JoinTable1->CurrIterIndex)) {
+        while (HasMoreTuples(JoinTable1->TableBucketsStats, JoinTable1->CurrIterBucket, JoinTable1->CurrIterIndex, bucketLimit)) {
             ui32 tupleId2;
             if (HasJoinedTupleId(JoinTable1, tupleId2))
             {
@@ -1084,7 +1084,7 @@ bool TTable::NextJoinedData( TupleData & td1, TupleData & td2) {
 
         td1.AllNulls = true;
 
-        while (HasMoreTuples(JoinTable2->TableBucketsStats, JoinTable2->CurrIterBucket, JoinTable2->CurrIterIndex)) {
+        while (HasMoreTuples(JoinTable2->TableBucketsStats, JoinTable2->CurrIterBucket, JoinTable2->CurrIterIndex, bucketLimit)) {
 
             if (CurrIterBucket != JoinTable2->CurrIterBucket) {
                 CurrIterBucket = JoinTable2->CurrIterBucket;
