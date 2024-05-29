@@ -834,13 +834,7 @@ void DoCalculateWithSpilling(TComputationContext& ctx) {
     UpdateSpilling();
 
     if (!HasMemoryForProcessing()) {
-        const auto used = TlsAllocState->GetUsed();
-        const auto limit = TlsAllocState->GetLimit();
-
-        YQL_LOG(INFO) << "yellow zone reached " << (used*100/limit) << "%=" << used << "/" << limit;
-
         bool isWaitingForReduce = TryToReduceMemoryAndWait();
-        YQL_LOG(INFO) << "Spilling mode isWaitingForReduce=" << isWaitingForReduce;
         if (isWaitingForReduce) return;
     }
 

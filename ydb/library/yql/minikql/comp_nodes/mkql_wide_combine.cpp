@@ -520,14 +520,7 @@ private:
         UpdateSpillingBuckets();
 
         if (!HasMemoryForProcessing()) {
-            const auto used = TlsAllocState->GetUsed();
-            const auto limit = TlsAllocState->GetLimit();
-
-            YQL_LOG(INFO) << "yellow zone reached " << (used*100/limit) << "%=" << used << "/" << limit;
-
             bool isWaitingForReduce = TryToReduceMemory();
-            YQL_LOG(INFO) << " isWaitingForReduce=" << isWaitingForReduce;
-
             if (isWaitingForReduce) return;
         }
 
