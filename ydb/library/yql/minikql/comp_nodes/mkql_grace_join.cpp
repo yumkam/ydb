@@ -637,6 +637,7 @@ private:
     }
 
     void SwitchMode(EOperatingMode mode, TComputationContext& ctx) {
+        std::cerr << std::format("[MISHA] changing state {} -> {}\n", (int)Mode, (int)mode);
         switch(mode) {
             case EOperatingMode::InMemory: {
                 MKQL_ENSURE(false, "Internal logic error");
@@ -831,7 +832,7 @@ private:
     }
 
     bool IsRestoringSpilledBuckets() const {
-        return LeftPacker->TablePtr->IsRestoringSpilledBuckets() && RightPacker->TablePtr->IsRestoringSpilledBuckets();
+        return LeftPacker->TablePtr->IsRestoringSpilledBuckets() || RightPacker->TablePtr->IsRestoringSpilledBuckets();
     }
 
 void DoCalculateWithSpilling(TComputationContext& ctx) {
