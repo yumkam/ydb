@@ -900,8 +900,9 @@ EFetchResult ProcessSpilledData(TComputationContext&, NUdf::TUnboxedValue*const*
 
         if (LeftPacker->TablePtr->IsBucketInMemory(NextBucketToJoin) && RightPacker->TablePtr->IsBucketInMemory(NextBucketToJoin)) {
             if (*PartialJoinCompleted) {
-                while (JoinedTablePtr->NextJoinedData(LeftPacker->JoinTupleData, RightPacker->JoinTupleData, NextBucketToJoin + 1)) {
+                while (JoinedTablePtr->NextJoinedData(LeftPacker->JoinTupleData, RightPacker->JoinTupleData)) {
                     UnpackJoinedData(output);
+
                     return EFetchResult::One;
                 }
 
@@ -914,6 +915,7 @@ EFetchResult ProcessSpilledData(TComputationContext&, NUdf::TUnboxedValue*const*
                 JoinedTablePtr->Clear();
                 JoinedTablePtr->ResetIterator();
                 *PartialJoinCompleted = false;
+
                 NextBucketToJoin++;
             } else {
                 *PartialJoinCompleted = true;
