@@ -834,10 +834,6 @@ private:
         return LeftPacker->TablePtr->IsRestoringSpilledBuckets() && RightPacker->TablePtr->IsRestoringSpilledBuckets();
     }
 
-    bool IsProcessingFinished() {
-        return LeftPacker->TablePtr->IsProcessingFinished() || RightPacker->TablePtr->IsProcessingFinished();
-    }
-
 void DoCalculateWithSpilling(TComputationContext& ctx) {
     UpdateSpilling();
 
