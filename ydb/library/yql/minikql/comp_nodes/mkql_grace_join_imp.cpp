@@ -277,6 +277,7 @@ void TTable::Join( TTable & t1, TTable & t2, EJoinKind joinKind, bool hasMoreLef
 
     IsTableJoined = true;
 
+    Y_DEBUG_ABORT_UNLESS(joinKind != EJoinKind::Cross, "Cross Join is expected to be handled elsewhere");
     if (joinKind == EJoinKind::Cross) return;
 
     if ( JoinKind == EJoinKind::Right || JoinKind == EJoinKind::RightOnly || JoinKind == EJoinKind::RightSemi ) {
@@ -769,6 +770,7 @@ inline bool HasRightIdMatch(ui64 currId, ui64 & rightIdIter, const std::vector<u
 
 bool TTable::NextJoinedData( TupleData & td1, TupleData & td2, ui64 bucketLimit) {
 
+    Y_DEBUG_ABORT_UNLESS(JoinKind != EJoinKind::Cross, "Cross Join is expected to be handled elsewhere");
     if (JoinKind == EJoinKind::Cross) {
 
         if (HasMoreTuples(JoinTable1->TableBucketsStats, JoinTable1->CurrIterBucket, JoinTable1->CurrIterIndex, bucketLimit))
