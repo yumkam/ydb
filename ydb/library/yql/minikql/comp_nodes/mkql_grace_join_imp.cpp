@@ -1121,12 +1121,19 @@ void TTable::Clear() {
 
 void TTable::ClearBucket(ui64 bucket) {
     TTableBucket & tb = TableBuckets[bucket];
-    tb.KeyIntVals.clear();
+    std::vector<ui64, TMKQLAllocator<ui64>>().swap(tb.KeyIntVals);
+    std::vector<ui64, TMKQLAllocator<ui64>>().swap(tb.DataIntVals);
+    std::vector<ui32, TMKQLAllocator<ui32>>().swap(tb.StringsOffsets);
+    std::vector<char, TMKQLAllocator<char>>().swap(tb.StringsValues);
+    std::vector<char, TMKQLAllocator<char>>().swap(tb.InterfaceValues);
+    std::vector<ui32, TMKQLAllocator<ui32>>().swap(tb.InterfaceOffsets);
+
+    /* tb.KeyIntVals.clear();
     tb.DataIntVals.clear();
     tb.StringsOffsets.clear();
     tb.StringsValues.clear();
     tb.InterfaceValues.clear();
-    tb.InterfaceOffsets.clear();
+    tb.InterfaceOffsets.clear();*/
     tb.JoinIds.clear();
     tb.RightIds.clear();
 
@@ -1155,8 +1162,10 @@ bool TTable::TryToReduceMemoryAndWait() {
     i32 largestBucketIndex = 0;
     ui64 largestBucketSize = 0;
     for (ui32 bucket = 0; bucket < NumberOfBuckets; ++bucket) {
-        if (TableBucketsSpillers[bucket].IsProcessingSpilling()) return true;
-
+        if (TableBucketsSpillers[bucket].IsProcessingSpilling())  {
+            std::cerr << std::format("[MISHA] NOT spilling because of bucket {}\n", bucket);
+            return true;
+        }
         ui64 bucketSize = GetSizeOfBucket(bucket);
         if (bucketSize > largestBucketSize) {
             largestBucketSize = bucketSize;
@@ -1165,6 +1174,8 @@ bool TTable::TryToReduceMemoryAndWait() {
     }
 
     if (!largestBucketSize) return false;
+    TotalSpilled += largestBucketSize;
+    std::cerr << std::format("[MISHA][{}MB] spilling {} of size {}KB\n", TotalSpilled / 1024 / 1024, largestBucketIndex, largestBucketSize / 1024);
     TableBucketsSpillers[largestBucketIndex].SpillBucket(std::move(TableBuckets[largestBucketIndex]));
     TableBuckets[largestBucketIndex] = TTableBucket{};
 
