@@ -1157,7 +1157,9 @@ bool TTable::TryToReduceMemoryAndWait() {
     ui64 largestBucketSize = 0;
     for (ui32 bucket = 0; bucket < NumberOfBuckets; ++bucket) {
         if (TableBucketsSpillers[bucket].IsProcessingSpilling())  {
+#if 0
             std::cerr << std::format("[MISHA] NOT spilling because of bucket {}\n", bucket);
+#endif
             return true;
         }
         ui64 bucketSize = GetSizeOfBucket(bucket);
@@ -1168,8 +1170,10 @@ bool TTable::TryToReduceMemoryAndWait() {
     }
 
     if (!largestBucketSize) return false;
+#if 0
     TotalSpilled += largestBucketSize;
     std::cerr << std::format("[MISHA][{}MB] spilling {} of size {}KB\n", TotalSpilled / 1024 / 1024, largestBucketIndex, largestBucketSize / 1024);
+#endif
     TableBucketsSpillers[largestBucketIndex].SpillBucket(std::move(TableBuckets[largestBucketIndex]));
     TableBuckets[largestBucketIndex] = TTableBucket{};
 
