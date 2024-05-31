@@ -573,8 +573,7 @@ private:
     EOperatingMode GetMode() const { return Mode; }
 
     bool HasMemoryForProcessing() const {
-        return true;
-        //return !TlsAllocState->IsMemoryYellowZoneEnabled();
+        return !TlsAllocState->IsMemoryYellowZoneEnabled();
     }
 
     bool IsReadFromChannelFinished() const {
