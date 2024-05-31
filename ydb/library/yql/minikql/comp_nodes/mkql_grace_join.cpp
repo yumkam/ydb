@@ -811,10 +811,14 @@ private:
     }
 
     bool TryToReduceMemoryAndWait() {
+#if 0
         std::cerr << std::format("[MISHA][LEFT] Trying to reduce memory {}MB/{}MB\n", TlsAllocState->GetAllocated() / 1024 / 1024, TlsAllocState->GetLimit() / 1024 / 1024);
+#endif
         bool isWaitingLeftForReduce = LeftPacker->TablePtr->TryToReduceMemoryAndWait();
         if (isWaitingLeftForReduce) return true;
+#if 0
         std::cerr << std::format("[MISHA][RIGHT] Trying to reduce memory {}MB/{}MB\n", TlsAllocState->GetAllocated() / 1024 / 1024, TlsAllocState->GetLimit() / 1024 / 1024);
+#endif
         bool isWaitingRightForReduce = RightPacker->TablePtr->TryToReduceMemoryAndWait();
 
         return isWaitingLeftForReduce || isWaitingRightForReduce;
@@ -904,7 +908,9 @@ EFetchResult ProcessSpilledData(TComputationContext&, NUdf::TUnboxedValue*const*
                     return EFetchResult::One;
                 }
 
+#if 0
                 std::cerr << std::format("[MISHA] Bucket {} joined {}MB/{}MB\n", NextBucketToJoin, TlsAllocState->GetAllocated() / 1024 / 1024, TlsAllocState->GetLimit() / 1024 / 1024);
+#endif
 
                 LeftPacker->TuplesBatchPacked = 0;
                 LeftPacker->TablePtr->ClearBucket(NextBucketToJoin); // Clear content of returned bucket
