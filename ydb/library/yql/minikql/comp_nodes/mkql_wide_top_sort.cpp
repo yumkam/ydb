@@ -547,7 +547,6 @@ private:
 
     bool HasMemoryForProcessing() const {
         return !TlsAllocState->IsMemoryYellowZoneEnabled();
-        // return false;
     }
 
     bool IsReadFromChannelFinished() const {
@@ -634,9 +633,9 @@ private:
 
 #ifndef MKQL_DISABLE_CODEGEN
 template <bool Sort, bool HasCount>
-class TLLVMFieldsStructureState: public TLLVMFieldsStructure<TComputationValue<TSpillingSupportState<Sort, HasCount>>> {
+class TLLVMFieldsStructureState: public TLLVMFieldsStructure<TComputationValue<TState<Sort, HasCount>>> {
 private:
-    using TBase = TLLVMFieldsStructure<TComputationValue<TSpillingSupportState<Sort, HasCount>>>;
+    using TBase = TLLVMFieldsStructure<TComputationValue<TState<Sort, HasCount>>>;
     llvm::IntegerType* ValueType;
     llvm::PointerType* PtrValueType;
     llvm::IntegerType* StatusType;
@@ -843,7 +842,7 @@ public:
             block = rest;
 
             new StoreInst(ConstantInt::get(last->getType(), static_cast<i32>(EFetchResult::Finish)), statusPtr, block);
-            const auto sealFunc = ConstantInt::get(Type::getInt64Ty(context), GetMethodPtr(&TSpillingSupportState<Sort, HasCount>::Seal));
+            const auto sealFunc = ConstantInt::get(Type::getInt64Ty(context), GetMethodPtr(&TState<Sort, HasCount>::Seal));
             const auto sealType = FunctionType::get(Type::getVoidTy(context), {stateArg->getType()}, false);
             const auto sealPtr = CastInst::Create(Instruction::IntToPtr, sealFunc, PointerType::getUnqual(sealType), "seal", block);
             CallInst::Create(sealType, sealPtr, {stateArg}, "", block);
@@ -874,7 +873,7 @@ public:
             }
 
 
-            const auto pushFunc = ConstantInt::get(Type::getInt64Ty(context), GetMethodPtr(&TSpillingSupportState<Sort, HasCount>::Put));
+            const auto pushFunc = ConstantInt::get(Type::getInt64Ty(context), GetMethodPtr(&TState<Sort, HasCount>::Put));
             const auto pushType = FunctionType::get(Type::getInt1Ty(context), {stateArg->getType()}, false);
             const auto pushPtr = CastInst::Create(Instruction::IntToPtr, pushFunc, PointerType::getUnqual(pushType), "function", block);
             const auto accepted = CallInst::Create(pushType, pushPtr, {stateArg}, "accepted", block);
@@ -914,7 +913,7 @@ public:
 
             const auto good = BasicBlock::Create(context, "good", ctx.Func);
 
-            const auto extractFunc = ConstantInt::get(Type::getInt64Ty(context), GetMethodPtr(&TSpillingSupportState<Sort, HasCount>::Extract));
+            const auto extractFunc = ConstantInt::get(Type::getInt64Ty(context), GetMethodPtr(&TState<Sort, HasCount>::Extract));
             const auto extractType = FunctionType::get(outputPtrType, {stateArg->getType()}, false);
             const auto extractPtr = CastInst::Create(Instruction::IntToPtr, extractFunc, PointerType::getUnqual(extractType), "extract", block);
             const auto out = CallInst::Create(extractType, extractPtr, {stateArg}, "out", block);
