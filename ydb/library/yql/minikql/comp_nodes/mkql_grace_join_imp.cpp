@@ -1115,19 +1115,12 @@ void TTable::Clear() {
 
 void TTable::ClearBucket(ui64 bucket) {
     TTableBucket & tb = TableBuckets[bucket];
-    std::vector<ui64, TMKQLAllocator<ui64>>().swap(tb.KeyIntVals);
-    std::vector<ui64, TMKQLAllocator<ui64>>().swap(tb.DataIntVals);
-    std::vector<ui32, TMKQLAllocator<ui32>>().swap(tb.StringsOffsets);
-    std::vector<char, TMKQLAllocator<char>>().swap(tb.StringsValues);
-    std::vector<char, TMKQLAllocator<char>>().swap(tb.InterfaceValues);
-    std::vector<ui32, TMKQLAllocator<ui32>>().swap(tb.InterfaceOffsets);
-
-    /* tb.KeyIntVals.clear();
+    tb.KeyIntVals.clear();
     tb.DataIntVals.clear();
     tb.StringsOffsets.clear();
     tb.StringsValues.clear();
     tb.InterfaceValues.clear();
-    tb.InterfaceOffsets.clear();*/
+    tb.InterfaceOffsets.clear();
     tb.JoinIds.clear();
     tb.RightIds.clear();
 
@@ -1135,6 +1128,18 @@ void TTable::ClearBucket(ui64 bucket) {
     tbs.TuplesNum = 0;
     tbs.KeyIntValsTotalSize = 0;
     tbs.StringValuesTotalSize = 0;
+}
+
+void TTable::ShrinkBucket(ui64 bucket) {
+    TTableBucket & tb = TableBuckets[bucket];
+    tb.KeyIntVals.shrink_to_fit();
+    tb.DataIntVals.shrink_to_fit();
+    tb.StringsOffsets.shrink_to_fit();
+    tb.StringsValues.shrink_to_fit();
+    tb.InterfaceValues.shrink_to_fit();
+    tb.InterfaceOffsets.shrink_to_fit();
+    tb.JoinIds.shrink_to_fit();
+    tb.RightIds.shrink_to_fit();
 }
 
 void TTable::InitializeBucketSpillers(ISpiller::TPtr spiller) {
