@@ -3,6 +3,7 @@
 #include <ydb/library/yql/dq/tasks/dq_tasks_graph.h>
 #include <ydb/library/yql/dq/opt/dq_opt.h>
 #include <ydb/library/yql/dq/type_ann/dq_type_ann.h>
+#include <ydb/library/yql/utils/log/log.h>
 
 
 namespace NYql::NDq {
@@ -76,6 +77,7 @@ void BuildUnionAllChannels(TGraph& graph, const typename TGraph::TStageInfoType&
         channel.DstStageId = stageInfo.Id;
         channel.DstTask = targetTask.Id;
         channel.DstInputIndex = inputIndex;
+        YQL_LOG(INFO) << "attention enableSpilling=" << enableSpilling << " OutputsCount=" <<  inputStageInfo.OutputsCount;
         channel.InMemory = !enableSpilling || inputStageInfo.OutputsCount == 1;
 
         auto& taskInput = targetTask.Inputs[inputIndex];
@@ -127,6 +129,7 @@ void BuildHashShuffleChannels(TGraph& graph, const typename TGraph::TStageInfoTy
             channel.DstStageId = stageInfo.Id;
             channel.DstTask = targetTask.Id;
             channel.DstInputIndex = inputIndex;
+            YQL_LOG(INFO) << "attention enableSpilling=" << enableSpilling << " OutputsCount=" <<  inputStageInfo.OutputsCount;
             channel.InMemory = !enableSpilling || inputStageInfo.OutputsCount == 1;
             taskOutput.Channels.push_back(channel.Id);
 
@@ -177,6 +180,7 @@ void BuildMapChannels(TGraph& graph, const typename TGraph::TStageInfoType& stag
         channel.DstStageId = stageInfo.Id;
         channel.DstTask = targetTaskId;
         channel.DstInputIndex = inputIndex;
+        YQL_LOG(INFO) << "attention enableSpilling=" << enableSpilling << " OutputsCount=" <<  inputStageInfo.OutputsCount;
         channel.InMemory = !enableSpilling || inputStageInfo.OutputsCount == 1;
 
         auto& originTask = graph.GetTask(originTaskId);
@@ -243,6 +247,7 @@ void BuildBroadcastChannels(TGraph& graph, const typename TGraph::TStageInfoType
         channel.DstStageId = stageInfo.Id;
         channel.DstTask = targetTaskId;
         channel.DstInputIndex = inputIndex;
+        YQL_LOG(INFO) << "attention enableSpilling=" << enableSpilling << " OutputsCount=" <<  inputStageInfo.OutputsCount;
         channel.InMemory = !enableSpilling || inputStageInfo.OutputsCount == 1;
 
         auto& targetTask = graph.GetTask(targetTaskId);
