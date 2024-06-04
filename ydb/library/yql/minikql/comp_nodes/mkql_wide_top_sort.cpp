@@ -414,7 +414,7 @@ public:
                 auto nextMode = (IsReadFromChannelFinished() ? EOperatingMode::ProcessSpilled : EOperatingMode::InMemory);
                 YQL_LOG(INFO) << (nextMode ==  EOperatingMode::ProcessSpilled ? "switching to ProcessSpilled" :  "switching to Memory mode");
                 SwitchMode(nextMode);
-                return true;
+                return IsReadyToContinue();
             }
             case EOperatingMode::ProcessSpilled:
             {
@@ -480,42 +480,13 @@ public:
             SwitchMode(EOperatingMode::Spilling);
             return;
         }
-        if constexpr (!HasCount) {
-            static_assert (Sort);
-            // Remove placeholder for new data
-            Storage.resize(Storage.size() - Indexes.size());
-
-            Full.reserve(Storage.size() / Indexes.size());
-            for (auto it = Storage.begin(); it != Storage.end(); it += Indexes.size()) {
-                Full.emplace_back(&*it);
-            }
-
-            std::sort(Full.rbegin(), Full.rend(), LessFunc);
-            return;
-        }
-
-        Free.clear();
-        Free.shrink_to_fit();
-
-        if (Full.size() > Count) {
-            NYql::FastNthElement(Full.begin(), Full.begin() + Count, Full.end(), LessFunc);
-            Full.resize(Count);
-        }
-
-        if constexpr (Sort) {
-            std::sort(Full.rbegin(), Full.rend(), LessFunc);
-        }
+        SealInMemory();
     }
 
     NUdf::TUnboxedValue* Extract() {
-        if (SpilledStates.empty()) {
+        if (SpilledUnboxedValuesIterators.empty()) {
             // No spilled data
-            if (Full.empty())
-                return nullptr;
-
-            const auto ptr = Full.back();
-            Full.pop_back();
-            return static_cast<NUdf::TUnboxedValue*>(ptr);
+            return ExtractInMemory();
         }
 
         if (!IsHeapBuilt) {
@@ -531,7 +502,7 @@ public:
     }
 
     void Clean() {
-        if (SpilledStates.empty()) {
+        if (SpilledUnboxedValuesIterators.empty()) {
             // No spilled data
             return;
         }
@@ -590,7 +561,7 @@ private:
             lastSpilledState.Spiller->AsyncWriteCompleted(lastSpilledState.AsyncWriteOperation->ExtractValue());
             lastSpilledState.AsyncWriteOperation = std::nullopt;
         } else {
-            Seal();
+            SealInMemory();
             if (Full.empty()) {
                 // Nothing to spill
                 SpilledStates.pop_back();
@@ -598,7 +569,7 @@ private:
             }
         }
 
-        while (auto extract = Extract()) {
+        while (auto extract = ExtractInMemory()) {
             auto writeOp = lastSpilledState.Write(extract, Indexes.size());
             if (writeOp) {
                 return false;
@@ -612,6 +583,43 @@ private:
         Storage.resize(0);
 
         return true;
+    }
+
+    NUdf::TUnboxedValue* ExtractInMemory() {
+        if (Full.empty())
+            return nullptr;
+
+        const auto ptr = Full.back();
+        Full.pop_back();
+        return static_cast<NUdf::TUnboxedValue*>(ptr);
+    }
+
+    void SealInMemory() {
+        if constexpr (!HasCount) {
+            static_assert (Sort);
+            // Remove placeholder for new data
+            Storage.resize(Storage.size() - Indexes.size());
+
+            Full.reserve(Storage.size() / Indexes.size());
+            for (auto it = Storage.begin(); it != Storage.end(); it += Indexes.size()) {
+                Full.emplace_back(&*it);
+            }
+
+            std::sort(Full.rbegin(), Full.rend(), LessFunc);
+            return;
+        }
+
+        Free.clear();
+        Free.shrink_to_fit();
+
+        if (Full.size() > Count) {
+            NYql::FastNthElement(Full.begin(), Full.begin() + Count, Full.end(), LessFunc);
+            Full.resize(Count);
+        }
+
+        if constexpr (Sort) {
+            std::sort(Full.rbegin(), Full.rend(), LessFunc);
+        }
     }
 
 public:
