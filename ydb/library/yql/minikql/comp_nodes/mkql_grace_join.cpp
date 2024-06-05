@@ -1271,6 +1271,14 @@ EFetchResult TGraceJoinState::FetchValues(TComputationContext& ctx, NUdf::TUnbox
                     }
                 }
 
+#define OLD 0
+#if OLD
+                if ((resultLeft == EFetchResult::Yield) ||(resultRight == EFetchResult::Yield))
+                {
+                    return EFetchResult::Yield;
+                }
+#endif
+
                 if (resultLeft == EFetchResult::Finish ) {
                     *HaveMoreLeftRows = false;
                 }
@@ -1280,15 +1288,21 @@ EFetchResult TGraceJoinState::FetchValues(TComputationContext& ctx, NUdf::TUnbox
                     *HaveMoreRightRows = false;
                 }
 
+#if !OLD
                 if ((resultLeft == EFetchResult::Yield && (!*HaveMoreRightRows || resultRight == EFetchResult::Yield)) ||
                     (resultRight == EFetchResult::Yield && !*HaveMoreLeftRows))
                 {
                     return EFetchResult::Yield;
                 }
+#endif
 
                 if (!*PartialJoinCompleted && (
                     (!*HaveMoreRightRows && (!*HaveMoreLeftRows || LeftPacker->TuplesBatchPacked >= LeftPacker->BatchSize )) ||
                     (!*HaveMoreLeftRows && RightPacker->TuplesBatchPacked >= RightPacker->BatchSize))) {
+                    YQL_LOG(INFO)
+                        << " HaveLeft " << *HaveMoreLeftRows << " LeftPacked " << LeftPacker->TuplesBatchPacked << " LeftBatch " << LeftPacker->BatchSize 
+                        << " HaveRight " << *HaveMoreRightRows << " RightPacked " << RightPacker->TuplesBatchPacked << " RightBatch " << RightPacker->BatchSize 
+                        ;
                     *PartialJoinCompleted = true;
                     LeftPacker->StartTime = std::chrono::system_clock::now();
                     RightPacker->StartTime = std::chrono::system_clock::now();
