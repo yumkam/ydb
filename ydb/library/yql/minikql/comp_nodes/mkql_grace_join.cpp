@@ -781,6 +781,13 @@ private:
                 (!*HaveMoreRightRows && (!*HaveMoreLeftRows || LeftPacker->TuplesBatchPacked >= LeftPacker->BatchSize )) ||
                 (!*HaveMoreLeftRows && RightPacker->TuplesBatchPacked >= RightPacker->BatchSize))) {
 
+                YQL_LOG_IF(INFO,
+                        true ||
+                        (*HaveMoreLeftRows && LeftPacker->TuplesBatchPacked/4 > std::max<ui64>(RightPacker->TuplesBatchPacked, PartialJoinBatchSize)) ||
+                        (*HaveMoreRightRows && RightPacker->TuplesBatchPacked/4 > std::max<ui64>(LeftPacker->TuplesBatchPacked, PartialJoinBatchSize)))
+                    << " HaveLeft " << *HaveMoreLeftRows << " LeftPacked " << LeftPacker->TuplesBatchPacked << " LeftBatch " << LeftPacker->BatchSize
+                    << " HaveRight " << *HaveMoreRightRows << " RightPacked " << RightPacker->TuplesBatchPacked << " RightBatch " << RightPacker->BatchSize
+                    ;
                 *PartialJoinCompleted = true;
                 LeftPacker->StartTime = std::chrono::system_clock::now();
                 RightPacker->StartTime = std::chrono::system_clock::now();
