@@ -1112,8 +1112,11 @@ void TTable::ShrinkBucket(ui64 bucket) {
     tb.InterfaceValues.shrink_to_fit();
     tb.InterfaceOffsets.shrink_to_fit();
 
+    YQL_LOG_IF(INFO, tb.AnyHashTable.Table.capacity()) << "AnyHashTable " << tb.AnyHashTable.Table.capacity();
     tb.AnyHashTable.Clear();
+    YQL_LOG_IF(INFO, tb.AllLeftMatchedIds.size()) << "AllLeftMatchedIds " << tb.AllLeftMatchedIds.size();
     tb.AllLeftMatchedIds.clear();
+    YQL_LOG_IF(INFO, tb.AllRightMatchedIds.size()) << "AllRightMatchedIds " << tb.AllRightMatchedIds.size();
     tb.AllRightMatchedIds.clear();
     tb.JoinIds.shrink_to_fit();
     tb.RightIds.shrink_to_fit();
