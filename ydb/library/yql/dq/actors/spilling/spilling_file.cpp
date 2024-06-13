@@ -843,9 +843,8 @@ private:
                 resp->Blob.Resize(Size);
 
                 TFile f(FileName, OpenExisting | RdOnly);
-                f.Seek(Offset, SeekDir::sSet);
 
-                auto read = f.Read(resp->Blob.Data(), Size);
+                auto read = f.Pread(resp->Blob.Data(), Size, Offset);
                 YQL_ENSURE(read == Size, "" << read << " != " << Size);
                 YQL_ENSURE(resp->Blob.size() == Size);
 
