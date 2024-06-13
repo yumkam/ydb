@@ -890,7 +890,9 @@ EFetchResult ProcessSpilledData(TComputationContext&, NUdf::TUnboxedValue*const*
                 RightPacker->TablePtr->ClearBucket(NextBucketToJoin); // Clear content of returned bucket
                 RightPacker->TablePtr->ShrinkBucket(NextBucketToJoin);
 
-                JoinedTablePtr->Clear();
+                JoinedTablePtr->ClearBucket(NextBucketToJoin);
+                JoinedTablePtr->ShrinkBucket(NextBucketToJoin);
+
                 JoinedTablePtr->ResetIterator();
                 *PartialJoinCompleted = false;
 
