@@ -182,15 +182,16 @@ public:
         return Width_;
     }
 
-    TStorage Pop() {
-        auto data(std::move(Data));
+    void Pop() {
         HasValue = false;
         Read();
-        return data;
     }
 
-    const NUdf::TUnboxedValue* GetValue() const {
-        return &Data.front();
+    NKikimr::NUdf::TUnboxedValue* GetValue() {
+        return &*Data.begin();
+    }
+    const NKikimr::NUdf::TUnboxedValue* GetValue() const {
+        return &*Data.begin();
     }
 };
 
@@ -718,20 +719,15 @@ public:
         }
     }
 
-    bool Seal() {
-        if (SpilledStates.empty()) {
-            SealInMemory();
-        } else {
+    void Seal() {
+        if (!SpilledStates.empty()) {
             SwitchMode(EOperatingMode::Spilling);
+            return;
         }
-        return IsReadyToContinue();
+        SealInMemory();
     }
 
     NUdf::TUnboxedValue* Extract() {
-        if (!IsReadyToContinue()) {
-            return nullptr;
-        }
-
         if (SpilledUnboxedValuesIterators.empty()) {
             // No spilled data
             return ExtractInMemory();
@@ -746,12 +742,21 @@ public:
 
         std::pop_heap(SpilledUnboxedValuesIterators.begin(), SpilledUnboxedValuesIterators.end());
         auto &currentIt = SpilledUnboxedValuesIterators.back();
-        Storage = currentIt.Pop();
+        return currentIt.GetValue();
+    }
+
+    void Clean() {
+        if (SpilledUnboxedValuesIterators.empty()) {
+            // No spilled data
+            return;
+        }
+        auto &currentIt = SpilledUnboxedValuesIterators.back();
+        currentIt.Pop();
         if (currentIt.IsFinished()) {
             SpilledUnboxedValuesIterators.pop_back();
         }
-        return Storage.data();
     }
+
 private:
     EOperatingMode GetMode() const { return Mode; }
 
@@ -897,13 +902,16 @@ public:
                     case EFetchResult::One:
                         ptr->Put();
                         continue;
-                    case EFetchResult::Finish:
-                        if (ptr->Seal())
-                            break;
-                        [[fallthrough]];
                     case EFetchResult::Yield:
                         return EFetchResult::Yield;
+                    case EFetchResult::Finish:
+                        ptr->Seal();
+                        break;
                 }
+            }
+
+            if (!ptr->IsReadyToContinue()) {
+                return EFetchResult::Yield;
             }
 
             if (auto extract = ptr->Extract()) {
@@ -913,6 +921,7 @@ public:
                     else
                         ++extract;
                 }
+                ptr->Clean();
                 return EFetchResult::One;
             }
 
