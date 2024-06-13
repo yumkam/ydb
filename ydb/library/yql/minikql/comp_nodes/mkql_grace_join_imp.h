@@ -54,6 +54,16 @@ struct KeysHashTable {
     ui64 FillCount = 0; // Number of ui64 slots which are filled
     std::vector<ui64, TMKQLAllocator<ui64>> Table;  // Table to store keys data in particular slots
     std::vector<ui64, TMKQLAllocator<ui64>> SpillData; // Vector to store long data which cannot be fit in single hash table slot.
+    void Clear() {
+        Table.clear();
+        SpillData.clear();
+        NSlots = 0;
+        FillCount = 0;
+    }
+    void Shrink() {
+        Table.shrink_to_fit();
+        SpillData.shrink_to_fit();
+    }
 };
 
 struct TTableBucket {
