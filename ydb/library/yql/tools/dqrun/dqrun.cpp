@@ -13,6 +13,8 @@
 #include <ydb/library/yql/providers/yt/lib/config_clusters/config_clusters.h>
 #include <ydb/library/yql/providers/dq/local_gateway/yql_dq_gateway_local.h>
 
+#include <ydb/library/yql/public/udf/udf_static_registry.h>
+
 #include <ydb/library/yql/utils/log/proto/logger_config.pb.h>
 #include <ydb/library/yql/core/url_preprocessing/url_preprocessing.h>
 #include <ydb/library/yql/utils/actor_system/manager.h>
@@ -460,6 +462,7 @@ int RunMain(int argc, const char* argv[])
     TString fileStorageCfg;
     TVector<TString> udfsPaths;
     TString udfsDir;
+    bool excludeLinkedUdfs = false;
     TMaybe<TString> dqHost;
     TMaybe<int> dqPort;
     int threads = 16;
@@ -541,6 +544,11 @@ int RunMain(int argc, const char* argv[])
     opts.AddLongOption("udfs-dir", "Load all shared libraries with UDFs found"
                                    " in given directory")
         .StoreResult(&udfsDir);
+    opts.AddLongOption("exclude-linked-udfs", "Exclude linked udfs when same udf passed from -u or --udfs-dir")
+        .Optional()
+        .NoArgument()
+        .DefaultValue(excludeLinkedUdfs)
+        .SetFlag(&excludeLinkedUdfs);
     opts.AddLongOption("validate", "validate expression")
         .Optional()
         .NoArgument()
@@ -778,7 +786,16 @@ int RunMain(int argc, const char* argv[])
 
     NMiniKQL::FindUdfsInDir(udfsDir, &udfsPaths);
     auto funcRegistry = NMiniKQL::CreateFunctionRegistry(&NYql::NBacktrace::KikimrBackTrace, NMiniKQL::CreateBuiltinRegistry(), false, udfsPaths)->Clone();
-    NKikimr::NMiniKQL::FillStaticModules(*funcRegistry);
+    if (excludeLinkedUdfs) {
+        for (const auto& wrapper : NYql::NUdf::GetStaticUdfModuleWrapperList()) {
+            auto [name, ptr] = wrapper();
+            if (!funcRegistry->IsLoadedUdfModule(name)) {
+                funcRegistry->AddModule(TString(NKikimr::NMiniKQL::StaticModulePrefix) + name, name, std::move(ptr));
+            }
+        }
+    } else {
+        NKikimr::NMiniKQL::FillStaticModules(*funcRegistry);
+    }
 
     TGatewaysConfig gatewaysConfig;
     ReadGatewaysConfig(gatewaysCfgFile, &gatewaysConfig, sqlFlags);
