@@ -22,6 +22,7 @@
 #include <ydb/library/yql/minikql/mkql_node_visitor.h>
 #include <ydb/library/yql/minikql/mkql_program_builder.h>
 #include <ydb/library/yql/providers/common/schema/mkql/yql_mkql_schema.h>
+#include <ydb/library/yql/utils/log/log.h>
 
 #include <util/generic/scope.h>
 
@@ -637,6 +638,7 @@ public:
                     settings.TransportVersion = outputChannelDesc.GetTransportVersion();
                     settings.Level = StatsModeToCollectStatsLevel(Settings.StatsMode);
 
+                    YQL_LOG(INFO) << "XXX YK XXX GetInMemory=" << outputChannelDesc.GetInMemory() << " GetEnableSpilling=" << outputChannelDesc.GetEnableSpilling();
                     if (!outputChannelDesc.GetInMemory()) {
                         settings.ChannelStorage = execCtx.CreateChannelStorage(channelId, outputChannelDesc.GetEnableSpilling());
                     }
