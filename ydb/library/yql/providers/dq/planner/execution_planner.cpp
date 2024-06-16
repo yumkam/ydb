@@ -435,6 +435,8 @@ namespace NYql::NDqs {
             if (task.Outputs.size() > 1) {
                 enableSpilling = Settings->IsSpillingEnabled();
             }
+            YQL_LOG(INFO) << "XXX YK " << enableSpilling << " Outputs=" << task.Outputs.size();
+            enableSpilling = true;
             for (auto& output : task.Outputs) {
                 FillOutputDesc(*taskDesc.AddOutputs(), output, enableSpilling);
             }
