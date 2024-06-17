@@ -200,7 +200,11 @@ protected:
         auto* alloc = guard.GetMutex();
         alloc->SetLimit(this->MemoryQuota->GetMkqlMemoryLimit());
 
-        this->MemoryQuota->TrySetIncreaseMemoryLimitCallback(alloc);
+        if (this->Task.GetEnableSpilling()) {
+            this->MemoryQuota->TrySetIncreaseMemoryLimitCallbackWithRSSControl(alloc);
+        } else {
+            this->MemoryQuota->TrySetIncreaseMemoryLimitCallback(alloc);
+        }
 
         TDqTaskRunnerMemoryLimits limits;
         limits.ChannelBufferSize = this->MemoryLimits.ChannelBufferSize;
