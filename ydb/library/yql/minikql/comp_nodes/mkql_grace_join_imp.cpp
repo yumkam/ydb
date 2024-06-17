@@ -557,7 +557,17 @@ void TTable::Join( TTable & t1, TTable & t2, EJoinKind joinKind, bool hasMoreLef
             }
 
         }
-
+        YQL_LOG(INFO)
+            << bucket
+            << " Table1 " << JoinTable1->TableBucketsStats[bucket].TuplesNum
+            << " Table2 " << JoinTable2->TableBucketsStats[bucket].TuplesNum
+            << " LeftTableBatch " << LeftTableBatch_
+            << " leftMatchedIds " << leftMatchedIds.size()
+            << " RightTableBatch " << RightTableBatch_
+            << " rightMatchedIds " << rightMatchedIds.size()
+            << " rightIds " << rightIds.size()
+            << " joinIds " << joinIds.size()
+            ;
     }
 
     HasMoreLeftTuples_ = hasMoreLeftTuples;
