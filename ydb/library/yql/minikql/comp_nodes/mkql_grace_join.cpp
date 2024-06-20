@@ -668,6 +668,9 @@ private:
                 std::copy_n(LeftPacker->TupleHolder.begin(), LeftPacker->TotalColumnsNum, RightPacker->TupleHolder.begin());
             }
         } else {
+            if (resultLeft != EFetchResult::Finish && *HaveMoreRightRows) // Please remove me (this intentionally breaks things)
+                resultRight =  EFetchResult::Yield;
+            else            
             resultRight = FlowRight->FetchValues(ctx, RightPacker->TuplePtrs.data());
         }
 
