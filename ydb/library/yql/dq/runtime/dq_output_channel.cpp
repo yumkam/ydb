@@ -3,6 +3,7 @@
 
 #include <ydb/library/yql/utils/yql_panic.h>
 #include <ydb/library/yql/minikql/computation/mkql_computation_node_pack.h>
+#include <ydb/library/yql/utils/log/log.h>
 
 #include <util/generic/buffer.h>
 #include <util/generic/size_literals.h>
@@ -130,7 +131,12 @@ public:
             packerSize = 0;
         }
 
-        while (Storage && PackedDataSize && PackedDataSize + packerSize > MaxStoredBytes && !HasMemoryForProcessing()) {
+        while (Storage && PackedDataSize && PackedDataSize + packerSize > MaxStoredBytes) {
+            const auto used = NKikimr::NMiniKQL::TlsAllocState->GetUsed();
+            const auto limit = NKikimr::NMiniKQL::TlsAllocState->GetLimit();
+
+            YQL_LOG(INFO) << "yellow zone reached " << (used*100/limit) << "%=" << used << "/" << limit << " channel space " << (PackedDataSize + packerSize);
+
             auto& head = Data.front();
             size_t bufSize = head.Buffer.size();
             YQL_ENSURE(PackedDataSize >= bufSize);
