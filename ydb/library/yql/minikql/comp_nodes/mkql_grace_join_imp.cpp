@@ -1163,8 +1163,10 @@ bool TTable::TryToReduceMemoryAndWait() {
     }
 
     if (largestBucketSize < SpillingSizeLimit/NumberOfBuckets) return false;
+    auto anyHashTable = std::move(TableBuckets[largestBucketIndex].AnyHashTable);
     TableBucketsSpillers[largestBucketIndex].SpillBucket(std::move(TableBuckets[largestBucketIndex]));
     TableBuckets[largestBucketIndex] = TTableBucket{};
+    TableBuckets[largestBucketIndex].AnyHashTable = std::move(anyHashTable);
 
     return TableBucketsSpillers[largestBucketIndex].IsProcessingSpilling();
 }
