@@ -338,6 +338,9 @@ public:
     // Clears table content
     void Clear();
 
+    // Clears AnyHashTable content
+    void ClearAnyHashTable();
+
     // Creates new table with key columns and data columns
     TTable(ui64 numberOfKeyIntColumns = 0, ui64 numberOfKeyStringColumns = 0,
             ui64 numberOfDataIntColumns = 0, ui64 numberOfDataStringColumns = 0,

@@ -691,8 +691,7 @@ private:
 
         if (resultLeft == EFetchResult::Finish ) {
             if (*HaveMoreLeftRows) {
-                LeftPacker->TablePtr->AnyHashTable.Clear();
-                LeftPacker->TablePtr->AnyHashTable.Shrink();
+                LeftPacker->TablePtr->ClearAnyHashTable();
             }
             *HaveMoreLeftRows = false;
         }
@@ -700,8 +699,7 @@ private:
 
         if (resultRight == EFetchResult::Finish ) {
             if (*HaveMoreRightRows) {
-                RightPacker->TablePtr->AnyHashTable.Clear();
-                RightPacker->TablePtr->AnyHashTable.Shrink();
+                RightPacker->TablePtr->ClearAnyHashTable();
             }
             *HaveMoreRightRows = false;
         }
