@@ -690,11 +690,19 @@ private:
         }
 
         if (resultLeft == EFetchResult::Finish ) {
+            if (*HaveMoreLeftRows) {
+                LeftPacker->TablePtr->AnyHashTable.Clear();
+                LeftPacker->TablePtr->AnyHashTable.Shrink();
+            }
             *HaveMoreLeftRows = false;
         }
 
 
         if (resultRight == EFetchResult::Finish ) {
+            if (*HaveMoreRightRows) {
+                RightPacker->TablePtr->AnyHashTable.Clear();
+                RightPacker->TablePtr->AnyHashTable.Shrink();
+            }
             *HaveMoreRightRows = false;
         }
 
