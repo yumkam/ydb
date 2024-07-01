@@ -1095,9 +1095,9 @@ void TTable::Clear() {
 
 void TTable::ClearAnyHashTable() {
     for (ui64 bucket = 0; bucket < NumberOfBuckets; bucket++) {
-        TTableBucket & tb = TableBuckets[bucket];
-        tb.AnyHashTable.Clear();
-        tb.AnyHashTable.Shrink();
+        TTableBucketStats & tbs = TableBucketsStats[bucket];
+        tbs.AnyHashTable.Clear();
+        tbs.AnyHashTable.Shrink();
     }
 }
 
