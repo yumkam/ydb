@@ -1105,6 +1105,14 @@ void TTable::Clear() {
     }
 }
 
+void TTable::ClearAnyHashTable() {
+    for (ui64 bucket = 0; bucket < NumberOfBuckets; bucket++) {
+        TTableBucketStats & tbs = TableBucketsStats[bucket];
+        tbs.AnyHashTable.Clear();
+        tbs.AnyHashTable.Shrink();
+    }
+}
+
 void TTable::ClearBucket(ui64 bucket) {
     TTableBucket & tb = TableBuckets[bucket];
     tb.KeyIntVals.clear();
@@ -1131,12 +1139,10 @@ void TTable::ShrinkBucket(ui64 bucket) {
     tb.InterfaceValues.shrink_to_fit();
     tb.InterfaceOffsets.shrink_to_fit();
 
-    tb.AnyHashTable.Clear();
     tb.AllLeftMatchedIds.clear();
     tb.AllRightMatchedIds.clear();
     tb.JoinIds.shrink_to_fit();
     tb.RightIds.shrink_to_fit();
-    tb.AnyHashTable.Shrink();
 }
 
 void TTable::InitializeBucketSpillers(ISpiller::TPtr spiller) {

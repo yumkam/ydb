@@ -690,11 +690,17 @@ private:
         }
 
         if (resultLeft == EFetchResult::Finish ) {
+            if (*HaveMoreLeftRows) {
+                LeftPacker->TablePtr->ClearAnyHashTable();
+            }
             *HaveMoreLeftRows = false;
         }
 
 
         if (resultRight == EFetchResult::Finish ) {
+            if (*HaveMoreRightRows) {
+                RightPacker->TablePtr->ClearAnyHashTable();
+            }
             *HaveMoreRightRows = false;
         }
 
