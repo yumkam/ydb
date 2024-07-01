@@ -689,10 +689,6 @@ private:
             }
         }
 
-        if (resultLeft == EFetchResult::Yield || resultRight == EFetchResult::Yield) {
-            return true;
-        }
-
         if (resultLeft == EFetchResult::Finish ) {
             *HaveMoreLeftRows = false;
         }
@@ -700,6 +696,10 @@ private:
 
         if (resultRight == EFetchResult::Finish ) {
             *HaveMoreRightRows = false;
+        }
+
+        if (resultLeft == EFetchResult::Yield || resultRight == EFetchResult::Yield) {
+            return true;
         }
 
         return false;
