@@ -1169,7 +1169,7 @@ bool TTable::TryToReduceMemoryAndWait() {
 
     if (largestBucketSize < SpillingSizeLimit/NumberOfBuckets) return false;
     auto &anyHashTable = TableBucketsStats[largestBucketIndex].AnyHashTable;
-    YQL_LOG_IF(INFO, anyHashTable.NSlots > 0) << "AnyHashTable spilling fixup invoked";
+    YQL_LOG_IF(INFO, anyHashTable.NSlots > 0) << "AnyHashTable spilling fixup invoked@" << largestBucketIndex << ' ' << anyHashTable.FillCount << '/' << anyHashTable.NSlots << '*' << anyHashTable.SlotSize << '+' << anyHashTable.SpillData.size() << '=' << ((anyHashTable.NSlots * anyHashTable.SlotSize + anyHashTable.SpillData.size())*sizeof(ui64));
     TableBucketsSpillers[largestBucketIndex].SpillBucket(std::move(TableBuckets[largestBucketIndex]));
     TableBuckets[largestBucketIndex] = TTableBucket{};
 
