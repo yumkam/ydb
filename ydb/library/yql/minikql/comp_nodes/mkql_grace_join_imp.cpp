@@ -342,6 +342,9 @@ void TTable::Join( TTable & t1, TTable & t2, EJoinKind joinKind, bool hasMoreLef
     joinSlots.reserve( reservedSize );
     std::vector<JoinTuplesIds, TMKQLAllocator<JoinTuplesIds, EMemorySubPool::Temporary>> joinResults;
 
+    constexpr ui32 BloomFilterSize = 2048;
+    std::bitset<BloomFilterSize> bloomFilter;
+    ui32 bloomFilterBits = 0;
 
     for (ui64 bucket = fromBucket; bucket < toBucket; bucket++) {
         joinResults.clear();
@@ -361,7 +364,6 @@ void TTable::Join( TTable & t1, TTable & t2, EJoinKind joinKind, bool hasMoreLef
         bool table2HasKeyStringColumns = (JoinTable2->NumberOfKeyStringColumns != 0);
         bool table1HasKeyIColumns = (JoinTable1->NumberOfKeyIColumns != 0);
         bool table2HasKeyIColumns = (JoinTable2->NumberOfKeyIColumns != 0);
-
 
         if (tuplesNum2 > tuplesNum1) {
             std::swap(bucket1, bucket2);
@@ -389,6 +391,12 @@ void TTable::Join( TTable & t1, TTable & t2, EJoinKind joinKind, bool hasMoreLef
         joinSlots.clear();
         joinSlots.resize(nSlots*slotSize, 0);
 
+        if (bloomFilterBits >= BloomFilterSize) {
+            bloomFilter.reset();
+            bloomFilterBits = 0;
+        }
+        bloomFilterBits += nSlots;
+
         auto firstSlot = [begin = joinSlots.begin(), slotSize, nSlots](auto hash) {
                 ui64 slotNum = hash % nSlots;
                 return begin + slotNum * slotSize;
@@ -412,6 +420,8 @@ void TTable::Join( TTable & t1, TTable & t2, EJoinKind joinKind, bool hasMoreLef
             ui64 * nullsPtr = it2+1;
             if (HasBitSet(nullsPtr, 1))
                 continue;
+
+            bloomFilter[(hash * 11400714819323198485llu) >> (64 - 11)] = true;
 
             auto slotIt = firstSlot(hash);
 
@@ -445,12 +455,17 @@ void TTable::Join( TTable & t1, TTable & t2, EJoinKind joinKind, bool hasMoreLef
         
         for (ui64 keysValSize = headerSize1; it1 != bucket1->KeyIntVals.end(); it1 += keysValSize, ++tuple1Idx ) {
 
+            ui64 hash = *it1;
+
+            if (!bloomFilter[(hash * 11400714819323198485llu) >> (64 - 11)])
+                continue;
+
+            ui64 * nullsPtr = it1+1;
+
             if ( table1HasKeyStringColumns || table1HasKeyIColumns ) {
                 keysValSize = headerSize1 + *(it1 + headerSize1 - 1) ;
             }
 
-            ui64 hash = *it1;
-            ui64 * nullsPtr = it1+1;
             if (HasBitSet(nullsPtr, 1))
             {
                 continue;
