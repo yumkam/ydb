@@ -465,7 +465,7 @@ void TTable::Join( TTable & t1, TTable & t2, EJoinKind joinKind, bool hasMoreLef
                 auto slotStringsStart = slotIt + headerSize2;
 
                 if (table1HasKeyIColumns || !(keysValSize - nullsSize1 <= slotSize - 1 - nullsSize2)) {
-                    if (!std::equal(it1 + keyIntOffset1, it1 + headerSize1, slotIt + keyIntOffset2))
+                    if (!std::equal(it1 + keyIntOffset1, it1 + headerSize1 - 1, slotIt + keyIntOffset2))
                         continue;
                 } else {
                     if (!std::equal(it1 + keyIntOffset1, it1 + keysValSize, slotIt + keyIntOffset2))
@@ -708,41 +708,40 @@ inline bool TTable::AddKeysToHashTable(KeysHashTable& t, ui64* keys, NYql::NUdf:
         return it;
     };
 
-    for (auto keysValSize = HeaderSize; *it != 0; it = nextSlot(it)) {
+    for (auto itValSize = HeaderSize; *it != 0; it = nextSlot(it)) {
 
         if (*it != hash)
             continue;
 
         if ( NumberOfKeyStringColumns > 0 || NumberOfKeyIColumns > 0) {
-            keysValSize = HeaderSize + *(it + HeaderSize - 1);
+            itValSize = HeaderSize + *(it + HeaderSize - 1);
         }
 
         auto slotStringsStart = it + HeaderSize;
 
-        if ( NumberOfKeyIColumns > 0 || !(keysValSize <= t.SlotSize)) {
-            if (!std::equal(it + keyIntOffset, it + HeaderSize, keys + keyIntOffset))
+        if ( NumberOfKeyIColumns > 0 || !(itValSize <= t.SlotSize)) {
+            if (!std::equal(it + keyIntOffset, it + HeaderSize - 1, keys + keyIntOffset))
                 continue;
         } else {
-            if (!std::equal(keys + keyIntOffset, keys + keysValSize, it + keyIntOffset))
+            if (!std::equal(it + keyIntOffset, it + itValSize, keys + keyIntOffset))
                 continue;
         }
 
-        if (!(keysValSize <= t.SlotSize)) {
+        if (!(itValSize <= t.SlotSize)) {
             ui64 stringsPos = *(it + HeaderSize);
             slotStringsStart = t.SpillData.begin() + stringsPos;
 
             if (NumberOfKeyIColumns == 0) {
-                ui64 stringsSize = *(keys + HeaderSize - 1);
-                if (!std::equal(keys + HeaderSize, keys + HeaderSize + stringsSize, slotStringsStart))
+                if (keysSize != itValSize || !std::equal(slotStringsStart, slotStringsStart + itValSize, keys + HeaderSize))
                     continue;
-
+                return false;
             }
         }
 
         if (NumberOfKeyIColumns > 0) {
             if (!CompareIColumns( 
-                        (char *) (it + HeaderSize ),
                         (char *) (slotStringsStart),
+                        (char *) (keys + HeaderSize ),
                         iColumns,
                         JoinTable1 -> ColInterfaces, JoinTable1->NumberOfStringColumns, JoinTable1 -> NumberOfKeyIColumns ))
                 continue;
