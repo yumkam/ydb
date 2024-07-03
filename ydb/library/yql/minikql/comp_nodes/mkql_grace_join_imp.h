@@ -5,6 +5,7 @@
 #include <ydb/library/yql/minikql/mkql_program_builder.h>
 #include <ydb/library/yql/public/udf/udf_type_builder.h>
 #include <ydb/library/yql/minikql/computation/mkql_computation_node_pack.h>
+#include <ydb/library/yql/utils/log/log.h>
 
 namespace NKikimr {
 namespace NMiniKQL {
@@ -348,6 +349,11 @@ public:
             ui64 nullsBitmapSize = 1, TColTypeInterface * colInterfaces = nullptr, bool isAny = false);
     
     ~TTable();
+ui64 joins = 0;
+ui64 bloomreset = 0;
+ui64 bloomtries = 0;
+ui64 bloomhits = 0;
+ui64 bloomfails = 0;
 
 };
 
