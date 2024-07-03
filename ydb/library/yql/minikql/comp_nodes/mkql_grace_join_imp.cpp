@@ -342,7 +342,7 @@ void TTable::Join( TTable & t1, TTable & t2, EJoinKind joinKind, bool hasMoreLef
     joinSlots.reserve( reservedSize );
     std::vector<JoinTuplesIds, TMKQLAllocator<JoinTuplesIds, EMemorySubPool::Temporary>> joinResults;
 
-    std::array<ui64, (4096/64)> bloomFilter; // UNINITIALIZED
+    std::vector<ui64, TMKQLAllocator<ui64, EMemorySubPool::Temporary> > bloomFilter;
 
     for (ui64 bucket = fromBucket; bucket < toBucket; bucket++) {
         joinResults.clear();
@@ -391,10 +391,11 @@ void TTable::Join( TTable & t1, TTable & t2, EJoinKind joinKind, bool hasMoreLef
 
         ui32 bloomFilterBits = 6;
         ui32 bloomFilterSize = 1u<<(bloomFilterBits - 6);
-        for (; bloomFilterSize < bloomFilter.size() && (1u<<bloomFilterBits) < nSlots; ++bloomFilterBits)
+        for (; (1u<<bloomFilterBits) < nSlots; ++bloomFilterBits)
             bloomFilterSize <<= 1;
+        bloomFilter.clear();
+        bloomFilter.resize(bloomFilterSize);
         //YQL_LOG(INFO) << "bloomFilterSize=" << bloomFilterSize << " bloomFilterBits=" << bloomFilterBits;
-        std::fill_n(bloomFilter.begin(), bloomFilterSize, 0);
         joins++;
 
         auto firstSlot = [begin = joinSlots.begin(), slotSize, nSlots](auto hash) {
