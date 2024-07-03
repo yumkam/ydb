@@ -790,6 +790,7 @@ private:
                         true ||
                         (*HaveMoreLeftRows && LeftPacker->TuplesBatchPacked/4 > std::max<ui64>(RightPacker->TuplesBatchPacked, PartialJoinBatchSize)) ||
                         (*HaveMoreRightRows && RightPacker->TuplesBatchPacked/4 > std::max<ui64>(LeftPacker->TuplesBatchPacked, PartialJoinBatchSize)))
+                    << (const void *)&*JoinedTablePtr << '#'
                     << " HaveLeft " << *HaveMoreLeftRows << " LeftPacked " << LeftPacker->TuplesBatchPacked << " LeftBatch " << LeftPacker->BatchSize
                     << " HaveRight " << *HaveMoreRightRows << " RightPacked " << RightPacker->TuplesBatchPacked << " RightBatch " << RightPacker->BatchSize
                     ;
