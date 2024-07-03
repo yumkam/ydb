@@ -342,9 +342,7 @@ void TTable::Join( TTable & t1, TTable & t2, EJoinKind joinKind, bool hasMoreLef
     joinSlots.reserve( reservedSize );
     std::vector<JoinTuplesIds, TMKQLAllocator<JoinTuplesIds, EMemorySubPool::Temporary>> joinResults;
 
-    constexpr ui32 BloomFilterSize = 2048;
-    std::bitset<BloomFilterSize> bloomFilter;
-    ui32 bloomFilterBits = 0;
+    std::array<ui64, (4096/64)> bloomFilter; // UNINITIALIZED
 
     for (ui64 bucket = fromBucket; bucket < toBucket; bucket++) {
         joinResults.clear();
@@ -391,11 +389,13 @@ void TTable::Join( TTable & t1, TTable & t2, EJoinKind joinKind, bool hasMoreLef
         joinSlots.clear();
         joinSlots.resize(nSlots*slotSize, 0);
 
-        if (bloomFilterBits >= BloomFilterSize) {
-            bloomFilter.reset();
-            bloomFilterBits = 0;
-        }
-        bloomFilterBits += nSlots;
+        ui32 bloomFilterBits = 6;
+        ui32 bloomFilterSize = 1u<<(bloomFilterBits - 6);
+        for (; bloomFilterSize < bloomFilter.size() && (1u<<bloomFilterBits) < nSlots; ++bloomFilterBits)
+            bloomFilterSize <<= 1;
+        YQL_LOG(INFO) << "bloomFilterSize=" << bloomFilterSize << " bloomFilterBits=" << bloomFilterBits;
+        std::fill_n(bloomFilter.begin(), bloomFilterSize, 0);
+        joins++;
 
         auto firstSlot = [begin = joinSlots.begin(), slotSize, nSlots](auto hash) {
                 ui64 slotNum = hash % nSlots;
@@ -421,7 +421,10 @@ void TTable::Join( TTable & t1, TTable & t2, EJoinKind joinKind, bool hasMoreLef
             if (HasBitSet(nullsPtr, 1))
                 continue;
 
-            bloomFilter[(hash * 11400714819323198485llu) >> (64 - 11)] = true;
+            {
+                auto bit = (hash * 11400714819323198485llu) >> (64 - bloomFilterBits);
+                bloomFilter[bit/64] |= ui64(1)<<(bit%64);
+            }
 
             auto slotIt = firstSlot(hash);
 
@@ -457,8 +460,14 @@ void TTable::Join( TTable & t1, TTable & t2, EJoinKind joinKind, bool hasMoreLef
 
             ui64 hash = *it1;
 
-            if (!bloomFilter[(hash * 11400714819323198485llu) >> (64 - 11)])
-                continue;
+            bloomtries++;
+            {
+                auto bit = (hash * 11400714819323198485llu) >> (64 - bloomFilterBits);
+                if (!(bloomFilter[bit/64] & (ui64(1)<<(bit % 64)))) {
+                    bloomhits++;
+                    continue;
+                }
+            }
 
             ui64 * nullsPtr = it1+1;
 
@@ -471,6 +480,7 @@ void TTable::Join( TTable & t1, TTable & t2, EJoinKind joinKind, bool hasMoreLef
                 continue;
             }
 
+            auto saveTuplesFound = tuplesFound;
             auto slotIt = firstSlot(hash);
             for (; *slotIt != 0; slotIt = nextSlot(slotIt) )
             {
@@ -528,6 +538,7 @@ void TTable::Join( TTable & t1, TTable & t2, EJoinKind joinKind, bool hasMoreLef
                 }
                 joinResults.emplace_back(joinIds);
             }
+            bloomfails += saveTuplesFound == tuplesFound;
         }
 
         std::sort(joinResults.begin(), joinResults.end(), [](JoinTuplesIds a, JoinTuplesIds b)
@@ -1315,6 +1326,7 @@ TTable::TTable( ui64 numberOfKeyIntColumns, ui64 numberOfKeyStringColumns,
 }
 
 TTable::~TTable() {
+ YQL_LOG_IF(INFO, joins) << "Joins " << joins << " BloomReset " << bloomreset << " BloomTries " << bloomtries << " BloomHits " << bloomhits << " BloomFails " << bloomfails;
 };
 
 TTableBucketSpiller::TTableBucketSpiller(ISpiller::TPtr spiller, size_t sizeLimit)
