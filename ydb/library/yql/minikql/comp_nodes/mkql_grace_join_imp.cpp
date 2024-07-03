@@ -393,7 +393,7 @@ void TTable::Join( TTable & t1, TTable & t2, EJoinKind joinKind, bool hasMoreLef
         ui32 bloomFilterSize = 1u<<(bloomFilterBits - 6);
         for (; bloomFilterSize < bloomFilter.size() && (1u<<bloomFilterBits) < nSlots; ++bloomFilterBits)
             bloomFilterSize <<= 1;
-        YQL_LOG(INFO) << "bloomFilterSize=" << bloomFilterSize << " bloomFilterBits=" << bloomFilterBits;
+        //YQL_LOG(INFO) << "bloomFilterSize=" << bloomFilterSize << " bloomFilterBits=" << bloomFilterBits;
         std::fill_n(bloomFilter.begin(), bloomFilterSize, 0);
         joins++;
 
@@ -587,6 +587,7 @@ void TTable::Join( TTable & t1, TTable & t2, EJoinKind joinKind, bool hasMoreLef
 
         }
         YQL_LOG(INFO)
+            << (const void *)this << '#'
             << bucket
             << " Table1 " << JoinTable1->TableBucketsStats[bucket].TuplesNum
             << " Table2 " << JoinTable2->TableBucketsStats[bucket].TuplesNum
@@ -596,6 +597,7 @@ void TTable::Join( TTable & t1, TTable & t2, EJoinKind joinKind, bool hasMoreLef
             << " rightMatchedIds " << rightMatchedIds.size()
             << " rightIds " << rightIds.size()
             << " joinIds " << joinIds.size()
+            << " kind " << (int)JoinKind
             ;
     }
 
@@ -1207,7 +1209,7 @@ bool TTable::TryToReduceMemoryAndWait() {
 
     if (largestBucketSize < SpillingSizeLimit/NumberOfBuckets) return false;
     auto &anyHashTable = TableBucketsStats[largestBucketIndex].AnyHashTable;
-    YQL_LOG_IF(INFO, anyHashTable.NSlots > 0) << "AnyHashTable spilling fixup invoked@" << largestBucketIndex << ' ' << anyHashTable.FillCount << '/' << anyHashTable.NSlots << '*' << anyHashTable.SlotSize << '+' << anyHashTable.SpillData.size() << '=' << ((anyHashTable.NSlots * anyHashTable.SlotSize + anyHashTable.SpillData.size())*sizeof(ui64));
+    YQL_LOG_IF(INFO, anyHashTable.NSlots > 0) << (const void *)this << '#' << "AnyHashTable spilling fixup invoked@" << largestBucketIndex << ' ' << anyHashTable.FillCount << '/' << anyHashTable.NSlots << '*' << anyHashTable.SlotSize << '+' << anyHashTable.SpillData.size() << '=' << ((anyHashTable.NSlots * anyHashTable.SlotSize + anyHashTable.SpillData.size())*sizeof(ui64));
     TableBucketsSpillers[largestBucketIndex].SpillBucket(std::move(TableBuckets[largestBucketIndex]));
     TableBuckets[largestBucketIndex] = TTableBucket{};
 
@@ -1326,7 +1328,7 @@ TTable::TTable( ui64 numberOfKeyIntColumns, ui64 numberOfKeyStringColumns,
 }
 
 TTable::~TTable() {
- YQL_LOG_IF(INFO, joins) << "Joins " << joins << " BloomReset " << bloomreset << " BloomTries " << bloomtries << " BloomHits " << bloomhits << " BloomFails " << bloomfails;
+ YQL_LOG_IF(INFO, joins) << (const void *)this << '#' << "Joins " << joins << " BloomReset " << bloomreset << " BloomTries " << bloomtries << " BloomHits " << bloomhits << " BloomFails " << bloomfails;
 };
 
 TTableBucketSpiller::TTableBucketSpiller(ISpiller::TPtr spiller, size_t sizeLimit)
