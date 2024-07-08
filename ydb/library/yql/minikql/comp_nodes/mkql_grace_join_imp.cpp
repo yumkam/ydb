@@ -461,6 +461,12 @@ void TTable::Join( TTable & t1, TTable & t2, EJoinKind joinKind, bool hasMoreLef
 
             ui64 hash = *it1;
 
+            ui64 * nullsPtr = it1+1;
+
+            if ( table1HasKeyStringColumns || table1HasKeyIColumns ) {
+                keysValSize = headerSize1 + *(it1 + headerSize1 - 1) ;
+            }
+
             bloomtries++;
             {
                 auto bit = (hash * 11400714819323198485llu) >> (64 - bloomFilterBits);
@@ -468,12 +474,6 @@ void TTable::Join( TTable & t1, TTable & t2, EJoinKind joinKind, bool hasMoreLef
                     bloomhits++;
                     continue;
                 }
-            }
-
-            ui64 * nullsPtr = it1+1;
-
-            if ( table1HasKeyStringColumns || table1HasKeyIColumns ) {
-                keysValSize = headerSize1 + *(it1 + headerSize1 - 1) ;
             }
 
             if (HasBitSet(nullsPtr, 1))
