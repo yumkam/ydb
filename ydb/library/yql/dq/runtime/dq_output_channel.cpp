@@ -2,6 +2,7 @@
 #include "dq_transport.h"
 
 #include <ydb/library/yql/utils/yql_panic.h>
+#include <ydb/library/yql/utils/log/log.h>
 #include <ydb/library/yql/minikql/computation/mkql_computation_node_pack.h>
 
 #include <util/generic/buffer.h>
@@ -42,11 +43,12 @@ public:
         , Storage(settings.ChannelStorage)
         , HolderFactory(holderFactory)
         , TransportVersion(transportVersion)
-        , MaxStoredBytes(settings.MaxStoredBytes)
+        , MaxStoredBytes(Storage ? 4000_MB : settings.MaxStoredBytes)
         , MaxChunkBytes(settings.MaxChunkBytes)
         , ChunkSizeLimit(settings.ChunkSizeLimit)
         , LogFunc(logFunc)
     {
+        YQL_LOG(INFO) << "Id: " << channelId << ' ' << "MaxStoredBytes = " << MaxStoredBytes << ' ' << (Storage ? (const void *)&*Storage : nullptr);
         PopStats.Level = settings.Level;
         PushStats.Level = settings.Level;
         PopStats.ChannelId = channelId;
@@ -125,7 +127,7 @@ public:
             ChunkRowCount = 0;
             packerSize = 0;
         }
-
+        LOG("PackedDataSize " << PackedDataSize << " packerSize " << packerSize);
         while (Storage && PackedDataSize && PackedDataSize + packerSize > MaxStoredBytes) {
             auto& head = Data.front();
             size_t bufSize = head.Buffer.size();
@@ -153,6 +155,7 @@ public:
         }
 
         if (IsFull() || FirstStoredId < NextStoredId) {
+            LOG("TryPause. FirstStoredId " << FirstStoredId << " NextUniqueId" << NextStoredId);
             PopStats.TryPause();
         }
 
