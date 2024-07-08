@@ -43,7 +43,7 @@ public:
         , Storage(settings.ChannelStorage)
         , HolderFactory(holderFactory)
         , TransportVersion(transportVersion)
-        , MaxStoredBytes(Storage ? 4000_MB : settings.MaxStoredBytes)
+        , MaxStoredBytes(Storage ? 100_MB : settings.MaxStoredBytes)
         , MaxChunkBytes(settings.MaxChunkBytes)
         , ChunkSizeLimit(settings.ChunkSizeLimit)
         , LogFunc(logFunc)
