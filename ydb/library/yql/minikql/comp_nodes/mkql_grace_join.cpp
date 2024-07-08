@@ -590,6 +590,7 @@ public:
     ,   SelfJoinSameKeys_(isSelfJoin && (leftKeyColumns == rightKeyColumns))
     ,   IsSpillingAllowed(isSpillingAllowed)
     {
+        YQL_LOG(INFO) << "JoinedTablePtr " << (const void *)&*JoinedTablePtr << " " << (int)anyJoinSettings << " " << (int)joinKind;
         if (JoinKind == EJoinKind::Full || JoinKind == EJoinKind::Exclusion || IsSelfJoin_) {
             LeftPacker->BatchSize = std::numeric_limits<ui64>::max();
             RightPacker->BatchSize = std::numeric_limits<ui64>::max();
