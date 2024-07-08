@@ -127,7 +127,7 @@ public:
             ChunkRowCount = 0;
             packerSize = 0;
         }
-        LOG("PackedDataSize " << PackedDataSize << " packerSize " << packerSize);
+        //LOG("PackedDataSize " << PackedDataSize << " packerSize " << packerSize);
         while (Storage && PackedDataSize && PackedDataSize + packerSize > MaxStoredBytes) {
             auto& head = Data.front();
             size_t bufSize = head.Buffer.size();
@@ -155,7 +155,7 @@ public:
         }
 
         if (IsFull() || FirstStoredId < NextStoredId) {
-            LOG("TryPause. FirstStoredId " << FirstStoredId << " NextUniqueId" << NextStoredId);
+            //LOG("TryPause. FirstStoredId " << FirstStoredId << " NextUniqueId" << NextStoredId);
             PopStats.TryPause();
         }
 
