@@ -1,6 +1,7 @@
 #include "dq_output_channel.h"
 #include "dq_transport.h"
 
+#include <ydb/library/yql/utils/log/log.h>
 #include <ydb/library/yql/utils/yql_panic.h>
 #include <ydb/library/yql/minikql/computation/mkql_computation_node_pack.h>
 
@@ -11,12 +12,17 @@
 
 namespace NYql::NDq {
 
+#if 0
 #define LOG(s) do { if (Y_UNLIKELY(LogFunc)) { LogFunc(TStringBuilder() << "channelId: " << PopStats.ChannelId << ". " << s); } } while (0)
 
 #ifndef NDEBUG
 #define DLOG(s) LOG(s)
 #else
 #define DLOG(s)
+#endif
+#else
+#define LOG(s) YQL_LOG(DEBUG) << s
+#define DLOG(s) YQL_LOG(TRACE) << s
 #endif
 
 namespace {
