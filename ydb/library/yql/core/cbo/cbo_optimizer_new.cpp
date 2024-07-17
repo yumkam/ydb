@@ -141,7 +141,7 @@ bool TBaseProviderContext::IsJoinApplicable(const std::shared_ptr<IBaseOptimizer
     Y_UNUSED(rightJoinKeys);
     Y_UNUSED(joinKind);
 
-    return joinAlgo == EJoinAlgoType::MapJoin;
+    return joinAlgo == EJoinAlgoType::GraceJoin;
 }
 
 double TBaseProviderContext::ComputeJoinCost(const TOptimizerStatistics& leftStats, const TOptimizerStatistics& rightStats, const double outputRows, const double outputByteSize, EJoinAlgoType joinAlgo) const {
