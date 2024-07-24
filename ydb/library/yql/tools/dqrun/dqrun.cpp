@@ -845,9 +845,16 @@ int RunMain(int argc, const char* argv[])
     }
 
     if (res.Has("enable-spilling")) {
+        {
         auto* setting = gatewaysConfig.MutableDq()->AddDefaultSettings();
         setting->SetName("SpillingEngine");
         setting->SetValue("file");
+        }
+        {
+        auto* setting = gatewaysConfig.MutableDq()->AddDefaultSettings();
+        setting->SetName("EnableSpillingInChannels");
+        setting->SetValue("1");
+        }
     }
 
     TString defYtServer = gatewaysConfig.HasYt() ? NYql::TConfigClusters::GetDefaultYtServer(gatewaysConfig.GetYt()) : TString();
