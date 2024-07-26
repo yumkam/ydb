@@ -102,7 +102,7 @@ class TBloomfilter {
         Storage_.clear();
         Storage_.resize(1, ~ui64(0));
         Storage_.shrink_to_fit();
-        Ptr_ = Storage.data();
+        Ptr_ = Storage_.data();
     }
 };
 
