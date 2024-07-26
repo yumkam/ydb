@@ -48,7 +48,7 @@ class TBloomfilter {
         for (; (ui64(1)<<Bits_) < size; ++Bits_)
             ;
 
-        Bits_ += 3;
+        Bits_ += 3; // -> multiply by 8
         size = 1u<<(Bits_ - 6);
 
         Storage_.clear();
@@ -92,6 +92,15 @@ class TBloomfilter {
 
     void Finalize() {
         Finalized_ = true;
+    }
+
+    void Shrink() {
+        Finalized_ = false;
+        Bits_ = 1;
+        Storage_.clear();
+        Storage_.resize(1, ~ui64(0));
+        Storage_.shrink_to_fit();
+        Ptr_ = Storage.data();
     }
 };
 
