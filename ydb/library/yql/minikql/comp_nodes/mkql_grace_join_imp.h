@@ -423,7 +423,7 @@ public:
     // Adds new tuple to the table.  intColumns, stringColumns - data of columns,
     // stringsSizes - sizes of strings columns.  Indexes of null-value columns
     // in the form of bit array should be first values of intColumns.
-    EAddTupleResult AddTuple(ui64* intColumns, char** stringColumns, ui32* stringsSizes, NYql::NUdf::TUnboxedValue * iColumns = nullptr, const TTable &other = {});
+    EAddTupleResult AddTuple(ui64* intColumns, char** stringColumns, ui32* stringsSizes, NYql::NUdf::TUnboxedValue * iColumns = nullptr, const TTable &other = {}, bool dropUnmatched = false);
     
     ~TTable();
 
