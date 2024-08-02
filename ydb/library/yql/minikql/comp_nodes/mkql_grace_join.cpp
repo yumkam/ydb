@@ -668,12 +668,13 @@ private:
             }
             LeftPacker->Pack();
             {
-                auto added = LeftPacker->TablePtr->AddTuple(LeftPacker->TupleIntVals.data(), LeftPacker->TupleStrings.data(), LeftPacker->TupleStrSizes.data(), LeftPacker->IColumnsHolder.data(), *RightPacker->TablePtr);
+                bool dropUnmatched = JoinKind == EJoinKind::Inner || JoinKind == EJoinKind::Right || JoinKind == EJoinKind::RightSemi || JoinKind == EJoinKind::RightOnly || JoinKind == EJoinKind::LeftSemi;
+                auto added = LeftPacker->TablePtr->AddTuple(LeftPacker->TupleIntVals.data(), LeftPacker->TupleStrings.data(), LeftPacker->TupleStrSizes.data(), LeftPacker->IColumnsHolder.data(), *RightPacker->TablePtr, dropUnmatched);
                 if (added == GraceJoin::TTable::EAddTupleResult::Added)
                     ++LeftPacker->TuplesBatchPacked;
                 else if (added == GraceJoin::TTable::EAddTupleResult::AnyMatch)
                     ; // row dropped
-                else if (JoinKind == EJoinKind::Inner || JoinKind == EJoinKind::Right || JoinKind == EJoinKind::RightSemi || JoinKind == EJoinKind::RightOnly || JoinKind == EJoinKind::LeftSemi)
+                else if (dropUnmatched)
                     ; // row dropped
                 else { // Left, LeftOnly, Full, Exclusion: output row
                     for (size_t i = 0; i < LeftRenames.size() / 2; i++) {
@@ -709,12 +710,13 @@ private:
 
             if ( !SelfJoinSameKeys_ ) {
                 RightPacker->Pack();
-                auto added = RightPacker->TablePtr->AddTuple(RightPacker->TupleIntVals.data(), RightPacker->TupleStrings.data(), RightPacker->TupleStrSizes.data(), RightPacker->IColumnsHolder.data(), *LeftPacker->TablePtr);
+                bool dropUnmatched = JoinKind == EJoinKind::Inner || JoinKind == EJoinKind::Left || JoinKind == EJoinKind::LeftSemi || JoinKind == EJoinKind::LeftOnly || JoinKind == EJoinKind::RightSemi;
+                auto added = RightPacker->TablePtr->AddTuple(RightPacker->TupleIntVals.data(), RightPacker->TupleStrings.data(), RightPacker->TupleStrSizes.data(), RightPacker->IColumnsHolder.data(), *LeftPacker->TablePtr, dropUnmatched);
                 if (added == GraceJoin::TTable::EAddTupleResult::Added)
                     ++RightPacker->TuplesBatchPacked;
                 else if (added == GraceJoin::TTable::EAddTupleResult::AnyMatch)
                     ; // row dropped
-                else if (JoinKind == EJoinKind::Inner || JoinKind == EJoinKind::Left || JoinKind == EJoinKind::LeftSemi || JoinKind == EJoinKind::LeftOnly || JoinKind == EJoinKind::RightSemi)
+                else if (dropUnmatched)
                     ; // row dropped
                 else { // Right, RightOnly, Full, Exclusion: output row
                     for (size_t i = 0; i < LeftRenames.size() / 2; i++) {
