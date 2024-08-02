@@ -13,7 +13,7 @@ namespace NMiniKQL {
 namespace GraceJoin {
 
 
-TTable::EAddTupleResult TTable::AddTuple(  ui64 * intColumns, char ** stringColumns, ui32 * stringsSizes, NYql::NUdf::TUnboxedValue * iColumns, const TTable &other) {
+TTable::EAddTupleResult TTable::AddTuple(  ui64 * intColumns, char ** stringColumns, ui32 * stringsSizes, NYql::NUdf::TUnboxedValue * iColumns, const TTable &other, bool dropUnmatched) {
 
     if ((intColumns[0] & 1))
         return EAddTupleResult::Unmatched;
@@ -81,13 +81,17 @@ TTable::EAddTupleResult TTable::AddTuple(  ui64 * intColumns, char ** stringColu
 
     ui64 bucket = hash & BucketsMask;
 
-    if (!IsAny_ && other.TableBucketsStats[bucket].BloomFilter.IsFinalized())  {
+    bool isUnmatched = false;
+
+    if (other.TableBucketsStats[bucket].BloomFilter.IsFinalized())  {
         auto bucket2 = &other.TableBucketsStats[bucket];
         auto &bloomFilter = bucket2->BloomFilter;
         ++BloomLookups_;
         if (bloomFilter.IsMissing(hash)) {
             ++BloomHits_;
-            return EAddTupleResult::Unmatched;
+            if (dropUnmatched || !IsAny_)
+                return EAddTupleResult::Unmatched;
+            isUnmatched = true;
         }
     }
 
@@ -108,16 +112,9 @@ TTable::EAddTupleResult TTable::AddTuple(  ui64 * intColumns, char ** stringColu
             ++AnyFiltered_;
             return EAddTupleResult::AnyMatch;
         }
-
-        if (other.TableBucketsStats[bucket].BloomFilter.IsFinalized())  {
-            auto bucket2 = &other.TableBucketsStats[bucket];
-            auto &bloomFilter = bucket2->BloomFilter;
-            ++BloomLookups_;
-            if (bloomFilter.IsMissing(hash)) {
-                keyIntVals.resize(offset);
-                ++BloomHits_;
-                return EAddTupleResult::Unmatched;
-            }
+        if (isUnmatched) {
+            keyIntVals.resize(offset);
+            return EAddTupleResult::Unmatched;
         }
     }
 
