@@ -59,10 +59,12 @@ void TRelOptimizerNode::Print(std::stringstream& stream, int ntabs) {
     }
     stream << "Rel: " << Label << "\n";
 
+    if (Stats) {
     for (int i = 0; i < ntabs; i++){
         stream << "    ";
     }
     stream << *Stats << "\n";
+    }
 }
 
 TJoinOptimizerNode::TJoinOptimizerNode(const std::shared_ptr<IBaseOptimizerNode>& left, const std::shared_ptr<IBaseOptimizerNode>& right,
