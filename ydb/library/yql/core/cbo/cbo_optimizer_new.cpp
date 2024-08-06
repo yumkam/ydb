@@ -101,11 +101,11 @@ void TJoinOptimizerNode::Print(std::stringstream& stream, int ntabs) {
     }
     stream << "\n";
 
+    if (Stats) {
     for (int i = 0; i < ntabs; i++){
         stream << "    ";
     }
 
-    if (Stats) {
         stream << *Stats << "\n";
     }
 
