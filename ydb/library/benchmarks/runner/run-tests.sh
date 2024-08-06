@@ -104,7 +104,7 @@ ${ydb_path}/ydb/library/benchmarks/gen_queries/gen_queries \
     --pragma dq.ComputeActorType="async" \
     --pragma dq.UseFinalizeByKey=true \
     --pragma dq.OptLLVM=ON \
-    --pragma dq.EnableSpillingNodes=GraceJoin \
+    --pragma dq.EnableSpillingNodes=All \
     $cbo \
     $xpragma \
 #
