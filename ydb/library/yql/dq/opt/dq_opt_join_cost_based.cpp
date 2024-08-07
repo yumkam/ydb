@@ -32,6 +32,7 @@ bool DqCollectJoinRelationsWithStats(
 
         if (!stats) {
             YQL_CLOG(TRACE, CoreDq) << "Didn't find statistics for scope " << input.Scope().Cast<TCoAtom>().StringValue() << "\n";
+            YQL_LOG(INFO) << "Didn't find statistics for scope " << input.Scope().Cast<TCoAtom>().StringValue();
             return false;
         }
 
@@ -270,6 +271,7 @@ private:
 
         if (solver.CountCC(MaxDPhypTableSize_) >= MaxDPhypTableSize_) {
             YQL_CLOG(TRACE, CoreDq) << "Maximum DPhyp threshold exceeded\n";
+            YQL_LOG(INFO) << "Maximum DPhyp threshold exceeded";
             ComputeStatistics(joinTree, this->Pctx);
             return joinTree;
         }
@@ -323,6 +325,7 @@ TExprBase DqOptimizeEquiJoinWithCosts(
     }
 
     YQL_CLOG(TRACE, CoreDq) << "Optimizing join with costs";
+    YQL_LOG(INFO) << "Optimizing join with costs";
 
     TVector<std::shared_ptr<TRelOptimizerNode>> rels;
 
@@ -335,6 +338,7 @@ TExprBase DqOptimizeEquiJoinWithCosts(
     }
 
     YQL_CLOG(TRACE, CoreDq) << "All statistics for join in place";
+    YQL_LOG(INFO) << "All statistics for join in place";
 
     bool allRowStorage = std::all_of(
         rels.begin(), 
@@ -352,20 +356,22 @@ TExprBase DqOptimizeEquiJoinWithCosts(
     // Generate an initial tree
     auto joinTree = ConvertToJoinTree(joinTuple, rels);
 
-    if (NYql::NLog::YqlLogger().NeedToLog(NYql::NLog::EComponent::CoreDq, NYql::NLog::ELevel::TRACE)) {
+    if (1 || NYql::NLog::YqlLogger().NeedToLog(NYql::NLog::EComponent::CoreDq, NYql::NLog::ELevel::TRACE)) {
         std::stringstream str;
         str << "Converted join tree:\n";
         joinTree->Print(str);
         YQL_CLOG(TRACE, CoreDq) << str.str();
+        YQL_LOG(INFO) << str.str();
     }
 
     joinTree = opt.JoinSearch(joinTree, hints);
 
-    if (NYql::NLog::YqlLogger().NeedToLog(NYql::NLog::EComponent::CoreDq, NYql::NLog::ELevel::TRACE)) {
+    if (1 || NYql::NLog::YqlLogger().NeedToLog(NYql::NLog::EComponent::CoreDq, NYql::NLog::ELevel::TRACE)) {
         std::stringstream str;
         str << "Optimizied join tree:\n";
         joinTree->Print(str);
         YQL_CLOG(TRACE, CoreDq) << str.str();
+        YQL_LOG(INFO) << str.str();
     }
 
     // rewrite the join tree and record the output statistics
