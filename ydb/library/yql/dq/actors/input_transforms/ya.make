@@ -11,6 +11,8 @@ PEERDIR(
     ydb/library/yql/dq/actors/compute
 )
 
+CFLAGS(-Wall -Wextra -W -Wno-error=parentheses)
+
 YQL_LAST_ABI_VERSION()
 
 END()

@@ -69,6 +69,35 @@ TESTCASES = [
             ('5', '{"data":"5","id":5,"lookup":null}'),
         ],
     ),
+    # 1
+    (
+        R'''
+            $input = SELECT * FROM myyds.`{input_topic}`;
+
+            $enriched = select
+                            e.Data as data, u.data as lookup
+                from
+                    $input as e
+                left join {streamlookup} ydb_conn_{table_name}.{table_name} as u
+                on(CAST(e.Data AS Int32) = u.id)
+            ;
+
+            insert into myyds.`{output_topic}`
+            select Unwrap(Yson::SerializeJson(Yson::From(TableRow()))) from $enriched;
+            ''',
+        [
+            ('1', '{"data":"1","lookup":"ydb10"}'),
+            ('2', '{"data":"2","lookup":"ydb20"}'),
+            ('3', '{"data":"3","lookup":"ydb30"}'),
+            ('4', '{"data":"4","lookup":null}'),
+            ('5', '{"data":"5","lookup":null}'),
+            ('1', '{"data":"1","lookup":"ydb10"}'),
+            ('2', '{"data":"2","lookup":"ydb20"}'),
+            ('3', '{"data":"3","lookup":"ydb30"}'),
+            ('4', '{"data":"4","lookup":null}'),
+            ('5', '{"data":"5","lookup":null}'),
+        ],
+    ),
     # 2
     (
         R'''

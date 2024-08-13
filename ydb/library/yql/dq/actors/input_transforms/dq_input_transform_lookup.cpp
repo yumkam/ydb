@@ -60,6 +60,12 @@ public:
         , ReadyQueue(OutputRowType)
         , WaitingForLookupResults(false)
     {
+        Cerr << "InputJoinColumns [";
+        for (auto i: InputJoinColumns) Cerr << ' ' << i;
+        Cerr << "]\n";
+        Cerr << "LookupJoinColumns [";
+        for (auto i: LookupJoinColumns) Cerr << ' ' << i;
+        Cerr << "]\n";
         Y_ABORT_UNLESS(Alloc);
     }
 
@@ -96,13 +102,17 @@ private: //events
             const auto wideInputRow = AwaitingQueue.Head();
             NUdf::TUnboxedValue* keyItems;
             NUdf::TUnboxedValue lookupKey = HolderFactory.CreateDirectArrayHolder(InputJoinColumns.size(), keyItems);
+            Cerr << "LookupKey [";
             for (size_t i = 0; i != InputJoinColumns.size(); ++i) {
                 keyItems[i] = wideInputRow[InputJoinColumns[i]];
+                Cerr << " " << keyItems[i] << '@' << InputJoinColumns[i];
             }
+            Cerr << "]\n";
             auto lookupPayload = lookupResult.FindPtr(lookupKey);
 
             NUdf::TUnboxedValue* outputRowItems;
             NUdf::TUnboxedValue outputRow = HolderFactory.CreateDirectArrayHolder(OutputRowColumnOrder.size(), outputRowItems);
+            Cerr << "Out [";
             for (size_t i = 0; i != OutputRowColumnOrder.size(); ++i) {
                 const auto& [source, index] = OutputRowColumnOrder[i];
                 switch(source) {
@@ -122,7 +132,9 @@ private: //events
                         Y_ABORT();
                         break;
                 }
+                Cerr << " " << outputRowItems[i];
             }
+            Cerr << "]\n";
             AwaitingQueue.Pop();
             ReadyQueue.PushRow(outputRowItems, OutputRowType->GetElementsCount());
         }
@@ -166,6 +178,7 @@ private: //IDqComputeActorAsyncInput
             NUdf::TUnboxedValue* inputRowItems;
             NUdf::TUnboxedValue inputRow = HolderFactory.CreateDirectArrayHolder(InputRowType->GetElementsCount(), inputRowItems);
             const auto maxKeysInRequest = LookupSource.first->GetMaxSupportedKeysInRequest();
+            Cerr << "MaxKeysInRequest" << maxKeysInRequest << "\n";
             IDqAsyncLookupSource::TUnboxedValueMap keysForLookup{maxKeysInRequest, KeyTypeHelper->GetValueHash(), KeyTypeHelper->GetValueEqual()};
             while (
                 ((InputFlowFetchStatus = FetchWideInputValue(inputRowItems)) == NUdf::EFetchStatus::Ok) && 
@@ -173,9 +186,12 @@ private: //IDqComputeActorAsyncInput
             ) {
                 NUdf::TUnboxedValue* keyItems;
                 NUdf::TUnboxedValue key = HolderFactory.CreateDirectArrayHolder(InputJoinColumns.size(), keyItems);
+                Cerr << "GetAsyncInputData Key [";
                 for (size_t i = 0; i != InputJoinColumns.size(); ++i) {
                     keyItems[i] = inputRowItems[InputJoinColumns[i]];
+                    Cerr << " " << keyItems[i] << '@' << InputJoinColumns[i];
                 }                
+                Cerr << "]\n";
                 keysForLookup.emplace(std::move(key), NUdf::TUnboxedValue{});
                 AwaitingQueue.PushRow(inputRowItems, InputRowType->GetElementsCount());
             }
@@ -245,9 +261,11 @@ public:
     using TBase::TBase;
 protected:
     NUdf::EFetchStatus FetchWideInputValue(NUdf::TUnboxedValue* inputRowItems) override {
+        Cerr << "WideFetch"<<InputRowType->GetElementsCount()<<"\n";
         return InputFlow.WideFetch(inputRowItems, InputRowType->GetElementsCount());
     }
     void PushOutputValue(NKikimr::NMiniKQL::TUnboxedValueBatch& batch, NUdf::TUnboxedValue* outputRowItems) override {
+        Cerr << "WidePush"<< OutputRowType->GetElementsCount() <<"\n";
         batch.PushRow(outputRowItems, OutputRowType->GetElementsCount());
     }
 };
@@ -259,10 +277,13 @@ public:
 protected:
     NUdf::EFetchStatus FetchWideInputValue(NUdf::TUnboxedValue* inputRowItems) override {
         NUdf::TUnboxedValue row;
+        Cerr << "NarrowFetch\n";
         auto result = InputFlow.Fetch(row);
         if (NUdf::EFetchStatus::Ok == result) {
+            Cerr << "Ok"<<row.GetListLength()<<"\n";
             for (size_t i = 0; i != row.GetListLength(); ++i) {
                 inputRowItems[i] = row.GetElement(i);
+                Cerr << "#" << i << "=" << inputRowItems[i] << "\n";
             }
         }
         return result;
@@ -270,7 +291,9 @@ protected:
     void PushOutputValue(NKikimr::NMiniKQL::TUnboxedValueBatch& batch, NUdf::TUnboxedValue* outputRowItems) override {
         NUdf::TUnboxedValue* narrowOutputRowItems;
         NUdf::TUnboxedValue narrowOutputRow = HolderFactory.CreateDirectArrayHolder(OutputRowType->GetElementsCount(), narrowOutputRowItems);
+        Cerr << "NarrowPush"<<OutputRowType->GetElementsCount()<<"\n";
         for (size_t i = 0; i != OutputRowType->GetElementsCount(); ++i) {
+            Cerr << "#" << i << "=" << outputRowItems[i] << "\n";
             narrowOutputRowItems[i] = std::move(outputRowItems[i]);
         }
         batch.emplace_back(std::move(narrowOutputRow));
@@ -379,8 +402,10 @@ TOutputRowColumnOrder CategorizeOutputRowItems(
 THashMap<TStringBuf, size_t> GetNameToIndex(const ::google::protobuf::RepeatedPtrField<TProtoStringType>& names) {
     THashMap<TStringBuf, size_t> result;
     for (int i = 0; i != names.size(); ++i) {
+        Cerr << names[i] << '>' << i << ' ';
         result[names[i]] = i;
     }
+    Cerr << '\n';
     return result;
 }
 
@@ -389,8 +414,10 @@ THashMap<TStringBuf, size_t> GetNameToIndex(const NMiniKQL::TStructType* type) {
     for (ui32 i = 0; i != type->GetMembersCount()//names.size()
                          ; ++i) {
         auto name = type->GetMemberName(i);
+        Cerr << name << '>' << i << ' ';
         result[name] = i;
     }
+    Cerr << '\n';
     return result;
 }
 
@@ -398,7 +425,9 @@ TVector<size_t> GetJoinColumnIndexes(const ::google::protobuf::RepeatedPtrField<
     TVector<size_t> result;
     result.reserve(joinColumns.size());
     for (int i = 0; i != names.size(); ++i) {
+        Cerr << "Take Column " << names[i] << '\n';
         if (auto p = joinColumns.FindPtr(names[i])) {
+            Cerr << "Got " << (*p) << '\n';
             result.push_back(*p);
         }
     }
@@ -409,7 +438,9 @@ TVector<size_t> GetJoinColumnIndexes(const NMiniKQL::TStructType* type, const TH
     TVector<size_t> result;
     result.reserve(joinColumns.size());
     for (ui32 i = 0; i != type->GetMembersCount(); ++i) {
+        Cerr << "Take Column " << type->GetMemberName(i) << '\n';
         if (auto p = joinColumns.FindPtr(type->GetMemberName(i))) {
+            Cerr << "Got " << (*p) << '\n';
             result.push_back(*p);
         }
     }
@@ -432,7 +463,9 @@ std::pair<IDqComputeActorAsyncInput*, NActors::IActor*> CreateInputTransformStre
 
     const auto rightRowType = DeserializeStructType(settings.GetRightSource().GetSerializedRowType(), args.TypeEnv);
 
+    Cerr << "Left: ";
     auto leftJoinColumns = GetNameToIndex(narrowInputRowType);
+    Cerr << "Right: ";
     auto rightJoinColumns = GetNameToIndex(settings.GetRightJoinKeyNames());
 
     auto leftJoinColumnIndexes = GetJoinColumnIndexes(
