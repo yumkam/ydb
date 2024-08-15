@@ -39,6 +39,22 @@ def fmtchange(cur, ref, plus='bad', minus='good', threshold=10):
     return '{}<code{}> {:+3}%</code>'.format(ret, cls, change)
 
 
+class Stats:
+    def __init__(self):
+        self.utime = 0
+        self.elapsed = 0
+        self.maxrss = 0
+        self.rchar = 0
+        self.wchar = 0
+
+    def add(self, utime, elapsed, maxrss, rchar, wchar):
+        self.utime += utime
+        self.elapsed += elapsed
+        self.maxrss = max(self.maxrss, maxrss)
+        self.rchar += rchar
+        self.wchar += wchar
+
+
 def main():
 
     parser = argparse.ArgumentParser()
@@ -176,6 +192,7 @@ code { white-space: pre; }
     print('<tr><th>Testcase' + '<th>Status<th>Real time, s<th>User time, s<th>RSS, MB<th>Input, MB<th>Output, MB<th>'*len(data) + '</tr>')
     refDatas = [None]*len(data[0])
     refTypes = [None]*len(data[0])
+    totals = [Stats() for _ in range(len(data))]
     for i in range(len(data[0])):
         q = data[0][i][1]
         print('<tr><td>{}'.format(html.escape(q)), end='')
@@ -301,6 +318,7 @@ code { white-space: pre; }
                                     # assert val == ref, '{} != {} type {} at {}, {}'.format(val, ref, stypes[col][1][1], row, col)
                         assert len(mismatches) == 0, str(mismatches)
                         print('<td class="ok">MATCH</td>')
+                    totals[c].add(utime, elapsed, maxrss/1024, rchar/(1024*1024), wchar/(1024*1024))
                 except Exception:
                     print('<td class="errcode">Comparison failed: ', traceback.format_exc())
             else:
@@ -308,6 +326,21 @@ code { white-space: pre; }
 
         print('</tr>')
 
+    print('<tr><td>Totals' +
+          '<td><td>{:.1f}<td>{:.1f}<td>{:.1f}<td>{:.1f}<td>{:.1f}<td>'.format(
+              totals[0].elapsed,
+              totals[0].utime,
+              totals[0].maxrss,
+              totals[0].rchar,
+              totals[0].wchar,
+          ) +
+          ''.join('<td><th>{}<th>{}<td>{}<td>{}<th>{}<td>'.format(
+              fmtchange(t.elapsed, totals[0].elapsed),
+              fmtchange(t.utime, totals[0].utime),
+              fmtchange(t.maxrss, totals[0].maxrss),
+              fmtchange(t.rchar, totals[0].rchar),
+              fmtchange(t.wchar, totals[0].wchar),
+          ) for t in totals[1:]) + '</tr>')
     print('</table>')
     print('</html>')
 
