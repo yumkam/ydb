@@ -146,6 +146,10 @@ private: //IDqComputeActorAsyncInput
 
     void PassAway() final override {
         Send(LookupSource.second->SelfId(), new NActors::TEvents::TEvPoison{});
+        Free();
+    }
+
+    void Free() {
         auto guard = BindAllocator();
         //All resources, held by this class, that have been created with mkql allocator, must be deallocated here
         InputFlow.Clear();
@@ -236,6 +240,10 @@ protected:
     NKikimr::NMiniKQL::TUnboxedValueBatch ReadyQueue;
     std::atomic<bool> WaitingForLookupResults;
     NYql::NDq::TDqAsyncStats IngressStats;
+public:
+    ~TInputTransformStreamLookupBase() override {
+        Free();
+    }
 };
 
 class TInputTransformStreamLookupWide: public TInputTransformStreamLookupBase {
