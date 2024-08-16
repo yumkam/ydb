@@ -131,20 +131,20 @@ private: //events
     }
 
     //TODO implement checkpoints
-    void SaveState(const NYql::NDqProto::TCheckpoint&, NYql::NDq::TSourceState&) final {}
-    void LoadState(const NYql::NDq::TSourceState&) final {}
-    void CommitState(const NYql::NDqProto::TCheckpoint&) final {}
+    void SaveState(const NYql::NDqProto::TCheckpoint&, NYql::NDq::TSourceState&) final override {}
+    void LoadState(const NYql::NDq::TSourceState&) final override {}
+    void CommitState(const NYql::NDqProto::TCheckpoint&) final override {}
 
 private: //IDqComputeActorAsyncInput
-    ui64 GetInputIndex() const final {
+    ui64 GetInputIndex() const final override {
         return InputIndex;
     }
 
-    const NYql::NDq::TDqAsyncStats& GetIngressStats() const final {
+    const NYql::NDq::TDqAsyncStats& GetIngressStats() const final override {
         return IngressStats;
     }
 
-    void PassAway() final {
+    void PassAway() final override {
         Send(LookupSource.second->SelfId(), new NActors::TEvents::TEvPoison{});
         auto guard = BindAllocator();
         //All resources, held by this class, that have been created with mkql allocator, must be deallocated here
@@ -154,7 +154,7 @@ private: //IDqComputeActorAsyncInput
         NMiniKQL::TUnboxedValueBatch{}.swap(ReadyQueue);
     }
 
-    i64 GetAsyncInputData(NKikimr::NMiniKQL::TUnboxedValueBatch& batch, TMaybe<TInstant>&, bool& finished, i64 freeSpace) final {
+    i64 GetAsyncInputData(NKikimr::NMiniKQL::TUnboxedValueBatch& batch, TMaybe<TInstant>&, bool& finished, i64 freeSpace) final override {
         Y_UNUSED(freeSpace);
         auto guard = BindAllocator();
         while (!ReadyQueue.empty()) {
