@@ -117,6 +117,7 @@ namespace NYql::NDq {
             return MaxKeysInRequest;
         }
         void AsyncLookup(IDqAsyncLookupSource::TUnboxedValueMap&& request) override {
+            Cerr << "Generic Async Lookup\n";
             auto guard = Guard(*Alloc);
             CreateRequest(std::move(request));
         }

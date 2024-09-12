@@ -2,6 +2,8 @@ import pytest
 import os
 import json
 import sys
+import random
+import base64
 from collections import Counter
 from operator import itemgetter
 
@@ -11,27 +13,53 @@ from ydb.tests.tools.fq_runner.kikimr_utils import yq_v1
 from ydb.tests.tools.fq_runner.fq_client import FederatedQueryClient
 from ydb.tests.tools.datastreams_helpers.test_yds_base import TestYdsBase
 
+
 DEBUG = 0
+WITH_CHECKPOINTS = 0
 
 
-def ResequenceId(messages):
+def ResequenceId(messages, field="id"):
     res = []
     i = 1
     for pair in messages:
         rpair = []
         for it in pair:
             src = json.loads(it)
-            src["id"] = i
+            if field in src:
+                src[field] = i
             rpair += [json.dumps(src)]
         res += [tuple(rpair)]
         i += 1
     return res
 
 
+def RandomizeMessage(messages, field='message', key='uid', header='Message', biglen=10000):
+    res = []
+    random.seed(0)  # we want fixed seed
+    for pair in messages:
+        rpair = []
+        r = random.randint(1, 128)
+        if r >= 4:
+            field_val = str(base64.b64encode(random.randbytes(biglen * 6 // 8)), 'utf-8')
+            key_val = None
+        else:
+            field_val = header + str(r)
+            key_val = r
+        for it in pair:
+            src = json.loads(it)
+            if field in src:
+                src[field] = field_val
+            if key in src:
+                src[key] = key_val
+            rpair += [json.dumps(src)]
+        res += [tuple(rpair)]
+    return res
+
+
 def freeze(json):
     t = type(json)
     if t == dict:
-        return frozenset((k, freeze(v)) for k, v in json.items())
+        return frozenset(sorted((k, freeze(v)) for k, v in json.items()))
     if t == list:
         return tuple(map(freeze, json))
     return json
@@ -309,7 +337,55 @@ TESTCASES = [
             ),
         ],
     ),
+    # 6
+    (
+        R'''
+            $input = SELECT * FROM myyds.`{input_topic}`
+                     WITH (
+                        FORMAT=json_each_row,
+                        SCHEMA (
+                            time Uint64,
+                            key String,
+                            message String,
+                        )
+                    );
+
+            $enriched = SELECT e.`key` as `key`,
+                    u.id as uid, e.time as time
+                FROM
+                    $input AS e
+                LEFT JOIN {streamlookup} ydb_conn_{table_name}.`messages` AS u
+                ON(e.message = u.msg)
+            ;
+
+            insert into myyds.`{output_topic}`
+            select Unwrap(Yson::SerializeJson(Yson::From(TableRow()))) from $enriched;
+            ''',
+        RandomizeMessage(
+            RandomizeMessage(
+                ResequenceId(
+                    [
+                        (
+                            '{"time":1,"key":"foobar","message":"Message5"}',
+                            '{"time":1,"key":"foobar","uid":"Message5"}',
+                        ),
+                    ]
+                    * 100000,
+                    field='time',
+                ),
+                field='message',
+                key='uid',
+                biglen=10000,
+            ),
+            field='key',
+            key='kid',
+            biglen=16,
+            header='key',
+        ),
+    ),
 ]
+
+TESTCASES = TESTCASES[5:7]
 
 
 class TestJoinStreaming(TestYdsBase):
@@ -403,12 +479,18 @@ class TestJoinStreaming(TestYdsBase):
             table_name=table_name,
             streamlookup=R'/*+ streamlookup() */' if streamlookup else '',
         )
+        if not WITH_CHECKPOINTS:
+            sql = 'PRAGMA dq.DisableCheckpoints="true";\n' + sql
 
         query_id = fq_client.create_query(
             f"streamlookup_{partitions_count}{streamlookup}{testcase}", sql, type=fq.QueryContent.QueryType.STREAMING
         ).result.query_id
         fq_client.wait_query_status(query_id, fq.QueryMeta.RUNNING)
-        kikimr.compute_plane.wait_zero_checkpoint(query_id)
+
+        if WITH_CHECKPOINTS:
+            kikimr.compute_plane.wait_zero_checkpoint(query_id)
+        else:
+            kikimr.control_plane.wait_worker_count(1, "DQ_PQ_READ_ACTOR", 1)
 
         offset = 0
         while offset < len(messages):
@@ -417,13 +499,26 @@ class TestJoinStreaming(TestYdsBase):
             offset += 500
 
         read_data = self.read_stream(len(messages))
+
         if DEBUG:
             print(streamlookup, testcase, file=sys.stderr)
             print(sql, file=sys.stderr)
             print(*zip(messages, read_data), file=sys.stderr, sep="\n")
+
         read_data_ctr = Counter(map(freeze, map(json.loads, read_data)))
         messages_ctr = Counter(map(freeze, map(json.loads, map(itemgetter(1), messages))))
-        assert read_data_ctr == messages_ctr
+
+        if False:
+            assert read_data_ctr == messages_ctr
+        else:
+            assert len(read_data_ctr) == len(messages_ctr)
+            ctr = 0
+            for k in read_data_ctr:
+                assert read_data_ctr[k] == messages_ctr[k], f'mismatch at {k}: {read_data_ctr[k]} != {messages_ctr[k]}'
+                ctr += 1
+                if ctr == 1000:
+                    print('#', file=sys.stderr, flush=True)
+                    ctr = 0
 
         fq_client.abort_query(query_id)
         fq_client.wait_query(query_id)

@@ -138,9 +138,11 @@ private:
 
             const auto input = TaskRunner->GetInputChannel(inputChannelId);
             if (!input->IsPaused()) {
+                LOG_D("inputChannelId " << inputChannelId << " is not paused");
                 return false;
             }
             if (!input->Empty()) {
+                LOG_D("inputChannelId " << inputChannelId << " is not empty");
                 return false;
             }
         }
@@ -196,6 +198,8 @@ private:
                 watermarkInjectedToOutputs = true;
             }
 
+            if (ev->Get()->CheckpointRequest.Defined())
+                LOG_D("YK " << ev->Get()->CheckpointRequest.Defined() << " " << ReadyToCheckpoint());
             if (ev->Get()->CheckpointRequest.Defined() && ReadyToCheckpoint()) {
                 mkqlProgramState = MakeHolder<TMiniKqlProgramState>();
                 try {
