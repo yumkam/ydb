@@ -35,6 +35,15 @@ set -ex
       (56, 12, "2a02:1812:1713:4f00:517e:1d79:c88b:704", "Elena", 2),
       (18, 17, "ivalid ip", "newUser", 12);
     COMMIT;
+    CREATE TABLE messages (id Int32, msg STRING, PRIMARY KEY(msg));
+    COMMIT;
+    INSERT INTO messages (id, msg) VALUES
+      (1, "Message1"),
+      (2, "Message2"),
+      (3, "Message3"),
+      (4, "Message4"),
+      (5, "Message5");
+    COMMIT;
   '
 
 retVal=$?

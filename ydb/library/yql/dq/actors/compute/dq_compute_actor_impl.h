@@ -386,7 +386,9 @@ protected:
         auto status = ProcessOutputsState.LastRunStatus;
 
         if (status == ERunStatus::PendingInput && ProcessOutputsState.AllOutputsFinished) {
-            CA_LOG_D("All outputs have been finished. Consider finished");
+#if 0
+            CA_LOG_T("All outputs have been finished. Consider finished");
+#endif
             status = ERunStatus::Finished;
         }
 
@@ -432,8 +434,10 @@ protected:
         // Handle finishing of our task.
         if (status == ERunStatus::Finished && State != NDqProto::COMPUTE_STATE_FINISHED) {
             if (ProcessOutputsState.HasDataToSend || !ProcessOutputsState.ChannelsReady) {
-                CA_LOG_D("Continue execution, either output buffers are not empty or not all channels are ready"
+#if 0
+                CA_LOG_T("Continue execution, either output buffers are not empty or not all channels are ready"
                     << ", hasDataToSend: " << ProcessOutputsState.HasDataToSend << ", channelsReady: " << ProcessOutputsState.ChannelsReady);
+#endif
             } else {
                 if (!Channels->FinishInputChannels()) {
                     CA_LOG_D("Continue execution, not all input channels are initialized");
@@ -690,6 +694,10 @@ protected: //TDqComputeActorCheckpoints::ICallbacks
             Y_ABORT_UNLESS(source.AsyncInput);
             source.AsyncInput->CommitState(checkpoint);
         }
+        for (auto& [inputIndex, inputTransform] : InputTransformsMap) {
+            Y_ABORT_UNLESS(inputTransform.AsyncInput);
+            inputTransform.AsyncInput->CommitState(checkpoint);
+        }
     }
 
     // void InjectBarrierToOutputs(const NDqProto::TCheckpoint& checkpoint) is pure and must be overriden in a derived class
@@ -749,6 +757,12 @@ protected:
                 YQL_ENSURE(sink, "Failed to load state. Sink with output index " << sinkState.OutputIndex << " was not found");
                 YQL_ENSURE(sink->AsyncOutput, "Sink[" << sinkState.OutputIndex << "] is not created");
                 sink->AsyncOutput->LoadState(sinkState);
+            }
+            for (const TInputTransformState& inputTransformState : state.InputTransforms) {
+                TAsyncInputTransformHelper* inputTransform = InputTransformsMap.FindPtr(inputTransformState.InputIndex);
+                YQL_ENSURE(inputTransform, "Failed to load state. InputTransform with input index " << inputTransformState.InputIndex << " was not found");
+                YQL_ENSURE(inputTransform->AsyncInput, "inputTransform[" << inputTransformState.InputIndex << "] is not created");
+                inputTransform->AsyncInput->LoadState(inputTransformState);
             }
         } catch (const std::exception& e) {
             error = e.what();
@@ -1417,6 +1431,7 @@ protected:
         // Don't produce any input from sources if we're about to save checkpoint.
         if ((Checkpoints && Checkpoints->HasPendingCheckpoint() && !Checkpoints->ComputeActorStateSaved())) {
             CA_LOG_T("Skip polling sources because of pending checkpoint");
+            CA_LOG_T("Running " << Running << " Checkpoints " << (const void *)Checkpoints << " HasPendingCheckpoint " << (Checkpoints && Checkpoints->HasPendingCheckpoint()));
             return;
         }
 
@@ -1430,6 +1445,7 @@ protected:
 
     void OnNewAsyncInputDataArrived(const IDqComputeActorAsyncInput::TEvNewAsyncInputDataArrived::TPtr& ev) {
         Y_ABORT_UNLESS(SourcesMap.FindPtr(ev->Get()->InputIndex) || InputTransformsMap.FindPtr(ev->Get()->InputIndex));
+        CA_LOG_D("OnNewAsyncInputDataArrived " << this->SelfId() <<'@' <<ev->Get()->InputIndex);
         auto cpuTimeDelta = TakeSourceCpuTimeDelta();
         if (SourceCpuTimeMs) {
             SourceCpuTimeMs->Add(cpuTimeDelta.MilliSeconds());

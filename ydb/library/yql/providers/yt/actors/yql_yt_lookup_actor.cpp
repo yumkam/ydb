@@ -157,6 +157,7 @@ private: //IDqAsyncLookupSource
         return MaxKeysInRequest;
     }
     void AsyncLookup(IDqAsyncLookupSource::TUnboxedValueMap&& request) override {
+        Cerr << "Yt Async Lookup\n";
         YQL_CLOG(DEBUG, ProviderYt) << "ActorId=" << SelfId() << " Got LookupRequest for " << request.size() << " keys";
         Y_ABORT_IF(InProgress);
         Y_ABORT_IF(request.size() > MaxKeysInRequest);
