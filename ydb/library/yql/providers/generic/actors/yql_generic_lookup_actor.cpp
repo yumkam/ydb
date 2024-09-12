@@ -272,9 +272,11 @@ namespace NYql::NDq {
                 NUdf::TUnboxedValue output = HolderFactory.CreateDirectArrayHolder(PayloadType->GetMembersCount(), outputItems);
                 for (size_t j = 0; j != columns.size(); ++j) {
                     (ColumnDestinations[j].first == EColumnDestination::Key ? keyItems : outputItems)[ColumnDestinations[j].second] = columns[j][i];
+                    Cerr << 'i' << i << ' ' << 'j' << j << ' ' << (int)ColumnDestinations[j].first << ' ' << columns[j][i] << Endl;
                 }
                 if (auto* v = Request.FindPtr(key)) {
                     *v = std::move(output); // duplicates will be overwritten
+                    Cerr << "Added" << Endl;
                 }
             }
         }
@@ -366,6 +368,7 @@ namespace NYql::NDq {
                 *disjunction.mutable_operands()->Add()->mutable_conjunction() = conjunction;
             }
             *select.mutable_where()->mutable_filter_typed()->mutable_disjunction() = disjunction;
+            Cerr << "SELECT = " << select << Endl;
             return {};
         }
 

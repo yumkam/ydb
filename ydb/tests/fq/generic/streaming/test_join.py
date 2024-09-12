@@ -14,7 +14,7 @@ from ydb.tests.tools.fq_runner.fq_client import FederatedQueryClient
 from ydb.tests.tools.datastreams_helpers.test_yds_base import TestYdsBase
 
 
-DEBUG = 0
+DEBUG = 1
 WITH_CHECKPOINTS = 0
 
 
@@ -385,7 +385,7 @@ TESTCASES = [
     ),
 ]
 
-TESTCASES = TESTCASES[5:7]
+# TESTCASES = TESTCASES[5:7]
 
 
 class TestJoinStreaming(TestYdsBase):
@@ -446,8 +446,8 @@ class TestJoinStreaming(TestYdsBase):
         "mvp_external_ydb_endpoint", [{"endpoint": "tests-fq-generic-streaming-ydb:2136"}], indirect=True
     )
     @pytest.mark.parametrize("fq_client", [{"folder_id": "my_folder_slj"}], indirect=True)
-    @pytest.mark.parametrize("partitions_count", [1, 3] if DEBUG else [3])
-    @pytest.mark.parametrize("streamlookup", [False, True] if DEBUG else [True])
+    @pytest.mark.parametrize("partitions_count", [1, 3] if DEBUG and 0 else [3])
+    @pytest.mark.parametrize("streamlookup", [False, True] if DEBUG and 0 else [True])
     @pytest.mark.parametrize("testcase", [*range(len(TESTCASES))])
     def test_streamlookup(
         self,
@@ -517,7 +517,7 @@ class TestJoinStreaming(TestYdsBase):
                 assert read_data_ctr[k] == messages_ctr[k], f'mismatch at {k}: {read_data_ctr[k]} != {messages_ctr[k]}'
                 ctr += 1
                 if ctr == 1000:
-                    print('#', file=sys.stderr, flush=True)
+                    print('<#>', file=sys.stderr, flush=True, end='')
                     ctr = 0
 
         fq_client.abort_query(query_id)
