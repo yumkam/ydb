@@ -266,7 +266,7 @@ private: //IDqComputeActorAsyncInput
         finished = IsFinished();
         if (finished) 
             XF_LOG_T("Finished!");
-        return 0;
+        return AwaitingQueue.RowCount();
     }
 
     TMaybe<google::protobuf::Any> ExtraData() override {
