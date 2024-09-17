@@ -109,7 +109,16 @@ private: //events
 
     STRICT_STFUNC(StateFunc,
         hFunc(IDqAsyncLookupSource::TEvLookupResult, Handle);
+        hFunc(IDqComputeActorAsyncInput::TEvAsyncInputError, Handle);
     )
+
+    void Handle(IDqComputeActorAsyncInput::TEvAsyncInputError::TPtr ev) {
+        auto evptr = ev->Get();
+        Send(ComputeActorId, new IDqComputeActorAsyncInput::TEvAsyncInputError(
+                                  InputIndex,
+                                  evptr->Issues,
+                                  evptr->FatalCode));
+    }
 
     void Handle(IDqAsyncLookupSource::TEvLookupResult::TPtr ev) {
         if (!WaitingForLookupResults) {
