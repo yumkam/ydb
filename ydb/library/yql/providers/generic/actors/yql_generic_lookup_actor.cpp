@@ -143,6 +143,7 @@ namespace NYql::NDq {
                         auto ev = new TEvListSplitsPart(std::move(*result.Response));
                         actorSystem->Send(new NActors::IEventHandle(selfId, selfId, ev));
                     } else {
+                        YQL_CLOG(DEBUG, ProviderGeneric) << "ERROR!!!";
                         SendError(actorSystem, selfId, result.Status);
                     }
                 });
@@ -230,6 +231,7 @@ namespace NYql::NDq {
                     auto ev = new TEvListSplitsIterator(std::move(result.Iterator));
                     actorSystem->Send(new NActors::IEventHandle(selfId, selfId, ev));
                 } else {
+                    Cerr << "NotifyComputerActorWithError " << Endl;
                     SendError(actorSystem, selfId, result.Status);
                 }
             });
@@ -271,6 +273,7 @@ namespace NYql::NDq {
             for (size_t i = 0; i != columns.size(); ++i) {
                 Y_ABORT_UNLESS(value->column_name(i) == (ColumnDestinations[i].first == EColumnDestination::Key ? KeyType : PayloadType)->GetMemberName(ColumnDestinations[i].second));
                 columns[i] = NArrow::ExtractUnboxedValues(value->column(i), SelectResultType->GetMemberType(i), HolderFactory);
+                Cerr << "c" << i << ".size=" << columns[i].size() << Endl;
             }
 
             auto height = columns[0].size();
@@ -377,6 +380,7 @@ namespace NYql::NDq {
                 *disjunction.mutable_operands()->Add()->mutable_conjunction() = conjunction;
             }
             *select.mutable_where()->mutable_filter_typed()->mutable_disjunction() = disjunction;
+            YQL_CLOG(INFO, ProviderGeneric) << "SELECT SIZE " << TString(TStringBuilder() << select).size();
             Cerr << "SELECT = " << select << Endl;
             return {};
         }

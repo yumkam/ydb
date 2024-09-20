@@ -44,6 +44,12 @@ set -ex
       (4, "Message4"),
       (5, "Message5");
     COMMIT;
+    CREATE TABLE db (b STRING NOT NULL, c Int32, a Int32 NOT NULL, d Int32, f Int32, e Int32, PRIMARY KEY(b, a));
+    COMMIT;
+    INSERT INTO db (a, b, c, d, e, f) VALUES
+      (1, "2", 3, 4, 5, 6),
+      (7, "8", 9, 10, 11, 12);
+    COMMIT;
   '
 
 retVal=$?

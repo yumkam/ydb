@@ -597,6 +597,7 @@ protected:
 
         if (!forceTerminate && Checkpoints && State == NDqProto::COMPUTE_STATE_FINISHED) {
             // checkpointed CAs must not self-destroy
+            Cerr << "checkpointed CAs must not self-destroy" << Endl;
             return;
         }
 

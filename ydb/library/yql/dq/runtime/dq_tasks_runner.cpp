@@ -555,6 +555,7 @@ public:
 
                 transform->TransformOutput = CreateDqAsyncInputBuffer(i, transformDesc.GetType(), outputType,
                     memoryLimits.ChannelBufferSize, StatsModeToCollectStatsLevel(Settings.StatsMode));
+                Cerr << (const void *)this << " " << i << " HasTransform " << (const void *)&*transform->TransformOutput << Endl;
 
                 inputType = &transform->TransformInputType;
             }

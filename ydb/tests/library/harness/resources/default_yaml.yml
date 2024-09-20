@@ -244,7 +244,7 @@ federated_query_config:
       endpoint: ""
   checkpoint_coordinator:
     enabled: true
-    checkpointing_period_millis: 500
+    checkpointing_period_millis: 100
     max_inflight: 1
     storage:
       endpoint: ""

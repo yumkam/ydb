@@ -131,8 +131,11 @@ private:
     }
 
     bool ReadyToCheckpoint() {
+        Cerr << "ReadyToCheckpoint" << Endl;
         for (const auto inputChannelId: Inputs) {
+            Cerr << "inputChannelId = " << inputChannelId << Endl;
             if (InputChannelsWithDisabledCheckpoints.contains(inputChannelId)) {
+                Cerr << "DISABLED CHECKPOINT" << Endl;
                 continue;
             }
 
@@ -150,10 +153,13 @@ private:
             const auto t = TaskRunner->GetInputTransform(transformId);
             if (t) {
                 auto [_, transform] = *t;
+                Cerr << "transform = " << (const void *)&*transform << Endl;
                 if (!transform->Empty()) {
+                    LOG_D("inputTransform " << transformId << " is not empty");
                     return false;
                 }
                 if (transform->IsPending()) {
+                    LOG_D("inputTransform " << transformId << " is pending");
                     return false;
                 }
             }

@@ -34,6 +34,10 @@ public:
 
     void Push(NKikimr::NMiniKQL::TUnboxedValueBatch&& batch, i64 space) override {
         Pending = space != 0;
+#if 0
+        if (Pending)
+                Cerr << (const void *)this << " PENDING " << space << " and " << batch.RowCount() << " " << GetInputIndex() << Endl;
+#endif
         if (!batch.empty()) {
             AddBatch(std::move(batch), space);
         }

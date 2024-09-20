@@ -178,7 +178,7 @@ private: //events
     void SaveState(const NYql::NDqProto::TCheckpoint&, NYql::NDq::TSourceState&) final override {
         if (WaitingForLookupResults) {
             Cerr << TInstant::Now() 
-                << "FIXME: pending lookup results"
+                << (const void *)this << " FIXME: pending lookup results"
                 << Endl;
             XF_LOG_I("FIXME: save pending lookup");
         }
@@ -190,8 +190,6 @@ private: //events
     }
     void CommitState(const NYql::NDqProto::TCheckpoint&) final override {
         XF_LOG_I("FIXME: commit pending lookup");
-        if (!ReadyQueue.empty())
-            Send(ComputeActorId, new TEvNewAsyncInputDataArrived{InputIndex});
         PrintBackTrace();
     }
 
@@ -452,8 +450,10 @@ TOutputRowColumnOrder CategorizeOutputRowItems(
     size_t idxLeft = 0;
     size_t idxRightKey = 0;
     size_t idxRightPayload = 0;
+    Cerr << "LeftLabel<"<<leftLabel<<"><"<<rightLabel<<">"<<Endl;
     for (ui32 i = 0; i != type->GetMembersCount(); ++i) {
         const auto prefixedName = type->GetMemberName(i);
+        Cerr<<"i" << i << "=" << prefixedName << "{";
         if (prefixedName.starts_with(leftLabel) &&
             prefixedName.length() > leftLabel.length() &&
             prefixedName[leftLabel.length()] == '.') {
@@ -475,6 +475,7 @@ TOutputRowColumnOrder CategorizeOutputRowItems(
         } else {
             Y_ABORT();
         }
+        Cerr << (int)result[i].first << "," << result[i].second << Endl;
     }
     return result;
 }
@@ -544,6 +545,27 @@ std::pair<IDqComputeActorAsyncInput*, NActors::IActor*> CreateInputTransformStre
     Y_ABORT_UNLESS(leftJoinColumnIndexes.size() == rightJoinColumnIndexes.size());
     
     const auto& [lookupKeyType, lookupPayloadType] = SplitLookupTableColumns(rightRowType, rightJoinColumns, args.TypeEnv);
+    Cerr<<"LeftType"<<Endl;
+    for (ui32 i = 0; i < narrowInputRowType->GetMembersCount(); ++i)
+        Cerr<<i<<"="<< narrowInputRowType->GetMemberName(i)<<Endl;
+    Cerr<<"LeftIndexes"<<Endl;
+    for (ui32 i = 0; i < leftJoinColumnIndexes.size(); ++i)
+        Cerr<<i<<"="<< leftJoinColumnIndexes[i]<<Endl;
+    Cerr<<"LeftKeyNames"<<Endl;
+    for (int i = 0; i < settings.GetLeftJoinKeyNames().size(); ++i)
+        Cerr<<i<<"="<< settings.GetLeftJoinKeyNames()[i]<<Endl;
+    Cerr<<"RightKeyNames"<<Endl;
+    for (int i = 0; i < settings.GetRightJoinKeyNames().size(); ++i)
+        Cerr<<i<<"="<< settings.GetRightJoinKeyNames()[i]<<Endl;
+    Cerr<<"RightType"<<Endl;
+    for (ui32 i = 0; i < rightRowType->GetMembersCount(); ++i)
+        Cerr<<i<<"="<< rightRowType->GetMemberName(i)<<Endl;
+    Cerr<<"LookupKeyType"<<Endl;
+    for (ui32 i = 0; i < lookupKeyType->GetMembersCount(); ++i)
+        Cerr<<i<<"="<< lookupKeyType->GetMemberName(i)<<Endl;
+    Cerr<<"LookupPayloadType"<<Endl;
+    for (ui32 i = 0; i < lookupPayloadType->GetMembersCount(); ++i)
+        Cerr<<i<<"="<< lookupPayloadType->GetMemberName(i)<<Endl;
     const auto& outputColumnsOrder = CategorizeOutputRowItems(
         narrowOutputRowType,
         settings.GetLeftLabel(),
