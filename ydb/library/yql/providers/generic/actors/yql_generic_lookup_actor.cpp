@@ -191,6 +191,8 @@ namespace NYql::NDq {
         void Handle(TEvError::TPtr ev) {
             auto actorSystem = TActivationContext::ActorSystem();
             auto error = ev->Get()->Error;
+            Cerr << "OLOLO XXX " <<  ev->Get()->Error.ShortDebugString() << Endl;
+            YQL_CLOG(ERROR, ProviderGeneric) << "OLOLO Connector error: " << ev->Get()->Error.ShortDebugString();
             auto errEv = new IDqComputeActorAsyncInput::TEvAsyncInputError(
                                   -1,
                                   NConnector::ErrorToIssues(error),

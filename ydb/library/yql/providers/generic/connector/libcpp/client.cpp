@@ -30,6 +30,7 @@ namespace NYql::NConnector {
             Y_ENSURE(config.GetEndpoint().port(), TStringBuilder() << "Empty port in TGenericConnectorConfig: " << config.DebugString());
             GrpcConfig_.Locator = TStringBuilder() << config.GetEndpoint().host() << ":" << config.GetEndpoint().port();
             GrpcConfig_.EnableSsl = config.GetUseSsl();
+            GrpcConfig_.MaxMessageSize = 64 * 1024 * 1024;
 
             YQL_CLOG(INFO, ProviderGeneric) << "Connector endpoint: " << (config.GetUseSsl() ? "grpcs" : "grpc") << "://" << GrpcConfig_.Locator;
 
