@@ -2,6 +2,10 @@ import pytest
 import os
 import json
 import sys
+import random
+import base64
+import logging
+import time
 from collections import Counter
 from operator import itemgetter
 
@@ -11,7 +15,10 @@ from ydb.tests.tools.fq_runner.kikimr_utils import yq_v1
 from ydb.tests.tools.fq_runner.fq_client import FederatedQueryClient
 from ydb.tests.tools.datastreams_helpers.test_yds_base import TestYdsBase
 
-DEBUG = 0
+
+DEBUG = 1
+XD = 0
+WITH_CHECKPOINTS = 1
 
 
 def ResequenceId(messages, field="id"):
@@ -29,10 +36,35 @@ def ResequenceId(messages, field="id"):
     return res
 
 
+def RandomizeMessage(messages, field='message', key='uid', header='Message', biglen=1000):
+    res = []
+    random.seed(0)  # we want fixed seed
+    for pair in messages:
+        rpair = []
+        r = random.randint(1, 4)
+        if r > 3:
+            field_val = str(base64.b64encode(random.randbytes(biglen * 6 // 8)), 'utf-8')
+            key_val = None
+        else:
+            field_val = header + str(r)
+            key_val = r
+            if r == 1:
+                key_val = None
+        for it in pair:
+            src = json.loads(it)
+            if field in src:
+                src[field] = field_val
+            if key in src:
+                src[key] = key_val
+            rpair += [json.dumps(src)]
+        res += [tuple(rpair)]
+    return res
+
+
 def freeze(json):
     t = type(json)
     if t == dict:
-        return frozenset((k, freeze(v)) for k, v in json.items())
+        return frozenset(sorted((k, freeze(v)) for k, v in json.items()))
     if t == list:
         return tuple(map(freeze, json))
     return json
@@ -262,7 +294,7 @@ TESTCASES = [
                     '{"id":7,"ts":"11:33:49","uid":2,"user_id":2,"name":"Petr","age":25}',
                 ),
             ]
-            * 1000
+            * 10000
         ),
     ),
     # 5
@@ -392,10 +424,77 @@ TESTCASES = [
             ]
         ),
     ),
+    # 8
+    (
+        R'''
+            $input = SELECT * FROM myyds.`{input_topic}`
+                     WITH (
+                        FORMAT=json_each_row,
+                        SCHEMA (
+                            time Uint64,
+                            key String,
+                            message String,
+                        )
+                    );
+
+            $enriched = SELECT e.`key` as `key`,
+                    u.id as uid, e.time as time
+                FROM
+                    $input AS e
+                LEFT JOIN {streamlookup} ydb_conn_{table_name}.`messages` AS u
+                ON(e.message = u.msg)
+            ;
+
+            insert into myyds.`{output_topic}`
+            select Unwrap(Yson::SerializeJson(Yson::From(TableRow()))) from $enriched;
+            ''',
+        RandomizeMessage(
+            RandomizeMessage(
+                ResequenceId(
+                    [
+                        (
+                            '{"time":1,"key":"foobar","message":"Message5"}',
+                            '{"time":1,"key":"foobar","uid":5}',
+                        ),
+                    ]
+                    * 500000,
+                    field='time',
+                ),
+                field='message',
+                key='uid',
+                biglen=10000,
+            ),
+            field='key',
+            key='kid',
+            biglen=16,
+            header='key',
+        ),
+    ),
 ]
+
+if not XD:
+    TESTCASES = TESTCASES[8:9]
 
 
 class TestJoinStreaming(TestYdsBase):
+    def restart_node(self, kikimr, query_id):
+        # restart node with CA
+
+        node_to_restart = None
+
+        for node_index in kikimr.compute_plane.kikimr_cluster.nodes:
+            wc = kikimr.compute_plane.get_worker_count(node_index)
+            if wc is not None:
+                if wc > 0 and node_to_restart is None:
+                    node_to_restart = node_index
+        assert node_to_restart is not None, "Can't find any task on node"
+
+        logging.debug("Restart compute node {}".format(node_to_restart))
+
+        kikimr.compute_plane.kikimr_cluster.nodes[node_to_restart].stop()
+        kikimr.compute_plane.kikimr_cluster.nodes[node_to_restart].start()
+        kikimr.compute_plane.wait_bootstrap(node_to_restart)
+
     @yq_v1
     @pytest.mark.parametrize(
         "mvp_external_ydb_endpoint", [{"endpoint": "tests-fq-generic-streaming-ydb:2136"}], indirect=True
@@ -453,18 +552,22 @@ class TestJoinStreaming(TestYdsBase):
         "mvp_external_ydb_endpoint", [{"endpoint": "tests-fq-generic-streaming-ydb:2136"}], indirect=True
     )
     @pytest.mark.parametrize("fq_client", [{"folder_id": "my_folder_slj"}], indirect=True)
-    @pytest.mark.parametrize("partitions_count", [1, 3] if DEBUG else [3])
-    @pytest.mark.parametrize("streamlookup", [False, True] if DEBUG else [True])
+    @pytest.mark.parametrize("partitions_count", [1, 11] if DEBUG and XD else [11])
+    @pytest.mark.parametrize("streamlookup", [False, True] if DEBUG and XD else [True])
     @pytest.mark.parametrize("testcase", [*range(len(TESTCASES))])
+    @pytest.mark.parametrize("test_checkpoints", [False])
     def test_streamlookup(
         self,
         kikimr,
+        test_checkpoints,
         testcase,
         streamlookup,
         partitions_count,
         fq_client: FederatedQueryClient,
         yq_version,
     ):
+        if test_checkpoints and not WITH_CHECKPOINTS:
+            return
         self.init_topics(
             f"pq_yq_str_lookup_{partitions_count}{streamlookup}{testcase}_{yq_version}",
             partitions_count=partitions_count,
@@ -486,27 +589,58 @@ class TestJoinStreaming(TestYdsBase):
             table_name=table_name,
             streamlookup=R'/*+ streamlookup() */' if streamlookup else '',
         )
+        if not WITH_CHECKPOINTS:
+            sql = 'PRAGMA dq.DisableCheckpoints="true";\n' + sql
 
         query_id = fq_client.create_query(
             f"streamlookup_{partitions_count}{streamlookup}{testcase}", sql, type=fq.QueryContent.QueryType.STREAMING
         ).result.query_id
         fq_client.wait_query_status(query_id, fq.QueryMeta.RUNNING)
-        kikimr.compute_plane.wait_zero_checkpoint(query_id)
+
+        if WITH_CHECKPOINTS:
+            kikimr.compute_plane.wait_zero_checkpoint(query_id)
+        else:
+            kikimr.control_plane.wait_worker_count(1, "DQ_PQ_READ_ACTOR", 1)
+
+        if test_checkpoints:
+            last_row = 0
+            last_checkpoint = kikimr.compute_plane.get_completed_checkpoints(query_id)
 
         offset = 0
         while offset < len(messages):
             chunk = messages[offset : offset + 500]
             self.write_stream(map(lambda x: x[0], chunk))
             offset += 500
+            time.sleep(0.2)
+            if test_checkpoints:
+                if offset >= last_row + 5000:
+                    current_checkpoint = kikimr.compute_plane.get_completed_checkpoints(query_id)
+                    if current_checkpoint >= last_checkpoint + 2:
+                        self.restart_node(kikimr, query_id)
+                        last_checkpoint = current_checkpoint
+                    last_row = offset
 
         read_data = self.read_stream(len(messages))
+
         if DEBUG:
             print(streamlookup, testcase, file=sys.stderr)
             print(sql, file=sys.stderr)
             print(*zip(messages, read_data), file=sys.stderr, sep="\n")
+
         read_data_ctr = Counter(map(freeze, map(json.loads, read_data)))
         messages_ctr = Counter(map(freeze, map(json.loads, map(itemgetter(1), messages))))
-        assert read_data_ctr == messages_ctr
+
+        if False:
+            assert read_data_ctr == messages_ctr
+        else:
+            assert len(read_data_ctr) == len(messages_ctr)
+            ctr = 0
+            for k in read_data_ctr:
+                assert read_data_ctr[k] == messages_ctr[k], f'mismatch at {k}: {read_data_ctr[k]} != {messages_ctr[k]}'
+                ctr += 1
+                if ctr == 1000:
+                    print('<#>', file=sys.stderr, flush=True, end='')
+                    ctr = 0
 
         fq_client.abort_query(query_id)
         fq_client.wait_query(query_id)

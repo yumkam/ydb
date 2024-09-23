@@ -136,6 +136,8 @@ private: //events
         const auto now = std::chrono::steady_clock::now();
         auto lookupResult = ev->Get()->Result.lock();
         Y_ABORT_UNLESS(lookupResult == KeysForLookup);
+        ui64 delayUs = std::chrono::duration_cast<std::chrono::microseconds>(now - LastLookup).count();
+        SumLookupTime += delayUs;
         for (; !AwaitingQueue.empty(); AwaitingQueue.pop_front()) {
             auto& [lookupKey, inputOther] = AwaitingQueue.front();
             auto lookupPayload = lookupResult->FindPtr(lookupKey);
@@ -148,6 +150,7 @@ private: //events
             LruCache->Update(NUdf::TUnboxedValue(const_cast<NUdf::TUnboxedValue&&>(k)), std::move(v), now + CacheTtl);
         }
         KeysForLookup.reset();
+        SumMissTime += std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - now).count();
         Send(ComputeActorId, new TEvNewAsyncInputDataArrived{InputIndex});
     }
 
@@ -190,12 +193,18 @@ private: //IDqComputeActorAsyncInput
 
         DrainReadyQueue(batch);
 
+        const auto now = std::chrono::steady_clock::now();
         if (InputFlowFetchStatus != NUdf::EFetchStatus::Finish && !KeysForLookup) {
              NUdf::TUnboxedValue* inputRowItems;
              NUdf::TUnboxedValue inputRow = HolderFactory.CreateDirectArrayHolder(InputRowType->GetElementsCount(), inputRowItems);
-            const auto now = std::chrono::steady_clock::now();
             KeysForLookup = std::make_shared<IDqAsyncLookupSource::TUnboxedValueMap>(MaxKeysInRequest, KeyTypeHelper->GetValueHash(), KeyTypeHelper->GetValueEqual());
+#if 0
             LruCache->Prune(now);
+#else
+            while (LruCache->Tick(now)) { // Prune cache
+                ++Prune;
+            }
+#endif
             while (
                 (KeysForLookup->size() < MaxKeysInRequest) &&
                 ((InputFlowFetchStatus = FetchWideInputValue(inputRowItems)) == NUdf::EFetchStatus::Ok)) {
@@ -210,19 +219,29 @@ private: //IDqComputeActorAsyncInput
                     otherItems[i] = inputRowItems[OtherInputIndexes[i]];
                 }
                 if (auto lookupPayload = LruCache->Get(key, now)) {
+                    ++Hits;
                     AddReadyQueue(key, other, &*lookupPayload);
                 } else {
+                    ++Miss;
                     AwaitingQueue.emplace_back(key, std::move(other));
                     KeysForLookup->emplace(std::move(key), NUdf::TUnboxedValue{});
                 }
             }
             if (!KeysForLookup->empty()) {
+                LastLookup = now;
+                ++Lookups;
+                LookupKeyTotal += KeysForLookup->size();
                 Send(LookupSourceId, new IDqAsyncLookupSource::TEvLookupRequest(KeysForLookup));
             } else {
                 KeysForLookup.reset();
             }
             DrainReadyQueue(batch);
         }
+        SumHitTime += std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - now).count();
+        if (batch.empty())
+            ++GetAsyncDataEmpty;
+        else
+            ++GetAsyncDataCount;
         finished = IsFinished();
         return AwaitingQueue.size();
     }
@@ -281,6 +300,36 @@ protected:
     NKikimr::NMiniKQL::TUnboxedValueBatch ReadyQueue;
     NYql::NDq::TDqAsyncStats IngressStats;
     std::shared_ptr<IDqAsyncLookupSource::TUnboxedValueMap> KeysForLookup;
+    ui64 Prune = 0;
+    ui64 Hits = 0;
+    ui64 Miss = 0;
+    ui64 SumLookupTime = 0;
+    ui64 SumHitTime = 0;
+    ui64 SumMissTime = 0;
+    ui64 Lookups = 0;
+    ui64 GetAsyncDataCount = 0;
+    ui64 GetAsyncDataEmpty = 0;
+    ui64 LookupKeyTotal = 0;
+    std::chrono::steady_clock::time_point LastLookup {};
+    ~TInputTransformStreamLookupBase() {
+        Cerr << (const void *)this
+            << " hits " << Hits
+            << " miss " << Miss
+            << " read " << GetAsyncDataCount
+            << " empty " << GetAsyncDataEmpty
+            << " req " << Lookups
+            << " timeTotalHitUs " << SumHitTime
+            << " timePerHitUs "<< (SumHitTime/(double)Hits)
+            << " timeTotalMissUs " << SumMissTime
+            << " timePerMissUs "<< (SumMissTime/(double)Miss)
+            << " rowsPerRead " << ((Hits + Miss)/(double)GetAsyncDataCount)
+            << " missPerReq " << (Miss/(double)Lookups)
+            << " keysPerReq " << (LookupKeyTotal/(double)Lookups)
+            << " timeTotalUs " << SumLookupTime
+            << " timePerKeyUs " << (SumLookupTime/(double)LookupKeyTotal)
+            << " pruned " << Prune
+            << Endl;
+    }
 };
 
 class TInputTransformStreamLookupWide: public TInputTransformStreamLookupBase {
