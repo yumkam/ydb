@@ -143,6 +143,7 @@ class BaseTenant(abc.ABC):
             {'name': "AnalyzeQuery", 'value': "true"},
             {'name': "EnableInsert", 'value': "true"},
             {'name': "ComputeActorType", 'value': "async"},
+            {'name': "UseWideChannels", 'value': "true"},
         ])
         gateways['yql_core'] = {}
         gateways['yql_core']['flags'] = []

@@ -1417,6 +1417,7 @@ protected:
         // Don't produce any input from sources if we're about to save checkpoint.
         if ((Checkpoints && Checkpoints->HasPendingCheckpoint() && !Checkpoints->ComputeActorStateSaved())) {
             CA_LOG_T("Skip polling sources because of pending checkpoint");
+            CA_LOG_T("Running " << Running << " Checkpoints " << (const void *)Checkpoints << " HasPendingCheckpoint " << (Checkpoints && Checkpoints->HasPendingCheckpoint()));
             return;
         }
 
@@ -1430,6 +1431,7 @@ protected:
 
     void OnNewAsyncInputDataArrived(const IDqComputeActorAsyncInput::TEvNewAsyncInputDataArrived::TPtr& ev) {
         Y_ABORT_UNLESS(SourcesMap.FindPtr(ev->Get()->InputIndex) || InputTransformsMap.FindPtr(ev->Get()->InputIndex));
+        CA_LOG_D("OnNewAsyncInputDataArrived " << this->SelfId() <<'@' <<ev->Get()->InputIndex);
         auto cpuTimeDelta = TakeSourceCpuTimeDelta();
         if (SourceCpuTimeMs) {
             SourceCpuTimeMs->Add(cpuTimeDelta.MilliSeconds());

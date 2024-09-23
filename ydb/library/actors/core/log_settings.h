@@ -126,6 +126,8 @@ namespace NActors {
                     if (priority > settings.Raw.X.SamplingLevel) {
                         return false; // priority > both levels ==> do not log
                     }
+                    if (true)
+                        return true;
                     // priority <= sampling level ==> apply sampling
                     ui32 samplingRate = settings.Raw.X.SamplingRate;
                     if (samplingRate) {

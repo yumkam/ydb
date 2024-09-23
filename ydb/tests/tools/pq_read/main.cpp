@@ -134,6 +134,7 @@ int main(int argc, const char* argv[]) {
                 bool prev = false;
                 if (now > deadline && closing.compare_exchange_strong(prev, true)) {
                     Cerr << "Closing session. No data during " << timeout << Endl;
+                    Cerr << now << '>' << lastDataTime << '+' << timeout << Endl;
                     readSession->Close(TDuration::Seconds(5));
                     Cerr << "Session closed" << Endl;
                     break;

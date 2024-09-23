@@ -8,6 +8,7 @@
 #include <ydb/library/yql/minikql/mkql_string_util.h>
 #include <ydb/library/actors/core/actor.h>
 #include <ydb/library/actors/core/hfunc.h>
+#include <ydb/library/yql/utils/log/log.h>
 
 namespace NYql::NDq {
 
@@ -85,6 +86,7 @@ protected:
     virtual void PushOutputValue(NKikimr::NMiniKQL::TUnboxedValueBatch& batch, NUdf::TUnboxedValue* outputRowItems) = 0;
 
 private: //events
+
     STRICT_STFUNC(StateFunc,
         hFunc(IDqAsyncLookupSource::TEvLookupResult, Handle);
     )
@@ -92,6 +94,10 @@ private: //events
     void Handle(IDqAsyncLookupSource::TEvLookupResult::TPtr ev) {
         auto guard = BindAllocator();
         const auto lookupResult = std::move(ev->Get()->Result);
+        YQL_CLOG(DEBUG, ProviderDq)
+            << "Handle: " << lookupResult.size() << ">" << AwaitingQueue.RowCount();
+        Cerr
+            << "Handle: " << lookupResult.size() << '>' << AwaitingQueue.RowCount();
         while (!AwaitingQueue.empty()) {
             const auto wideInputRow = AwaitingQueue.Head();
             NUdf::TUnboxedValue* keyItems;
@@ -127,24 +133,33 @@ private: //events
             ReadyQueue.PushRow(outputRowItems, OutputRowType->GetElementsCount());
         }
         WaitingForLookupResults = false;
+        YQL_CLOG(DEBUG, ProviderDq) << ">" << ReadyQueue.RowCount() << "<" <<lookupResult.size() << ">" << ComputeActorId;
+        Cerr << '>' << ReadyQueue.RowCount() << '<' <<lookupResult.size() << '>' << ComputeActorId << Endl;
         Send(ComputeActorId, new TEvNewAsyncInputDataArrived{InputIndex});
     }
 
     //TODO implement checkpoints
-    void SaveState(const NYql::NDqProto::TCheckpoint&, NYql::NDq::TSourceState&) final {}
-    void LoadState(const NYql::NDq::TSourceState&) final {}
-    void CommitState(const NYql::NDqProto::TCheckpoint&) final {}
+    void SaveState(const NYql::NDqProto::TCheckpoint&, NYql::NDq::TSourceState&) final override {
+        PrintBackTrace();
+    }
+    void LoadState(const NYql::NDq::TSourceState&) final override {
+        PrintBackTrace();
+    }
+    void CommitState(const NYql::NDqProto::TCheckpoint&) final override {
+        PrintBackTrace();
+    }
 
 private: //IDqComputeActorAsyncInput
-    ui64 GetInputIndex() const final {
+    ui64 GetInputIndex() const final override {
         return InputIndex;
     }
 
-    const NYql::NDq::TDqAsyncStats& GetIngressStats() const final {
+    const NYql::NDq::TDqAsyncStats& GetIngressStats() const final override {
         return IngressStats;
     }
 
-    void PassAway() final {
+    void PassAway() final override {
+        PrintBackTrace();
         Send(LookupSource.second->SelfId(), new NActors::TEvents::TEvPoison{});
         auto guard = BindAllocator();
         //All resources, held by this class, that have been created with mkql allocator, must be deallocated here
@@ -154,12 +169,26 @@ private: //IDqComputeActorAsyncInput
         NMiniKQL::TUnboxedValueBatch{}.swap(ReadyQueue);
     }
 
-    i64 GetAsyncInputData(NKikimr::NMiniKQL::TUnboxedValueBatch& batch, TMaybe<TInstant>&, bool& finished, i64 freeSpace) final {
+    i64 GetAsyncInputData(NKikimr::NMiniKQL::TUnboxedValueBatch& batch, TMaybe<TInstant>&, bool& finished, i64 freeSpace) final override {
         Y_UNUSED(freeSpace);
+        PrintBackTrace();
         auto guard = BindAllocator();
+        YQL_CLOG(DEBUG, ProviderDq)
+            << "freeSpace = " << freeSpace;
+        Cerr
+            << "freeSpace = " << freeSpace;
+        if (!ReadyQueue.empty()) {
         while (!ReadyQueue.empty()) {
             PushOutputValue(batch, ReadyQueue.Head());
             ReadyQueue.Pop();
+        }
+        YQL_CLOG(DEBUG, ProviderDq)
+         << "returned size = " << batch.RowCount()
+         << "InputIndex = " << InputIndex;
+         Cerr << "returned size = " << batch.RowCount() << Endl;
+         Cerr << "InputIndex = " << InputIndex << Endl;
+        finished = IsFinished();
+        return 0;
         }
 
         if (InputFlowFetchStatus != NUdf::EFetchStatus::Finish && !WaitingForLookupResults) {
@@ -167,6 +196,10 @@ private: //IDqComputeActorAsyncInput
             NUdf::TUnboxedValue inputRow = HolderFactory.CreateDirectArrayHolder(InputRowType->GetElementsCount(), inputRowItems);
             const auto maxKeysInRequest = LookupSource.first->GetMaxSupportedKeysInRequest();
             IDqAsyncLookupSource::TUnboxedValueMap keysForLookup{maxKeysInRequest, KeyTypeHelper->GetValueHash(), KeyTypeHelper->GetValueEqual()};
+            YQL_CLOG(DEBUG, ProviderDq)
+                << "GetAsyncInputData " << AwaitingQueue.RowCount();
+            Cerr
+                << "GetAsyncInputData " << AwaitingQueue.RowCount();
             while (
                 (keysForLookup.size() < maxKeysInRequest) &&
                 ((InputFlowFetchStatus = FetchWideInputValue(inputRowItems)) == NUdf::EFetchStatus::Ok)) {
@@ -178,12 +211,19 @@ private: //IDqComputeActorAsyncInput
                 keysForLookup.emplace(std::move(key), NUdf::TUnboxedValue{});
                 AwaitingQueue.PushRow(inputRowItems, InputRowType->GetElementsCount());
             }
+            YQL_CLOG(DEBUG, ProviderDq)
+                << ">" << AwaitingQueue.RowCount() << " " << keysForLookup.size();
+            Cerr
+                << ">" << AwaitingQueue.RowCount() << " " << keysForLookup.size() << Endl;
             if (!keysForLookup.empty()) {
                 LookupSource.first->AsyncLookup(std::move(keysForLookup));
                 WaitingForLookupResults = true;
             }
         }
         finished = IsFinished();
+        if (finished)
+            YQL_CLOG(DEBUG, ProviderDq)
+            << "Finished!";
         return AwaitingQueue.RowCount();
     }
 
@@ -209,7 +249,9 @@ private: //IDqComputeActorAsyncInput
     }
 private:
     bool IsFinished() const {
-        return NUdf::EFetchStatus::Finish == InputFlowFetchStatus && AwaitingQueue.empty();
+        auto ret = NUdf::EFetchStatus::Finish == InputFlowFetchStatus && AwaitingQueue.empty();
+        Cerr << "IsFinished = " << ret << '\n';
+        return ret;
     }
 protected:
     std::shared_ptr<NKikimr::NMiniKQL::TScopedAlloc> Alloc;
@@ -244,9 +286,11 @@ public:
     using TBase::TBase;
 protected:
     NUdf::EFetchStatus FetchWideInputValue(NUdf::TUnboxedValue* inputRowItems) override {
+        Cerr << "Wide::FetchWideInputValue\n";
         return InputFlow.WideFetch(inputRowItems, InputRowType->GetElementsCount());
     }
     void PushOutputValue(NKikimr::NMiniKQL::TUnboxedValueBatch& batch, NUdf::TUnboxedValue* outputRowItems) override {
+        Cerr << "Wide::Push\n";
         batch.PushRow(outputRowItems, OutputRowType->GetElementsCount());
     }
 };
@@ -257,6 +301,7 @@ public:
     using TBase::TBase;
 protected:
     NUdf::EFetchStatus FetchWideInputValue(NUdf::TUnboxedValue* inputRowItems) override {
+        //Cerr << "Narrow::FetchWideInputValue\n";
         NUdf::TUnboxedValue row;
         auto result = InputFlow.Fetch(row);
         if (NUdf::EFetchStatus::Ok == result) {
@@ -267,6 +312,7 @@ protected:
         return result;
     }
     void PushOutputValue(NKikimr::NMiniKQL::TUnboxedValueBatch& batch, NUdf::TUnboxedValue* outputRowItems) override {
+        //Cerr << "Narrow::Push\n";
         NUdf::TUnboxedValue* narrowOutputRowItems;
         NUdf::TUnboxedValue narrowOutputRow = HolderFactory.CreateDirectArrayHolder(OutputRowType->GetElementsCount(), narrowOutputRowItems);
         for (size_t i = 0; i != OutputRowType->GetElementsCount(); ++i) {
