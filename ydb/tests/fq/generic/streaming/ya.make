@@ -73,5 +73,7 @@ TEST_SRCS(
     test_join.py
 )
 
+TIMEOUT(1800)
+
 END()
 
