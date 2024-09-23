@@ -134,6 +134,8 @@ private: //events
     void Handle(IDqAsyncLookupSource::TEvLookupResult::TPtr ev) {
         auto guard = BindAllocator();
         const auto now = std::chrono::steady_clock::now();
+        ui64 delayUs = std::chrono::duration_cast<std::chrono::microseconds>(now - LastLookup).count();
+        SumLookupTime += delayUs;
         auto lookupResult = std::move(ev->Get()->Result);
         for (; !AwaitingQueue.empty(); AwaitingQueue.pop_front()) {
             auto& [lookupKey, inputOther] = AwaitingQueue.front();
@@ -194,7 +196,13 @@ private: //IDqComputeActorAsyncInput
             const auto now = std::chrono::steady_clock::now();
             const auto maxKeysInRequest = LookupSource.first->GetMaxSupportedKeysInRequest();
             IDqAsyncLookupSource::TUnboxedValueMap keysForLookup{maxKeysInRequest, KeyTypeHelper->GetValueHash(), KeyTypeHelper->GetValueEqual()};
+#if 0
             LruCache->Prune(now);
+#else
+            while (LruCache->Tick(now)) { // Prune cache
+                ++Prune;
+            }
+#endif
             while (
                 (keysForLookup.size() < maxKeysInRequest) &&
                 ((InputFlowFetchStatus = FetchWideInputValue(inputRowItems)) == NUdf::EFetchStatus::Ok)) {
@@ -209,18 +217,27 @@ private: //IDqComputeActorAsyncInput
                     otherItems[i] = inputRowItems[OtherInputIndexes[i]];
                 }
                 if (auto lookupPayload = LruCache->Get(key, now)) {
+                    ++Hits;
                     AddReadyQueue(key, other, &*lookupPayload);
                 } else {
+                    ++Miss;
                     AwaitingQueue.emplace_back(key, std::move(other));
                     keysForLookup.emplace(std::move(key), NUdf::TUnboxedValue{});
                 }
             }
             if (!keysForLookup.empty()) {
+                LastLookup = now;
+                ++Lookups;
+                LookupKeyTotal += keysForLookup.size();
                 LookupSource.first->AsyncLookup(std::move(keysForLookup));
                 WaitingForLookupResults = true;
             }
             DrainReadyQueue(batch);
         }
+        if (batch.empty())
+            ++GetAsyncDataEmpty;
+        else
+            ++GetAsyncDataCount;
         finished = IsFinished();
         return AwaitingQueue.size();
     }
@@ -278,6 +295,30 @@ protected:
     NKikimr::NMiniKQL::TUnboxedValueBatch ReadyQueue;
     std::atomic<bool> WaitingForLookupResults;
     NYql::NDq::TDqAsyncStats IngressStats;
+    ui64 Prune = 0;
+    ui64 Hits = 0;
+    ui64 Miss = 0;
+    ui64 SumLookupTime = 0;
+    ui64 Lookups = 0;
+    ui64 GetAsyncDataCount = 0;
+    ui64 GetAsyncDataEmpty = 0;
+    ui64 LookupKeyTotal = 0;
+    std::chrono::steady_clock::time_point LastLookup {};
+    ~TInputTransformStreamLookupBase() {
+        Cerr << (const void *)this
+            << " hits " << Hits
+            << " miss " << Miss
+            << " read " << GetAsyncDataCount
+            << " empty " << GetAsyncDataEmpty
+            << " req " << Lookups
+            << " rowsPerRead " << ((Hits + Miss)/(double)GetAsyncDataCount)
+            << " missPerReq " << (Miss/(double)Lookups)
+            << " keysPerReq " << (LookupKeyTotal/(double)Lookups)
+            << " timeTotalUs " << SumLookupTime
+            << " timePerKeyUs " << (SumLookupTime/(double)LookupKeyTotal)
+            << " pruned " << Prune
+            << Endl;
+    }
 };
 
 class TInputTransformStreamLookupWide: public TInputTransformStreamLookupBase {

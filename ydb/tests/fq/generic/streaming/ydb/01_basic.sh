@@ -35,6 +35,12 @@ set -ex
       (56, 12, "2a02:1812:1713:4f00:517e:1d79:c88b:704", "Elena", 2),
       (18, 17, "ivalid ip", "newUser", 12);
     COMMIT;
+    CREATE TABLE messages (id Int32, msg STRING, PRIMARY KEY(msg));
+    COMMIT;
+    INSERT INTO messages (id, msg) VALUES'"
+`awk 'BEGIN { for (i = 2; i < 5000; ++i) { print "\t(" i ", \\"Message" i "\\")," }};'`
+      "'(100000000, "Message100000000");
+    COMMIT;
     CREATE TABLE db (b STRING NOT NULL, c Int32, a Int32 NOT NULL, d Int32, f Int32, e Int32, PRIMARY KEY(b, a));
     COMMIT;
     INSERT INTO db (a, b, c, d, e, f) VALUES
