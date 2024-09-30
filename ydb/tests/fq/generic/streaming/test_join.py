@@ -63,6 +63,38 @@ def RandomizeMessage(messages, field='message', key='uid', header='Message', big
     return res
 
 
+def RandomizeDBX(messages, keylen=16):
+    # '{"id":1,"key":"foobar","key":"Message5"}',
+    # '{"name":null,"id":123,"age":456,"key":null}',
+    res = []
+    random.seed(0)  # we want fixed seed
+    for pair in messages:
+        Id = random.randint(0, 1000000)
+        Age = random.randint(0, 64)
+        Key = str(base64.b64encode(random.randbytes(keylen * 6 // 8)), 'utf-8')
+        if Age > 30:
+            Age = Id % 31
+        Uid = None
+        if Age == Id % 31:
+            Name = f'Message{Id}'
+            Uid = Id
+        rpair = []
+        for it in pair:
+            src = json.loads(it)
+            if 'id' in src:
+                src['id'] = Id
+            if 'age' in src:
+                src['age'] = Age
+            if 'name' in src:
+                src['name'] = Name
+            if 'key' in src:
+                src['key'] = Key
+            if 'uid' in src:
+                src['uid'] = Uid
+            rpair += [json.dumps(src)]
+        res += [tuple(rpair)]
+
+
 def freeze(json):
     t = type(json)
     if t == dict:
@@ -472,10 +504,47 @@ TESTCASES = [
             header='key',
         ),
     ),
+    # 8
+    (
+        R'''
+            $input = SELECT * FROM myyds.`{input_topic}`
+                     WITH (
+                        FORMAT=json_each_row,
+                        SCHEMA (
+                            id Uint64,
+                            age Uint32,
+                            key String,
+                        )
+                    );
+
+            $enriched = SELECT u.name as name, key
+                    e.id as id, e.age as age
+                FROM
+                    $input AS e
+                LEFT JOIN {streamlookup} ydb_conn_{table_name}.`dbx` AS u
+                ON(e.id = u.id AND e.age = u.age)
+            ;
+
+            insert into myyds.`{output_topic}`
+            select Unwrap(Yson::SerializeJson(Yson::From(TableRow()))) from $enriched;
+            ''',
+        RandomizeDBX(
+            ResequenceId(
+                [
+                    (
+                        '{"id":1,"key":"foobar","key":"Message5"}',
+                        '{"name":null,"id":123,"age":456}',
+                    ),
+                ]
+                * 500000,
+                field='id',
+            ),
+        ),
+    ),
 ]
 
 if not XD:
-    TESTCASES = TESTCASES[8:9]
+    TESTCASES = TESTCASES[9:10]
 
 
 one_time_waiter = OneTimeWaiter(
