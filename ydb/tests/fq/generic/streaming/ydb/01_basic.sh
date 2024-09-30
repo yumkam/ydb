@@ -47,6 +47,8 @@ set -ex
       (1, "2", 3, 4, 5, 6),
       (7, "8", 9, 10, 11, 12);
     COMMIT;
+    CREATE TABLE dbx (id Uint64, age Uint32, name String, PRIMARY KEY(id, age));
+    COMMIT;
   '
 
 retVal=$?
@@ -55,4 +57,18 @@ if [ $retVal -ne 0 ]; then
   exit $retVal
 fi
 
+for o in `seq 0 1000`; do
+/ydb -p ${PROFILE} yql -s '
+    INSERT INTO dbx (id, age, name) VALUES'"
+    `awk -v o=$o 'BEGIN { o *= 1000; for (i = 0; i < 1000; ++i) { print "\t(" (i + o) ", " (i%31) ", \\"Message" i "\\")," }};'`
+      ($o, 1000, \"Message${o}!\");
+    COMMIT;
+  "
+
+retVal=$?
+if [ $retVal -ne 0 ]; then
+  echo $retVal
+  exit $retVal
+fi
+done
 echo $(date +"%T.%6N") "SUCCESS"
