@@ -216,10 +216,13 @@ private: //IDqComputeActorAsyncInput
                 for (size_t i = 0; i != OtherInputIndexes.size(); ++i) {
                     otherItems[i] = inputRowItems[OtherInputIndexes[i]];
                 }
+#if 0 // temporarily disable LRU cache
                 if (auto lookupPayload = LruCache->Get(key, now)) {
                     ++Hits;
                     AddReadyQueue(key, other, &*lookupPayload);
-                } else {
+                } else
+#endif
+                {
                     ++Miss;
                     AwaitingQueue.emplace_back(key, std::move(other));
                     keysForLookup.emplace(std::move(key), NUdf::TUnboxedValue{});

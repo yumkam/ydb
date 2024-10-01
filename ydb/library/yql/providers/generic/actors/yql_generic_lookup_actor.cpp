@@ -188,7 +188,8 @@ namespace NYql::NDq {
             FinalizeRequest();
         }
 
-        void Handle(TEvError::TPtr) {
+        void Handle(TEvError::TPtr ev) {
+            Cerr << "Error! " << ev->Get()->Error << Endl;
             FinalizeRequest();
         }
 
@@ -261,6 +262,7 @@ namespace NYql::NDq {
             for (size_t i = 0; i != columns.size(); ++i) {
                 Y_ABORT_UNLESS(value->column_name(i) == (ColumnDestinations[i].first == EColumnDestination::Key ? KeyType : PayloadType)->GetMemberName(ColumnDestinations[i].second));
                 columns[i] = NArrow::ExtractUnboxedValues(value->column(i), SelectResultType->GetMemberType(i), HolderFactory);
+                Y_ABORT_UNLESS(columns[i].size() == columns[0].size());
             }
 
             auto height = columns[0].size();
@@ -271,7 +273,9 @@ namespace NYql::NDq {
                 NUdf::TUnboxedValue output = HolderFactory.CreateDirectArrayHolder(PayloadType->GetMembersCount(), outputItems);
                 for (size_t j = 0; j != columns.size(); ++j) {
                     (ColumnDestinations[j].first == EColumnDestination::Key ? keyItems : outputItems)[ColumnDestinations[j].second] = columns[j][i];
+                    Cerr << ' ' << (ColumnDestinations[j].first == EColumnDestination::Key ? "Key" : "Pay") << ColumnDestinations[j].second << '=' << columns[j][i];
                 }
+                Cerr << Endl;
                 if (auto* v = Request.FindPtr(key)) {
                     *v = std::move(output); // duplicates will be overwritten
                 }
@@ -367,11 +371,22 @@ namespace NYql::NDq {
             for (const auto& [k, _] : Request) {
                 addClause(KeyType->GetMembersCount(), [&k=k](auto c) { return k.GetElement(c); });
             }
+#if 0
             // Pad query with dummy clauses to improve caching
+            {
+                Y_DEBUG_ABORT_UNLESS(!Reqest.empty());
+                auto &k = Request.begin()->first;
             for (ui32 nRequests = Request.size(); !IsPowerOf2(nRequests); ++nRequests) {
+#if 0 // pad with NULLs, does not currently work, YQ-3711
                 addClause(KeyType->GetMembersCount(), [](auto) { return NUdf::TUnboxedValue(); });
+#else // pad with copy of first line (assumes
+                addClause(KeyType->GetMembersCount(), [&k=k](auto c) { return k.GetElement(c); });
+#endif
             }
+            }
+#endif
             *select.mutable_where()->mutable_filter_typed()->mutable_disjunction() = disjunction;
+            Cerr << "SELECT = " << select << Endl;
             return {};
         }
 
