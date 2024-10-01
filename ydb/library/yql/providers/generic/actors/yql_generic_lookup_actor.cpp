@@ -443,6 +443,7 @@ namespace NYql::NDq {
             }
 #endif
             *select.mutable_where()->mutable_filter_typed()->mutable_disjunction() = disjunction;
+            Cerr << "SELECT = " << select << Endl;
             return {};
         }
 
