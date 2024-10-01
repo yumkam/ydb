@@ -505,6 +505,7 @@ namespace NYql::NDq {
                 AddClause(disjunction, KeyType->GetMembersCount(), keys);
             }
             *select.mutable_where()->mutable_filter_typed()->mutable_disjunction() = disjunction;
+            Cerr << "SELECT = " << select << Endl;
             return {};
         }
 
