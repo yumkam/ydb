@@ -64,7 +64,7 @@ def RandomizeMessage(messages, field='message', key='uid', header='Message', big
 
 
 def RandomizeDBX(messages, keylen=16):
-    # '{"id":1,"key":"foobar","key":"Message5"}',
+    # '{"id":1,"age":"foobar","key":"Message5"}',
     # '{"name":null,"id":123,"age":456,"key":null}',
     res = []
     random.seed(0)  # we want fixed seed
@@ -72,11 +72,12 @@ def RandomizeDBX(messages, keylen=16):
         Id = random.randint(0, 1000000)
         Age = random.randint(0, 64)
         Key = str(base64.b64encode(random.randbytes(keylen * 6 // 8)), 'utf-8')
-        if Age > 30:
+        if Age > 31:
             Age = Id % 31
         Uid = None
-        if Age == Id % 31:
-            Name = f'Message{Id}'
+        Name = None
+        if (Age == (Id % 31)) and Id < 200000:
+            Name = f'Message{Id % 1000}'
             Uid = Id
         rpair = []
         for it in pair:
@@ -93,6 +94,7 @@ def RandomizeDBX(messages, keylen=16):
                 src['uid'] = Uid
             rpair += [json.dumps(src)]
         res += [tuple(rpair)]
+    return res
 
 
 def freeze(json):
@@ -504,7 +506,7 @@ TESTCASES = [
             header='key',
         ),
     ),
-    # 8
+    # 9
     (
         R'''
             $input = SELECT * FROM myyds.`{input_topic}`
@@ -517,26 +519,30 @@ TESTCASES = [
                         )
                     );
 
-            $enriched = SELECT u.name as name, key
+            $enriched = SELECT u.name as name, key,
                     e.id as id, e.age as age
                 FROM
                     $input AS e
                 LEFT JOIN {streamlookup} ydb_conn_{table_name}.`dbx` AS u
                 ON(e.id = u.id AND e.age = u.age)
+                -- ON(e.age = u.age AND e.id = u.id)
             ;
 
             insert into myyds.`{output_topic}`
             select Unwrap(Yson::SerializeJson(Yson::From(TableRow()))) from $enriched;
             ''',
+        [
+            ('{"id":null,"age":456,"key":"Message5"}', '{"name":null,"id":null,"age":456,"key":"Message5"}'),
+        ] +
         RandomizeDBX(
             ResequenceId(
                 [
                     (
-                        '{"id":1,"key":"foobar","key":"Message5"}',
-                        '{"name":null,"id":123,"age":456}',
+                        '{"id":1,"age":1,"key":"Message5"}',
+                        '{"name":null,"id":123,"age":456,"key":0}',
                     ),
                 ]
-                * 500000,
+                * 50000,
                 field='id',
             ),
         ),
@@ -691,7 +697,7 @@ class TestJoinStreaming(TestYdsBase):
             chunk = messages[offset : offset + 500]
             self.write_stream(map(lambda x: x[0], chunk))
             offset += 500
-            time.sleep(0.2)
+            time.sleep(0.1)
             if test_checkpoints:
                 if offset >= last_row + 5000:
                     current_checkpoint = kikimr.compute_plane.get_completed_checkpoints(query_id)
