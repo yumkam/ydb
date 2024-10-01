@@ -38,7 +38,7 @@ set -ex
     CREATE TABLE messages (id Int32, msg STRING, PRIMARY KEY(msg));
     COMMIT;
     INSERT INTO messages (id, msg) VALUES'"
-`awk 'BEGIN { for (i = 2; i < 5000; ++i) { print "\t(" i ", \\"Message" i "\\")," }};'`
+`awk 'BEGIN { for (i = 2; i < 5000; ++i) { print "(" i ",\\"Message" i "\\")," }};'`
       "'(100000000, "Message100000000");
     COMMIT;
     CREATE TABLE db (b STRING NOT NULL, c Int32, a Int32 NOT NULL, d Int32, f Int32, e Int32, PRIMARY KEY(b, a));
@@ -57,13 +57,15 @@ if [ $retVal -ne 0 ]; then
   exit $retVal
 fi
 
-for o in `seq 0 1000`; do
-/ydb -p ${PROFILE} yql -s '
-    INSERT INTO dbx (id, age, name) VALUES'"
-    `awk -v o=$o 'BEGIN { o *= 1000; for (i = 0; i < 1000; ++i) { print "\t(" (i + o) ", " (i%31) ", \\"Message" i "\\")," }};'`
+exec 3<&0
+seq 0 49|while read o; do
+date +%T.%6N >&2
+/ydb -p ${PROFILE} yql -s "
+    INSERT INTO dbx (id, age, name) VALUES
+    `awk -v o=$o 'BEGIN { o *= 4000; for (i = 0; i < 4000; ++i) { print "(" (i + o) "," ((i + o)%31) ",\\"Message" ((i + o) % 1000) "\\")," }};'`
       ($o, 1000, \"Message${o}!\");
     COMMIT;
-  "
+  " <&3
 
 retVal=$?
 if [ $retVal -ne 0 ]; then
