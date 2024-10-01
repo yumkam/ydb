@@ -84,7 +84,7 @@ class KiKiMRNode(daemon.Daemon, kikimr_node_interface.NodeInterface):
                 "stderr_file": "/dev/stderr"
                 }
 
-        daemon.Daemon.__init__(self, self.command, cwd=self.__working_dir, timeout=180, stderr_on_error_lines=240, **kwargs)
+        daemon.Daemon.__init__(self, self.command, cwd=self.__working_dir, timeout=600, stderr_on_error_lines=240, **kwargs)
 
     @property
     def cwd(self):
@@ -489,7 +489,7 @@ class KiKiMR(kikimr_cluster_interface.KiKiMRClusterInterface):
         self._bs_config_invoke(request)
 
     def _bs_config_invoke(self, request):
-        timeout = 240
+        timeout = 600
         sleep = 5
         retries, success = timeout / sleep, False
         while retries > 0 and not success:
@@ -542,7 +542,7 @@ class KiKiMR(kikimr_cluster_interface.KiKiMRClusterInterface):
         def predicate():
             return blobstorage_controller_has_started_on_some_node(monitors)
 
-        timeout_seconds = 240
+        timeout_seconds = 600
         bs_controller_started = wait_for(
             predicate=predicate, timeout_seconds=timeout_seconds, step_seconds=1.0, multiply=1.3
         )
