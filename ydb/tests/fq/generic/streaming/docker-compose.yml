@@ -2,12 +2,14 @@ services:
   fq-connector-go:
     command: |
       sh -c "
-        echo \"$$(dig tests-fq-generic-streaming-ydb +short) tests-fq-generic-streaming-ydb\" >> /etc/hosts; cat /etc/hosts;
+        echo \"$$(dig tests-fq-generic-streaming-ydb +short) tests-fq-generic-streaming-ydb\" >> /etc/hosts; cat /etc/hosts; ls -lR /opt/ydb;
         /opt/ydb/bin/fq-connector-go server -c /opt/ydb/cfg/fq-connector-go.yaml"
     container_name: tests-fq-generic-streaming-fq-connector-go
     image: ghcr.io/ydb-platform/fq-connector-go:v0.5.10@sha256:82ab2332b049113058488581fbf0328639fe192aacf30bbf106e40f6bd297554
     ports:
       - "2130"
+    volumes:
+      - ./fq-connector-go/:/opt/ydb/cfg/
   ydb:
     container_name: tests-fq-generic-streaming-ydb
     environment:
