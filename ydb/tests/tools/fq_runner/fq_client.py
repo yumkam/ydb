@@ -281,7 +281,7 @@ class FederatedQueryClient(object):
         return result.status
 
     # TODO: merge wait_query() and wait_query_status
-    def wait_query(self, query_id, timeout=plain_or_under_sanitizer(40, 200), statuses=final_statuses):
+    def wait_query(self, query_id, timeout=plain_or_under_sanitizer(40*3, 200), statuses=final_statuses):
         start = time.time()
         deadline = start + timeout
         while True:
