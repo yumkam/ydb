@@ -431,10 +431,11 @@ namespace NYql::NDq {
                 addClause(KeyType->GetMembersCount(), [&k=k](auto c) { return k.GetElement(c); });
             }
             // Pad query with dummy clauses to improve caching
-            for (ui32 nRequests = Request->size(); !IsPowerOf2(nRequests); ++nRequests) {
+            for (ui32 nRequests = Request->size(); !IsPowerOf2(nRequests) && nRequests < MaxKeysInRequest; ++nRequests) {
                 addClause(KeyType->GetMembersCount(), [](auto) { return NUdf::TUnboxedValue(); });
             }
             *select.mutable_where()->mutable_filter_typed()->mutable_disjunction() = disjunction;
+            Cerr << "SELECT = " << select << Endl;
             return {};
         }
 
