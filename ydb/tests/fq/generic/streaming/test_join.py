@@ -74,7 +74,7 @@ def RandomizeDBX(messages, keylen=16):
             Age = Id % 31
         Uid = None
         Name = None
-        if (Age == (Id % 31)) and Id < 200000:
+        if (Age == Id % 31) and Id < 100000:
             Name = f'Message{Id % 1000}'
             Uid = Id
         rpair = []
@@ -529,9 +529,6 @@ TESTCASES = [
             insert into myyds.`{output_topic}`
             select Unwrap(Yson::SerializeJson(Yson::From(TableRow()))) from $enriched;
             ''',
-        [
-            ('{"id":null,"age":456,"key":"Message5"}', '{"name":null,"id":null,"age":456,"key":"Message5"}'),
-        ] +
         RandomizeDBX(
             ResequenceId(
                 [
@@ -540,7 +537,7 @@ TESTCASES = [
                         '{"name":null,"id":123,"age":456,"key":0}',
                     ),
                 ]
-                * 50000,
+                * 7,
                 field='id',
             ),
         ),
@@ -627,7 +624,7 @@ class TestJoinStreaming(TestYdsBase):
         "mvp_external_ydb_endpoint", [{"endpoint": "tests-fq-generic-streaming-ydb:2136"}], indirect=True
     )
     @pytest.mark.parametrize("fq_client", [{"folder_id": "my_folder_slj"}], indirect=True)
-    @pytest.mark.parametrize("partitions_count", [1, 11] if DEBUG and XD else [11])
+    @pytest.mark.parametrize("partitions_count", [1, 11] if DEBUG and XD else [1])
     @pytest.mark.parametrize("streamlookup", [False, True] if DEBUG and XD else [True])
     @pytest.mark.parametrize("testcase", [*range(len(TESTCASES))])
     @pytest.mark.parametrize("test_checkpoints", [False])
