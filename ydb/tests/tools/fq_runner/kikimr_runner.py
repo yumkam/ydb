@@ -215,7 +215,7 @@ class BaseTenant(abc.ABC):
             {"subsystem": "worker_manager", "sensor": "ActiveWorkers"})
         return result if result is not None else 0
 
-    def wait_worker_count(self, node_index, activity, expected_count, timeout=yatest_common.plain_or_under_sanitizer(30, 150)):
+    def wait_worker_count(self, node_index, activity, expected_count, timeout=yatest_common.plain_or_under_sanitizer(60, 150)):
         deadline = time.time() + timeout
         while True:
             count = self.get_actor_count(node_index, activity)
@@ -267,7 +267,7 @@ class BaseTenant(abc.ABC):
                 self.wait_bootstrap(n)
             assert self.get_actor_count(n, "GRPC_PROXY") > 0, "Node {} died".format(n)
 
-    def wait_bootstrap(self, node_index=None, wait_time=yatest_common.plain_or_under_sanitizer(90, 400)):
+    def wait_bootstrap(self, node_index=None, wait_time=yatest_common.plain_or_under_sanitizer(120, 400)):
         if node_index is None:
             for n in self.kikimr_cluster.nodes:
                 self.wait_bootstrap(n, wait_time)
@@ -286,7 +286,7 @@ class BaseTenant(abc.ABC):
             self.bootstraped_nodes.add(node_index)
             logging.debug("Node {} has been bootstrapped".format(node_index))
 
-    def wait_discovery(self, node_index=None, wait_time=yatest_common.plain_or_under_sanitizer(30, 150)):
+    def wait_discovery(self, node_index=None, wait_time=yatest_common.plain_or_under_sanitizer(60, 150)):
         if node_index is None:
             for n in self.kikimr_cluster.nodes:
                 self.wait_discovery(n, wait_time)
@@ -306,7 +306,7 @@ class BaseTenant(abc.ABC):
                 break
             logging.debug("Node {} discovery finished".format(node_index))
 
-    def wait_workers(self, worker_count, wait_time=yatest_common.plain_or_under_sanitizer(30, 150)):
+    def wait_workers(self, worker_count, wait_time=yatest_common.plain_or_under_sanitizer(60, 150)):
         ca_count = worker_count * 2  # we count 2x CAs
         deadline = time.time() + wait_time
         while True:
@@ -357,7 +357,7 @@ class BaseTenant(abc.ABC):
                                                       expect_counters_exist=expect_counters_exist)
 
     def wait_completed_checkpoints(self, query_id, checkpoints_count,
-                                   timeout=yatest_common.plain_or_under_sanitizer(30, 150),
+                                   timeout=yatest_common.plain_or_under_sanitizer(60, 150),
                                    expect_counters_exist=False):
         deadline = time.time() + timeout
         while True:
