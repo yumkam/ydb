@@ -75,6 +75,18 @@ if [ $retVal -ne 0 ]; then
   exit $retVal
 fi
 done
+
+/ydb -p ${PROFILE} yql -s '
+    CREATE TABLE dummy_table (name String, cnt Uint64, PRIMARY KEY(name));
+    COMMIT;
+    INSERT INTO dummy_table (name, cnt) SELECT "dbx", COUNT(*) FROM dbx;
+    COMMIT;
+  '
+retVal=$?
+if [ $retVal -ne 0 ]; then
+  echo $retVal
+  exit $retVal
+fi
 /ydb -p ${PROFILE} table query execute -q "SELECT COUNT(*) FROM dbx" >&2
 echo $(date +"%T.%6N") "SUCCESS"
 echo '{"a1":10,"i1":77324,"a2":11,"i2":42450,"a3":28,"i3":424604,"a4":18,"i4":885440,"a5":12,"i5":146534,"a6":27,"i6":611720,"a7":18,"i7":953938}' | \
