@@ -218,7 +218,7 @@ private: //IDqComputeActorAsyncInput
                 for (size_t i = 0; i != OtherInputIndexes.size(); ++i) {
                     otherItems[i] = inputRowItems[OtherInputIndexes[i]];
                 }
-#if 0 // temporarily disable LRU cache
+#if 1 // temporarily disable LRU cache
                 if (auto lookupPayload = LruCache->Get(key, now)) {
                     ++Hits;
                     AddReadyQueue(key, other, &*lookupPayload);
