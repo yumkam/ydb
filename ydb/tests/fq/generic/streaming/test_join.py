@@ -100,6 +100,46 @@ def RandomizeDBX(messages, keylen=16):
     return res
 
 
+def RandomizeDBY(messages, keylen=16):
+    # '{"id":1,"age":"foobar","key":"Message5"}',
+    # '{"name":null,"id":123,"age":456,"key":null}',
+    res = []
+    random.seed(0)  # we want fixed seed
+    for pair in messages:
+        Id = random.randint(0, 10000)
+        Id = (Id * 124151351) % 1900000043
+        Key = str(base64.b64encode(random.randbytes(keylen * 6 // 8)), 'utf-8')
+        Hash = f'hash{Id:028}'
+        Age = Id % 31
+        Uid = None
+        Uhash = None
+        Uage = None
+        if Id < 10000000:
+            Uid = Id
+            Uage = Id % 31
+            Uhash = Hash
+        rpair = []
+        for it in pair:
+            src = json.loads(it)
+            if 'id' in src:
+                src['id'] = Id
+            if 'uage' in src:
+                src['uage'] = Uage
+            if 'age' in src:
+                src['age'] = Age
+            if 'uhash' in src:
+                src['uhash'] = Uhash
+            if 'hash' in src:
+                src['hash'] = Hash
+            if 'key' in src:
+                src['key'] = Key
+            if 'uid' in src:
+                src['uid'] = Uid
+            rpair += [json.dumps(src)]
+        res += [tuple(rpair)]
+    return res
+
+
 def freeze(json):
     t = type(json)
     if t == dict:
@@ -544,16 +584,48 @@ TESTCASES = [
             select Unwrap(Yson::SerializeJson(Yson::From(TableRow()))) from $enriched;
             ''',
         RandomizeDBX(
-            ResequenceId(
-                [
-                    (
-                        '{"id":1,"age":1,"key":"Message5"}',
-                        '{"name":null,"id":123,"age":456,"key":0}',
-                    ),
-                ]
-                * 7,
-                field='id',
-            ),
+            [
+                (
+                    '{"id":1,"age":1,"key":"Message5"}',
+                    '{"name":null,"id":123,"age":456,"key":0}',
+                ),
+            ]
+            * 7000,
+        ),
+    ),
+    # 10
+    (
+        R'''
+            $input = SELECT * FROM myyds.`{input_topic}`
+                     WITH (
+                        FORMAT=json_each_row,
+                        SCHEMA (
+                            id Uint64,
+                            age Uint32,
+                            hash String,
+                            key String,
+                        )
+                    );
+
+            $enriched = SELECT e.hash as hash, key,
+                    u.id as uid, u.age as uage
+                FROM
+                    $input AS e
+                LEFT JOIN {streamlookup} ydb_conn_{table_name}.`dby` AS u
+                ON(e.hash = u.hash)
+            ;
+
+            insert into myyds.`{output_topic}`
+            select Unwrap(Yson::SerializeJson(Yson::From(TableRow()))) from $enriched;
+            ''',
+        RandomizeDBY(
+            [
+                (
+                    '{"id":1,"age":1,"hash":null,"key":"Message5"}',
+                    '{"hash":null,"uid":123,"uage":456,"key":0}',
+                ),
+            ]
+            * 1000,
         ),
     ),
 ]
