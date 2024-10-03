@@ -19,6 +19,10 @@ services:
       YDB_DEFAULT_LOG_LEVEL: DEBUG
     hostname: tests-fq-generic-streaming-ydb
     image: ghcr.io/ydb-platform/local-ydb:latest@sha256:9045e00afec1923dc3277564c7b2f829087c2115f45f18e1d38b80bb89f98be6
+    # image: ghcr.io/ydb-platform/local-ydb:24.2.8@sha256:46ae2e38cdbf1a31452d2c689f87c7aa91f04ea5169dcbbf20ba352cccc05c01
+    # image: ghcr.io/ydb-platform/local-ydb:24.3-pr7136@sha256:9d379ec7aa8d1b2eb0419a11302103a1dad00896c188b7dc30efe9c935174fdc
+    # image: ghcr.io/ydb-platform/local-ydb:trunk@sha256:89360b5a79ac323c05fed592217806306589097d6c450528744d19aac1def7af
+
     volumes:
       - ./ydb/init_ydb:/init_ydb
       - ./ydb/01_basic.sh:/01_basic.sh
