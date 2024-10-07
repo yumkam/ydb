@@ -6,6 +6,7 @@ import random
 import base64
 import logging
 import time
+import hashlib
 from collections import Counter
 from operator import itemgetter
 
@@ -107,6 +108,46 @@ def RandomizeDBY(messages, keylen=16):
         Id = (Id * 124151351) % 1900000043
         Key = str(base64.b64encode(random.randbytes(keylen * 6 // 8)), 'utf-8')
         Hash = f'hash{Id:028}'
+        Age = Id % 31
+        Uid = None
+        Uhash = None
+        Uage = None
+        if Id < 10000000:
+            Uid = Id
+            Uage = Id % 31
+            Uhash = Hash
+        rpair = []
+        for it in pair:
+            src = json.loads(it)
+            if 'id' in src:
+                src['id'] = Id
+            if 'uage' in src:
+                src['uage'] = Uage
+            if 'age' in src:
+                src['age'] = Age
+            if 'uhash' in src:
+                src['uhash'] = Uhash
+            if 'hash' in src:
+                src['hash'] = Hash
+            if 'key' in src:
+                src['key'] = Key
+            if 'uid' in src:
+                src['uid'] = Uid
+            rpair += [json.dumps(src)]
+        res += [tuple(rpair)]
+    return res
+
+
+def RandomizeDBH(messages, keylen=16):
+    # '{"id":1,"age":"foobar","key":"Message5"}',
+    # '{"name":null,"id":123,"age":456,"key":null}',
+    res = []
+    random.seed(0)  # we want fixed seed
+    for pair in messages:
+        Id = random.randint(0, 10000)
+        Id = (Id * 124151351) % 19000043
+        Key = str(base64.b64encode(random.randbytes(keylen * 6 // 8)), 'utf-8')
+        Hash = hashlib.sha256(bytes(str(Id), 'utf-8')).hexdigest()
         Age = Id % 31
         Uid = None
         Uhash = None
@@ -602,24 +643,26 @@ TESTCASES = [
                 LEFT JOIN {streamlookup} ydb_conn_{table_name}.`dby` AS u
                 ON(e.hash = u.hash)
             ;
+            $formatTime = DateTime::Format("%Y%m%d%H%M%S");
+            $preout = SELECT hash, key, uid, uage, $formatTime(CurrentUtcTimestamp(key)) as utc FROM $enriched;
 
             insert into myyds.`{output_topic}`
-            select Unwrap(Yson::SerializeJson(Yson::From(TableRow()))) from $enriched;
+            select Unwrap(Yson::SerializeJson(Yson::From(TableRow()))) from $preout;
             ''',
-        RandomizeDBY(
+        RandomizeDBH(
             [
                 (
                     '{"id":1,"age":1,"hash":null,"key":"Message5"}',
                     '{"hash":null,"uid":123,"uage":456,"key":0}',
                 ),
             ]
-            * 1000,
+            * 1000000,
         ),
     ),
 ]
 
 if not XD:
-    TESTCASES = TESTCASES[9:10]
+    TESTCASES = TESTCASES[10:11]
 
 
 one_time_waiter = OneTimeWaiter(
@@ -705,7 +748,7 @@ class TestJoinStreaming(TestYdsBase):
         "mvp_external_ydb_endpoint", [{"endpoint": "tests-fq-generic-streaming-ydb:2136"}], indirect=True
     )
     @pytest.mark.parametrize("fq_client", [{"folder_id": "my_folder_slj"}], indirect=True)
-    @pytest.mark.parametrize("partitions_count", [1, 11] if DEBUG and XD else [1])
+    @pytest.mark.parametrize("partitions_count", [1, 11] if DEBUG and XD else [11])
     @pytest.mark.parametrize("streamlookup", [False, True] if DEBUG and XD else [True])
     @pytest.mark.parametrize("testcase", [*range(len(TESTCASES))])
     @pytest.mark.parametrize("test_checkpoints", [False])
@@ -766,7 +809,7 @@ class TestJoinStreaming(TestYdsBase):
             chunk = messages[offset : offset + 500]
             self.write_stream(map(lambda x: x[0], chunk))
             offset += 500
-            time.sleep(0.1)
+            time.sleep(0.01)
             if test_checkpoints:
                 if offset >= last_row + 5000:
                     current_checkpoint = kikimr.compute_plane.get_completed_checkpoints(query_id)
@@ -782,7 +825,11 @@ class TestJoinStreaming(TestYdsBase):
             print(sql, file=sys.stderr)
             print(*zip(messages, read_data), file=sys.stderr, sep="\n")
 
-        read_data_ctr = Counter(map(freeze, map(json.loads, read_data)))
+        def rmutc(d):
+            del d['utc']
+            return d
+
+        read_data_ctr = Counter(map(freeze, map(rmutc, map(json.loads, read_data))))
         messages_ctr = Counter(map(freeze, map(json.loads, map(itemgetter(1), messages))))
 
         if False:
