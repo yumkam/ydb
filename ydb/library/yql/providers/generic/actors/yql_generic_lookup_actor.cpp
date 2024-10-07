@@ -161,6 +161,7 @@ namespace NYql::NDq {
                       hFunc(NActors::TEvents::TEvPoison, Handle);)
 
         void Handle(TEvListSplitsIterator::TPtr ev) {
+            Cerr << TInstant::Now() << " GenericLookup list iterator" << Endl;
             auto& iterator = ev->Get()->Iterator;
             iterator->ReadNext().Subscribe(
                 [
@@ -182,6 +183,7 @@ namespace NYql::NDq {
 
         void Handle(TEvListSplitsPart::TPtr ev) {
             auto response = ev->Get()->Response;
+            Cerr << TInstant::Now() << " GenericLookup list split part " << response.splits_size() << Endl;
             Y_ABORT_UNLESS(response.splits_size() == 1);
             auto& split = response.splits(0);
             NConnector::NApi::TReadSplitsRequest readRequest;
@@ -213,16 +215,19 @@ namespace NYql::NDq {
         }
 
         void Handle(TEvReadSplitsIterator::TPtr ev) {
+            Cerr << TInstant::Now() << " GenericLookup read splits iterator " << Endl;
             ReadSplitsIterator = ev->Get()->Iterator;
             ReadNextData();
         }
 
         void Handle(TEvReadSplitsPart::TPtr ev) {
+            Cerr << TInstant::Now() << " GenericLookup read splits part " << Endl;
             ProcessReceivedData(ev->Get()->Response);
             ReadNextData();
         }
 
         void Handle(TEvReadSplitsFinished::TPtr) {
+            Cerr << TInstant::Now() << " GenericLookup read finished " << Endl;
             FinalizeRequest();
         }
 
@@ -285,6 +290,7 @@ namespace NYql::NDq {
             };
 
             splitRequest.Setmax_split_count(1);
+            Cerr << TInstant::Now() << " GenericLookup sent request" << Endl;
             Connector->ListSplits(splitRequest, RequestTimeout).Subscribe([
                     actorSystem = TActivationContext::ActorSystem(),
                     selfId = SelfId(),
