@@ -17,13 +17,13 @@
 #elif SIMDJSON_BUILTIN_IMPLEMENTATION_IS(icelake)
 #include "simdjson/icelake.h"
 #elif SIMDJSON_BUILTIN_IMPLEMENTATION_IS(ppc64)
-#include "simdjson/ppc64.h"
+#error #include "simdjson/ppc64.h"
 #elif SIMDJSON_BUILTIN_IMPLEMENTATION_IS(westmere)
 #include "simdjson/westmere.h"
 #elif SIMDJSON_BUILTIN_IMPLEMENTATION_IS(lsx)
-#include "simdjson/lsx.h"
+#error #include "simdjson/lsx.h"
 #elif SIMDJSON_BUILTIN_IMPLEMENTATION_IS(lasx)
-#include "simdjson/lasx.h"
+#error #include "simdjson/lasx.h"
 #else
 #error Unknown SIMDJSON_BUILTIN_IMPLEMENTATION
 #endif
