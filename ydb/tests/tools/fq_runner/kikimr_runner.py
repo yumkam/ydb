@@ -92,13 +92,15 @@ class BaseTenant(abc.ABC):
         self.enable_logging("INTERCONNECT", LogLevels.WARN)  # IC is too verbose
         self.enable_logging("FQ_QUOTA_PROXY")
         self.enable_logging("FQ_QUOTA_SERVICE")
-        self.enable_logging("KQP_COMPUTE", LogLevels.TRACE)
+        # self.enable_logging("KQP_COMPUTE", LogLevels.TRACE)
+        self.enable_logging("KQP_COMPUTE", LogLevels.INFO)
         self.enable_logging("KQP_YQL")
         self.enable_logging("STREAMS")
         self.enable_logging("STREAMS_STORAGE_SERVICE")  # TODO: rename to YQ_STORAGE_SERVICE
         self.enable_logging("STREAMS_CHECKPOINT_COORDINATOR")  # TODO: rename to YQ_CHECKPOINT_COORDINATOR
         self.enable_logging("YQL_NODES_MANAGER")  # TODO: rename to YQ_NODES_MANAGER
-        self.enable_logging("YQL_PROXY")  # TODO: rename to YQ_PROXY
+        # self.enable_logging("YQL_PROXY")  # TODO: rename to YQ_PROXY
+        self.enable_logging("YQL_PROXY", LogLevels.INFO)  # TODO: rename to YQ_PROXY
         self.enable_logging("FQ_RUN_ACTOR")
         self.enable_logging("FQ_DATABASE_RESOLVER")
         self.enable_logging("FQ_PENDING_FETCHER")
@@ -107,7 +109,8 @@ class BaseTenant(abc.ABC):
         self.enable_logging("FQ_LOG_UPDATER")
         self.enable_logging("DQ_TASK_RUNNER")
         self.enable_logging("YQL_PRIVATE_PROXY")  # TODO: rename to YQ_PRIVATE_PROXY
-        self.enable_logging("YDB_SDK")
+        # self.enable_logging("YDB_SDK")
+        self.enable_logging("YDB_SDK", LogLevels.INFO)
         self.enable_logging("YQ_CONTROL_PLANE_STORAGE")
         self.enable_logging("YQ_CONTROL_PLANE_PROXY", LogLevels.TRACE)
         self.enable_logging("YQ_TEST_CONNECTION")
