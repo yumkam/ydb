@@ -81,6 +81,7 @@ TTable::EAddTupleResult TTable::AddTuple(  ui64 * intColumns, char ** stringColu
 
     ui64 bucket = hash & BucketsMask;
 
+#if 0
     if (!IsAny_ && other.TableBucketsStats[bucket].BloomFilter.IsFinalized())  {
         auto bucket2 = &other.TableBucketsStats[bucket];
         auto &bloomFilter = bucket2->BloomFilter;
@@ -90,6 +91,7 @@ TTable::EAddTupleResult TTable::AddTuple(  ui64 * intColumns, char ** stringColu
             return EAddTupleResult::Unmatched;
         }
     }
+#endif
 
     std::vector<ui64, TMKQLAllocator<ui64>> & keyIntVals = TableBuckets[bucket].KeyIntVals;
     std::vector<ui32, TMKQLAllocator<ui32>> & stringsOffsets = TableBuckets[bucket].StringsOffsets;
@@ -109,6 +111,7 @@ TTable::EAddTupleResult TTable::AddTuple(  ui64 * intColumns, char ** stringColu
             return EAddTupleResult::AnyMatch;
         }
 
+#if 0
         if (other.TableBucketsStats[bucket].BloomFilter.IsFinalized())  {
             auto bucket2 = &other.TableBucketsStats[bucket];
             auto &bloomFilter = bucket2->BloomFilter;
@@ -119,6 +122,7 @@ TTable::EAddTupleResult TTable::AddTuple(  ui64 * intColumns, char ** stringColu
                 return EAddTupleResult::Unmatched;
             }
         }
+#endif
     }
 
     TableBucketsStats[bucket].TuplesNum++;
@@ -412,14 +416,18 @@ void TTable::Join( TTable & t1, TTable & t2, EJoinKind joinKind, bool hasMoreLef
 
         ui64 &nSlots = bucket2->NSlots;
         auto &joinSlots = bucket2->JoinSlots;
+#if 0
         auto &bloomFilter = bucketStats2->BloomFilter;
+#endif
         bool initHashTable = false;
 
         Y_DEBUG_ABORT_UNLESS(bucketStats2->SlotSize == 0 || bucketStats2->SlotSize == slotSize);
         if (!nSlots) {
             nSlots = (3 * tuplesNum2 + 1) | 1;
             joinSlots.resize(nSlots*slotSize, 0);
+#if 0
             bloomFilter.Resize(tuplesNum2);
+#endif
             initHashTable = true;
             bucketStats2->SlotSize = slotSize;
             ++InitHashTableCount_;
@@ -449,7 +457,9 @@ void TTable::Join( TTable & t1, TTable & t2, EJoinKind joinKind, bool hasMoreLef
                 // Note: if hashtable is re-created after being spilled
                 // (*(it2 + HashSize) & 1) may be true (even though key does NOT contain NULL)
 
+#if 0
                 bloomFilter.Add(hash);
+#endif
 
                 auto slotIt = firstSlot(hash);
 
@@ -472,7 +482,9 @@ void TTable::Join( TTable & t1, TTable & t2, EJoinKind joinKind, bool hasMoreLef
                 }
                 slotIt[slotSize - 1] = tuple2Idx;
             }
+#if 0
             bloomFilter.Finalize();
+#endif
             if (swapTables) JoinTable1Total_ += tuplesNum2; else JoinTable2Total_ += tuplesNum2;
         }
 
@@ -487,8 +499,10 @@ void TTable::Join( TTable & t1, TTable & t2, EJoinKind joinKind, bool hasMoreLef
         // strSize only present if HasKeyStrCol || HasKeyICol
         // strPos is only present if (HasKeyStrCol || HasKeyICol) && strSize + headerSize >= slotSize
         // slotSize, slotIdx and strPos is only for hashtable (table2)
+#if 0
         ui64 bloomHits = 0;
         ui64 bloomLookups = 0;
+#endif
         
         for (ui64 keysValSize = headerSize1; it1 != bucket1->KeyIntVals.end(); it1 += keysValSize, ++tuple1Idx ) {
 
@@ -500,6 +514,7 @@ void TTable::Join( TTable & t1, TTable & t2, EJoinKind joinKind, bool hasMoreLef
 
             Y_DEBUG_ABORT_UNLESS((*(it1 + HashSize) & 1) == 0); // Keys with NULL never reaches Join
 
+#if 0
             if (initHashTable) {
                 bloomLookups++;
                 if (bloomFilter.IsMissing(hash)) {
@@ -509,6 +524,7 @@ void TTable::Join( TTable & t1, TTable & t2, EJoinKind joinKind, bool hasMoreLef
                     continue;
                 }
             }
+#endif
 
             ++HashLookups_;
 
@@ -572,7 +588,9 @@ void TTable::Join( TTable & t1, TTable & t2, EJoinKind joinKind, bool hasMoreLef
                 }
             }
             if (saveTuplesFound == tuplesFound) {
+#if 0
                 ++BloomFalsePositives_;
+#endif
                 if (needLeftIds)
                     leftIds.push_back(tuple1Idx);
             } else if (isLeftSemi) {
@@ -581,7 +599,9 @@ void TTable::Join( TTable & t1, TTable & t2, EJoinKind joinKind, bool hasMoreLef
         }
 
         if (!hasMoreLeftTuples && !hasMoreRightTuples) {
+#if 0
             bloomFilter.Shrink();
+#endif
 
             if (bucketStats2->HashtableMatches) {
                 auto slotIt = joinSlots.cbegin();
@@ -604,12 +624,14 @@ void TTable::Join( TTable & t1, TTable & t2, EJoinKind joinKind, bool hasMoreLef
             nSlots = 0;
         }
 
+#if 0
         if (bloomHits < bloomLookups/8) {
             // Bloomfilter was inefficient, drop it
             bloomFilter.Shrink();
         }
         BloomHits_ += bloomHits;
         BloomLookups_ += bloomLookups;
+#endif
 
         YQL_LOG(GRACEJOIN_TRACE)
             << (const void *)this << '#'

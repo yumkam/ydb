@@ -158,7 +158,9 @@ struct TTableBucket {
  };
 
  struct TTableBucketStats {
+#if 0
     TBloomfilter<TMKQLAllocator<ui64>> BloomFilter;
+#endif
     KeysHashTable AnyHashTable;      // Hash table to process join only for unique keys (any join attribute)
     ui64 TuplesNum = 0;             // Total number of tuples in bucket
     ui64 StringValuesTotalSize = 0; // Total size of StringsValues. Used to correctly calculate StringsOffsets.
