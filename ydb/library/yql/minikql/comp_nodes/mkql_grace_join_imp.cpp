@@ -13,7 +13,7 @@ namespace NMiniKQL {
 namespace GraceJoin {
 
 
-TTable::EAddTupleResult TTable::AddTuple(  ui64 * intColumns, char ** stringColumns, ui32 * stringsSizes, NYql::NUdf::TUnboxedValue * iColumns, const TTable &other) {
+TTable::EAddTupleResult TTable::AddTuple(  ui64 * intColumns, char ** stringColumns, ui32 * stringsSizes, NYql::NUdf::TUnboxedValue * iColumns, [[maybe_unused]] const TTable& other) {
 
     if ((intColumns[0] & 1))
         return EAddTupleResult::Unmatched;
