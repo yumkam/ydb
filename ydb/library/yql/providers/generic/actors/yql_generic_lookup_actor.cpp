@@ -214,8 +214,13 @@ namespace NYql::NDq {
         }
 
         void Handle(TEvError::TPtr ev) {
-            Cerr << "Error! " << ev->Get()->Error << Endl;
-            FinalizeRequest();
+            auto actorSystem = TActivationContext::ActorSystem();
+            auto error = ev->Get()->Error;
+            auto errEv = std::make_unique<IDqComputeActorAsyncInput::TEvAsyncInputError>(
+                                  -1,
+                                  NConnector::ErrorToIssues(error),
+                                  NConnector::ErrorToDqStatus(error));
+            actorSystem->Send(new NActors::IEventHandle(ParentId, SelfId(), errEv.release()));
         }
 
         void Handle(NActors::TEvents::TEvPoison::TPtr) {
