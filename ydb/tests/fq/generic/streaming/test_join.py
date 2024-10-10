@@ -855,6 +855,17 @@ class TestJoinStreaming(TestYdsBase):
                             print(f'node[{node_index}].operation[{query_id}].{k} = {sensors[k]}', file=sys.stderr)
                             break
 
+        if DEBUG:
+            for node_index in kikimr.compute_plane.kikimr_cluster.nodes:
+                sensors = kikimr.compute_plane.get_sensors(node_index, "dq_tasks").find_sensors(
+                    labels={"operation": query_id}, key_label="sensor"
+                )
+                for k in sensors:
+                    for prefix in ("GenericLookup", "StreamLookupTransform", "InputTransform"):
+                        if k.startswith(prefix):
+                            print(f'node[{node_index}].operation[{query_id}].{k} = {sensors[k]}', file=sys.stderr)
+                            break
+
         fq_client.abort_query(query_id)
         fq_client.wait_query(query_id)
 
