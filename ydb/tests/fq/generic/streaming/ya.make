@@ -65,6 +65,10 @@ PEERDIR(
     contrib/python/pytest
 )
 
+DATA(
+    arcadia/ydb/library/yql/providers/generic/connector/tests/fq-connector-go
+)
+
 TEST_SRCS(
     conftest.py
     test_join.py

@@ -129,6 +129,7 @@ TESTCASES = [
             [
                 ('{"id":3,"user":5}', '{"id":3,"user_id":5,"lookup":null}'),
                 ('{"id":9,"user":3}', '{"id":9,"user_id":3,"lookup":"ydb30"}'),
+                ('{"id":10,"user":null}', '{"id":10,"user_id":null,"lookup":null}'),
                 ('{"id":2,"user":2}', '{"id":2,"user_id":2,"lookup":"ydb20"}'),
                 ('{"id":1,"user":1}', '{"id":1,"user_id":1,"lookup":"ydb10"}'),
                 ('{"id":4,"user":3}', '{"id":4,"user_id":3,"lookup":"ydb30"}'),
@@ -138,6 +139,42 @@ TESTCASES = [
             ]
             * 20
         ),
+    ),
+    # 2+
+    (
+        R'''
+            $input = SELECT * FROM myyds.`{input_topic}`
+                    WITH (
+                        FORMAT=json_each_row,
+                        SCHEMA (
+                            Data STRING,
+                        )
+                    )            ;
+
+            $enriched = select
+                            e.Data as data, u.id as lookup
+                from
+                    $input as e
+                left join {streamlookup} ydb_conn_{table_name}.{table_name} as u
+                on(e.Data = u.data)
+            ;
+
+            insert into myyds.`{output_topic}`
+            select Unwrap(Yson::SerializeJson(Yson::From(TableRow()))) from $enriched;
+            ''',
+        [
+            ('{"data":"ydb10"}', '{"data":"ydb10","lookup":1}'),
+            ('{"data":"ydb20"}', '{"data":"ydb20","lookup":2}'),
+            ('{"data":"ydb30"}', '{"data":"ydb30","lookup":3}'),
+            ('{"data":null}', '{null,"lookup":null}'),
+            ('{"data":"ydb50"}', '{"data":"ydb50","lookup":null}'),
+            ('{"data":"ydb10"}', '{"data":"ydb10","lookup":1}'),
+            ('{"data":"ydb20"}', '{"data":"ydb20","lookup":2}'),
+            ('{"data":"ydb30"}', '{"data":"ydb30","lookup":3}'),
+            ('{"data":"ydb40"}', '{"data":"ydb40","lookup":null}'),
+            ('{"data":"ydb50"}', '{"data":"ydb50","lookup":null}'),
+        ]
+        * 10,
     ),
     # 3
     (
@@ -395,6 +432,9 @@ TESTCASES = [
         ),
     ),
 ]
+
+
+TESTCASES = TESTCASES[2:4]
 
 
 one_time_waiter = OneTimeWaiter(
