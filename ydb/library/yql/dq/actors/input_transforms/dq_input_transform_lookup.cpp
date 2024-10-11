@@ -77,9 +77,22 @@ public:
         }
         Y_DEBUG_ABORT_UNLESS(LookupInputIndexes.size() == LookupKeyType->GetMembersCount());
         InitMonCounters(taskCounters);
+#ifndef NDEBUG
+        state = EState::Alive;
+#endif
+    }
+
+    ~TInputTransformStreamLookupBase() override {
+        Free();
+#ifndef NDEBUG
+        state = EState::Destroyed;
+#endif
     }
 
     void Bootstrap() {
+#ifndef NDEBUG
+        Y_ENSURE(state == EState::Alive);
+#endif
         Become(&TInputTransformStreamLookupBase::StateFunc);
         NDq::IDqAsyncIoFactory::TLookupSourceArguments lookupSourceArgs {
             .Alloc = Alloc,
@@ -97,6 +110,9 @@ public:
         auto [lookupSource, lookupSourceActor] = Factory->CreateDqLookupSource(Settings.GetRightSource().GetProviderName(), std::move(lookupSourceArgs));
         MaxKeysInRequest = lookupSource->GetMaxSupportedKeysInRequest();
         LookupSourceId = RegisterWithSameMailbox(lookupSourceActor);
+#ifndef NDEBUG
+        state = EState::Bootstrapped;
+#endif
     }
 protected:
     virtual NUdf::EFetchStatus FetchWideInputValue(NUdf::TUnboxedValue* inputRowItems) = 0;
@@ -145,6 +161,9 @@ private: //events
     }
 
     void Handle(IDqAsyncLookupSource::TEvLookupResult::TPtr ev) {
+#ifndef NDEBUG
+        Y_ENSURE(state == EState::Bootstrapped);
+#endif
         auto StartCycleCount = GetCycleCountFast();
         auto guard = BindAllocator();
         const auto now = std::chrono::steady_clock::now();
@@ -184,7 +203,17 @@ private: //IDqComputeActorAsyncInput
     }
 
     void PassAway() final {
+#ifndef NDEBUG
+        Y_ENSURE(state == EState::Alive || state == EState::Bootstrapped || state == EState::Away);
+#endif
         Send(LookupSourceId, new NActors::TEvents::TEvPoison{});
+        Free();
+    }
+
+    void Free() {
+#ifndef NDEBUG
+        Y_ENSURE(state == EState::Alive || state == EState::Bootstrapped || state == EState::Away);
+#endif
         auto guard = BindAllocator();
         //All resources, held by this class, that have been created with mkql allocator, must be deallocated here
         KeysForLookup.reset();
@@ -193,6 +222,9 @@ private: //IDqComputeActorAsyncInput
         decltype(AwaitingQueue){}.swap(AwaitingQueue);
         decltype(ReadyQueue){}.swap(ReadyQueue);
         LruCache.reset();
+#ifndef NDEBUG
+        state = EState::Away;
+#endif
     }
 
     void DrainReadyQueue(NKikimr::NMiniKQL::TUnboxedValueBatch& batch) {
@@ -203,6 +235,9 @@ private: //IDqComputeActorAsyncInput
     }
 
     i64 GetAsyncInputData(NKikimr::NMiniKQL::TUnboxedValueBatch& batch, TMaybe<TInstant>&, bool& finished, i64 freeSpace) final {
+#ifndef NDEBUG
+        Y_ENSURE(state == EState::Bootstrapped);
+#endif
         Y_UNUSED(freeSpace);
         auto StartCycleCount = GetCycleCountFast();
         auto guard = BindAllocator();
@@ -333,6 +368,9 @@ protected:
     ::NMonitoring::TDynamicCounters::TCounterPtr CpuTimeUs;
     ::NMonitoring::TDynamicCounters::TCounterPtr Batches;
     TDuration CpuTime {};
+#ifndef NDEBUG
+    enum class EState { Alive = 0x42244224U, Bootstrapped = 0x24242424U, Away = 0x42424242U, Destroyed = 0x24422442U } state;
+#endif
 };
 
 class TInputTransformStreamLookupWide: public TInputTransformStreamLookupBase {
