@@ -256,7 +256,7 @@ private:
         TStringStream str;
         str << "$fields = SELECT ";
         Y_ABORT_UNLESS(columnNames.size() == columnTypes.size());
-        str << OffsetFieldName << ", ";
+        str << OffsetFieldName;
         for (size_t i = 0; i < columnNames.size(); ++i) {
             TString columnType = columnTypes[i];
             if (columnType == "Json") {
@@ -264,7 +264,7 @@ private:
             } else if (columnType == "Optional<Json>") {
                 columnType = "Optional<String>";
             }
-            str << "CAST(" << columnNames[i] << " as " << columnType << ") as " << columnNames[i] << ((i != columnNames.size() - 1) ? "," : "");
+            str << ", CAST(" << columnNames[i] << " AS " << columnType << ") AS " << columnNames[i];
         }
         str << " FROM Input;\n";
         str << "$filtered = SELECT * FROM $fields " << whereFilter << ";\n";
