@@ -100,15 +100,16 @@ namespace NYql::NDq {
             KeyTypeHelper.reset();
         }
         void InitMonCounters(const ::NMonitoring::TDynamicCounterPtr& taskCounters) {
-            if (taskCounters) {
-                Count = taskCounters->GetCounter("GenericLookupCount");
-                Keys = taskCounters->GetCounter("GenericLookupKeys");
-                ResultChunks = taskCounters->GetCounter("GenericLookupResultChunks");
-                ResultRows = taskCounters->GetCounter("GenericLookupResultRows");
-                ResultBytes = taskCounters->GetCounter("GenericLookupResultBytes");
-                AnswerTime = taskCounters->GetCounter("GenericLookupAnswerTimeMs");
-                CpuTime = taskCounters->GetCounter("GenericLookupCpuTimeUs");
+            if (!taskCounters) {
+                return;
             }
+            Count = taskCounters->GetCounter("GenericLookupCount");
+            Keys = taskCounters->GetCounter("GenericLookupKeys");
+            ResultChunks = taskCounters->GetCounter("GenericLookupResultChunks");
+            ResultRows = taskCounters->GetCounter("GenericLookupResultRows");
+            ResultBytes = taskCounters->GetCounter("GenericLookupResultBytes");
+            AnswerTime = taskCounters->GetCounter("GenericLookupAnswerTimeMs");
+            CpuTime = taskCounters->GetCounter("GenericLookupCpuTimeUs");
         }
     public:
 
@@ -233,15 +234,15 @@ namespace NYql::NDq {
         }
 
     private:
-        static TDuration GetCpuTimeDelta(ui64 StartCycleCount) {
-            return TDuration::Seconds(NHPTimer::GetSeconds(GetCycleCountFast() - StartCycleCount));
+        static TDuration GetCpuTimeDelta(ui64 startCycleCount) {
+            return TDuration::Seconds(NHPTimer::GetSeconds(GetCycleCountFast() - startCycleCount));
         }
 
         void CreateRequest(std::shared_ptr<IDqAsyncLookupSource::TUnboxedValueMap> request) {
             if (!request) {
                 return;
             }
-            auto StartCycleCount = GetCycleCountFast();
+            auto startCycleCount = GetCycleCountFast();
             SentTime = TInstant::Now();
             YQL_CLOG(DEBUG, ProviderGeneric) << "ActorId=" << SelfId() << " Got LookupRequest for " << request->size() << " keys";
             Y_ABORT_IF(request->size() == 0 || request->size() > MaxKeysInRequest);
@@ -273,8 +274,9 @@ namespace NYql::NDq {
                     SendError(actorSystem, selfId, result.Status);
                 }
             });
-            if (CpuTime)
-                CpuTime->Add(GetCpuTimeDelta(StartCycleCount).MicroSeconds());
+            if (CpuTime) {
+                CpuTime->Add(GetCpuTimeDelta(startCycleCount).MicroSeconds());
+            }
         }
 
         void ReadNextData() {
@@ -302,7 +304,7 @@ namespace NYql::NDq {
         }
 
         void ProcessReceivedData(const NConnector::NApi::TReadSplitsResponse& resp) {
-            auto StartCycleCount = GetCycleCountFast();
+            auto startCycleCount = GetCycleCountFast();
             Y_ABORT_UNLESS(resp.payload_case() == NConnector::NApi::TReadSplitsResponse::PayloadCase::kArrowIpcStreaming);
             if (ResultChunks) {
                 ResultChunks->Inc();
@@ -343,16 +345,18 @@ namespace NYql::NDq {
                     *v = std::move(output); // duplicates will be overwritten
                 }
             }
-            if (CpuTime)
-                CpuTime->Add(GetCpuTimeDelta(StartCycleCount).MicroSeconds());
+            if (CpuTime) {
+                CpuTime->Add(GetCpuTimeDelta(startCycleCount).MicroSeconds());
+            }
         }
 
         void FinalizeRequest() {
             YQL_CLOG(DEBUG, ProviderGeneric) << "Sending lookup results for " << Request->size() << " keys";
             auto guard = Guard(*Alloc);
             auto ev = new IDqAsyncLookupSource::TEvLookupResult(Request);
-            if (AnswerTime)
+            if (AnswerTime) {
                 AnswerTime->Add((TInstant::Now() - SentTime).MilliSeconds());
+            }
             Request.reset();
             TActivationContext::ActorSystem()->Send(new NActors::IEventHandle(ParentId, SelfId(), ev));
             LookupResult = {};

@@ -113,6 +113,7 @@ public:
 #ifndef NDEBUG
         state = EState::Bootstrapped;
 #endif
+        KeysForLookup = std::make_shared<IDqAsyncLookupSource::TUnboxedValueMap>(MaxKeysInRequest, KeyTypeHelper->GetValueHash(), KeyTypeHelper->GetValueEqual());
     }
 protected:
     virtual NUdf::EFetchStatus FetchWideInputValue(NUdf::TUnboxedValue* inputRowItems) = 0;
@@ -164,7 +165,9 @@ private: //events
 #ifndef NDEBUG
         Y_ENSURE(state == EState::Bootstrapped);
 #endif
-        auto StartCycleCount = GetCycleCountFast();
+        auto startCycleCount = GetCycleCountFast();
+        if (!KeysForLookup)
+            return;
         auto guard = BindAllocator();
         const auto now = std::chrono::steady_clock::now();
         auto lookupResult = ev->Get()->Result.lock();
@@ -180,11 +183,12 @@ private: //events
         for (auto&& [k, v]: *lookupResult) {
             LruCache->Update(NUdf::TUnboxedValue(const_cast<NUdf::TUnboxedValue&&>(k)), std::move(v), now + CacheTtl);
         }
-        KeysForLookup.reset();
-        auto deltaTime = GetCpuTimeDelta(StartCycleCount);
+        KeysForLookup->clear();
+        auto deltaTime = GetCpuTimeDelta(startCycleCount);
         CpuTime += deltaTime;
-        if (CpuTimeUs)
+        if (CpuTimeUs) {
             CpuTimeUs->Add(deltaTime.MicroSeconds());
+        }
         Send(ComputeActorId, new TEvNewAsyncInputDataArrived{InputIndex});
     }
 
@@ -239,16 +243,16 @@ private: //IDqComputeActorAsyncInput
         Y_ENSURE(state == EState::Bootstrapped);
 #endif
         Y_UNUSED(freeSpace);
-        auto StartCycleCount = GetCycleCountFast();
+        auto startCycleCount = GetCycleCountFast();
         auto guard = BindAllocator();
 
         DrainReadyQueue(batch);
 
-        if (InputFlowFetchStatus != NUdf::EFetchStatus::Finish && !KeysForLookup) {
-             NUdf::TUnboxedValue* inputRowItems;
-             NUdf::TUnboxedValue inputRow = HolderFactory.CreateDirectArrayHolder(InputRowType->GetElementsCount(), inputRowItems);
+        if (InputFlowFetchStatus != NUdf::EFetchStatus::Finish && KeysForLookup->empty()) {
+            Y_DEBUG_ABORT_UNLESS(AwaitingQueue.empty());
+            NUdf::TUnboxedValue* inputRowItems;
+            NUdf::TUnboxedValue inputRow = HolderFactory.CreateDirectArrayHolder(InputRowType->GetElementsCount(), inputRowItems);
             const auto now = std::chrono::steady_clock::now();
-            KeysForLookup = std::make_shared<IDqAsyncLookupSource::TUnboxedValueMap>(MaxKeysInRequest, KeyTypeHelper->GetValueHash(), KeyTypeHelper->GetValueEqual());
             LruCache->Prune(now);
             while (
                 (KeysForLookup->size() < MaxKeysInRequest) &&
@@ -277,30 +281,30 @@ private: //IDqComputeActorAsyncInput
             }
             if (!KeysForLookup->empty()) {
                 Send(LookupSourceId, new IDqAsyncLookupSource::TEvLookupRequest(KeysForLookup));
-            } else {
-                KeysForLookup.reset();
             }
             DrainReadyQueue(batch);
         }
-        auto deltaTime = GetCpuTimeDelta(StartCycleCount);
+        auto deltaTime = GetCpuTimeDelta(startCycleCount);
         CpuTime += deltaTime;
-        if (CpuTimeUs)
+        if (CpuTimeUs) {
             CpuTimeUs->Add(deltaTime.MicroSeconds());
+        }
         finished = IsFinished();
         return AwaitingQueue.size();
     }
 
     void InitMonCounters(const ::NMonitoring::TDynamicCounterPtr& taskCounters) {
-        if (taskCounters) {
-            LruHits = taskCounters->GetCounter("StreamLookupTransformLruHits");
-            LruMiss = taskCounters->GetCounter("StreamLookupTransformLruMiss");
-            CpuTimeUs = taskCounters->GetCounter("StreamLookupTransformCpuTimeUs");
-            Batches = taskCounters->GetCounter("StreamLookupTransformBatchCount");
+        if (!taskCounters) {
+            return;
         }
+        LruHits = taskCounters->GetCounter("StreamLookupLruHits");
+        LruMiss = taskCounters->GetCounter("StreamLookupLruMiss");
+        CpuTimeUs = taskCounters->GetCounter("StreamLookupCpuTimeUs");
+        Batches = taskCounters->GetCounter("StreamLookupBatches");
     }
 
-    static TDuration GetCpuTimeDelta(ui64 StartCycleCount) {
-        return TDuration::Seconds(NHPTimer::GetSeconds(GetCycleCountFast() - StartCycleCount));
+    static TDuration GetCpuTimeDelta(ui64 startCycleCount) {
+        return TDuration::Seconds(NHPTimer::GetSeconds(GetCycleCountFast() - startCycleCount));
     }
 
     TDuration GetCpuTime() override {
@@ -367,7 +371,7 @@ protected:
     ::NMonitoring::TDynamicCounters::TCounterPtr LruMiss;
     ::NMonitoring::TDynamicCounters::TCounterPtr CpuTimeUs;
     ::NMonitoring::TDynamicCounters::TCounterPtr Batches;
-    TDuration CpuTime {};
+    TDuration CpuTime;
 #ifndef NDEBUG
     enum class EState { Alive = 0x42244224U, Bootstrapped = 0x24242424U, Away = 0x42424242U, Destroyed = 0x24422442U } state;
 #endif
