@@ -83,6 +83,8 @@ public:
     }
 
     ~TInputTransformStreamLookupBase() override {
+        Cerr << TInstant::Now() << '~' << (const void *)this << Endl;
+        PrintBackTrace();
         Free();
 #ifndef NDEBUG
         state = EState::Destroyed;
@@ -207,6 +209,8 @@ private: //IDqComputeActorAsyncInput
     }
 
     void PassAway() final {
+        Cerr << TInstant::Now() << ' ' << (const void *)this << Endl;
+        PrintBackTrace();
 #ifndef NDEBUG
         Y_ENSURE(state == EState::Alive || state == EState::Bootstrapped || state == EState::Away);
 #endif

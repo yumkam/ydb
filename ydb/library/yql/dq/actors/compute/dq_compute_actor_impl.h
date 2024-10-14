@@ -155,6 +155,15 @@ public:
 
         ReportEventElapsedTime();
     }
+    ~TDqComputeActorBase() {
+        Cerr << TInstant::Now() << '~' << (const void *)this << '/' << InputTransformsMap.size() << Endl;
+            for (auto& [id, inputTransform] : InputTransformsMap) {
+                if (inputTransform.Actor) {
+                    Cerr << '*' << id << ' ' << (const void *)(inputTransform.AsyncInput) << Endl;
+                }
+            }
+            PrintBackTrace();
+    }
 
 protected:
     TDqComputeActorBase(const NActors::TActorId& executerId, const TTxId& txId, NDqProto::TDqTask* task,
@@ -451,6 +460,8 @@ protected:
 
 protected:
     void Terminate(bool success, const TIssues& issues) {
+        Cerr << TInstant::Now() << Endl;
+        PrintBackTrace();
         if (MemoryQuota) {
             MemoryQuota->TryReleaseQuota();
         }
@@ -478,6 +489,7 @@ protected:
 
             for (auto& [_, transform] : InputTransformsMap) {
                 if (transform.Actor) {
+                    Cerr << _ << '=' << (const void *)(transform.AsyncInput) << Endl;
                     transform.AsyncInput->PassAway();
                 }
             }

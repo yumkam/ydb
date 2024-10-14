@@ -751,7 +751,7 @@ class TestJoinStreaming(TestYdsBase):
     @pytest.mark.parametrize("partitions_count", [1, 11] if DEBUG and XD else [11])
     @pytest.mark.parametrize("streamlookup", [False, True] if DEBUG and XD else [True])
     @pytest.mark.parametrize("testcase", [*range(len(TESTCASES))])
-    @pytest.mark.parametrize("test_checkpoints", [False])
+    @pytest.mark.parametrize("test_checkpoints", [True])
     def test_streamlookup(
         self,
         kikimr,
@@ -809,12 +809,13 @@ class TestJoinStreaming(TestYdsBase):
             chunk = messages[offset : offset + 500]
             self.write_stream(map(lambda x: x[0], chunk))
             offset += 500
-            time.sleep(0.01)
+            time.sleep(0.03)
             if test_checkpoints:
-                if offset >= last_row + 5000:
+                if offset >= last_row + 250000:
                     current_checkpoint = kikimr.compute_plane.get_completed_checkpoints(query_id)
                     if current_checkpoint >= last_checkpoint + 2:
                         self.restart_node(kikimr, query_id)
+                        print("restart node", file=sys.stderr)
                         last_checkpoint = current_checkpoint
                     last_row = offset
 
@@ -843,17 +844,6 @@ class TestJoinStreaming(TestYdsBase):
                 if ctr == 1000:
                     print('<#>', file=sys.stderr, flush=True, end='')
                     ctr = 0
-
-        if DEBUG:
-            for node_index in kikimr.compute_plane.kikimr_cluster.nodes:
-                sensors = kikimr.compute_plane.get_sensors(node_index, "dq_tasks").find_sensors(
-                    labels={"operation": query_id}, key_label="sensor"
-                )
-                for k in sensors:
-                    for prefix in ("GenericLookup", "StreamLookupTransform", "InputTransform"):
-                        if k.startswith(prefix):
-                            print(f'node[{node_index}].operation[{query_id}].{k} = {sensors[k]}', file=sys.stderr)
-                            break
 
         if DEBUG:
             for node_index in kikimr.compute_plane.kikimr_cluster.nodes:
