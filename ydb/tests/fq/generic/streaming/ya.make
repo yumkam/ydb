@@ -8,6 +8,8 @@ INCLUDE(${ARCADIA_ROOT}/ydb/tests/tools/fq_runner/ydb_runner_with_datastreams.in
  
 INCLUDE(${ARCADIA_ROOT}/ydb/tests/tools/token_accessor_mock/recipe.inc)
 
+DATA(arcadia/ydb/library/yql/providers/generic/connector/tests/fq-connector-go)
+
 IF (AUTOCHECK)
     # Temporarily disable these tests due to infrastructure incompatibility
     SKIP_TEST("DEVTOOLSUPPORT-44637")
