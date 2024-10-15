@@ -52,7 +52,8 @@ public:
             entry.Expiration = std::move(expiration);
         } else {
             if (Map.size() == MaxSize) {
-                RemoveLeastRecentlyUsedEntry();
+                ReplaceLeastRecentlyUsedEntry(std::move(key), std::move(value), std::move(expiration));
+                return;
             }
             UsageList.emplace_back(key, std::move(value), std::move(expiration));
             Map.emplace_hint(it, std::move(key), --UsageList.end());
@@ -110,6 +111,19 @@ private:
     void RemoveLeastRecentlyUsedEntry() {
         Map.erase(UsageList.front().Key);
         UsageList.pop_front();
+    }
+    void ReplaceLeastRecentlyUsedEntry(NUdf::TUnboxedValue&& key, NUdf::TUnboxedValue&& value, std::chrono::time_point<std::chrono::steady_clock>&& expiration) {
+        Y_DEBUG_ABORT_UNLESS(!UsageList.empty());
+        auto it = UsageList.begin();
+        auto rec = Map.extract(it->Key);
+        rec.key() = key;
+        Y_DEBUG_ABORT_UNLESS(rec.mapped() == it);
+        it->Key = std::move(key);
+        it->Value = std::move(value);
+        it->Expiration = std::move(expiration);
+        Map.insert(std::move(rec));
+        Touch(it);
+        return;
     }
 private:
     const size_t MaxSize;
