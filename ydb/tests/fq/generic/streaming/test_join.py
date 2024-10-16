@@ -674,7 +674,9 @@ TESTCASES = [
 ]
 
 if not XD:
+    # TESTCASES = TESTCASES[1:2]
     TESTCASES = TESTCASES[10:11]
+    pass
 
 
 one_time_waiter = OneTimeWaiter(
@@ -822,7 +824,7 @@ class TestJoinStreaming(TestYdsBase):
             chunk = messages[offset : offset + 500]
             self.write_stream(map(lambda x: x[0], chunk))
             offset += 500
-            time.sleep(0.01)
+            time.sleep(0.001)
             if test_checkpoints:
                 if offset >= last_row + 5000:
                     current_checkpoint = kikimr.compute_plane.get_completed_checkpoints(query_id)
@@ -839,7 +841,8 @@ class TestJoinStreaming(TestYdsBase):
             print(*zip(messages, read_data), file=sys.stderr, sep="\n")
 
         def rmutc(d):
-            del d['utc']
+            if 'utc' in d:
+                del d['utc']
             return d
 
         read_data_ctr = Counter(map(freeze, map(rmutc, map(json.loads, read_data))))
