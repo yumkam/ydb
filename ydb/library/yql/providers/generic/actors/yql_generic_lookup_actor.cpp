@@ -218,6 +218,7 @@ namespace NYql::NDq {
         void Handle(TEvError::TPtr ev) {
             auto actorSystem = TActivationContext::ActorSystem();
             auto error = ev->Get()->Error;
+            Cerr << TInstant::Now() << " GenericLookup ERROR " << error << Endl;
             auto errEv = std::make_unique<IDqComputeActorAsyncInput::TEvAsyncInputError>(
                                   -1,
                                   NConnector::ErrorToIssues(error),
@@ -449,7 +450,7 @@ namespace NYql::NDq {
             }
 #endif
             *select.mutable_where()->mutable_filter_typed()->mutable_disjunction() = disjunction;
-            Cerr << "SELECT = " << select << Endl;
+            //Cerr << "SELECT = " << select << Endl;
             return {};
         }
 
