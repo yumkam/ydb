@@ -218,6 +218,7 @@ namespace NYql::NDq {
         void Handle(TEvError::TPtr ev) {
             auto actorSystem = TActivationContext::ActorSystem();
             auto error = ev->Get()->Error;
+            Cerr << TInstant::Now() << " GenericLookup ERROR " << error << Endl;
             auto errEv = std::make_unique<IDqComputeActorAsyncInput::TEvAsyncInputError>(
                                   -1,
                                   NConnector::ErrorToIssues(error),
@@ -436,12 +437,14 @@ namespace NYql::NDq {
             for (const auto& [k, _] : *Request) {
                 addClause(KeyType->GetMembersCount(), [&k=k](auto c) { return k.GetElement(c); });
             }
+#if 1
             // Pad query with dummy clauses to improve caching
             for (ui32 nRequests = Request->size(); !IsPowerOf2(nRequests) && nRequests < MaxKeysInRequest; ++nRequests) {
                 addClause(KeyType->GetMembersCount(), [](auto) { return NUdf::TUnboxedValue(); });
             }
+#endif
             *select.mutable_where()->mutable_filter_typed()->mutable_disjunction() = disjunction;
-            Cerr << "SELECT = " << select << Endl;
+            //Cerr << "SELECT = " << select << Endl;
             return {};
         }
 

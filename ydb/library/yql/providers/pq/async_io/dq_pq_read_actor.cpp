@@ -163,6 +163,10 @@ public:
 
         return opts;
     }
+    ~TDqPqReadActor() override {
+        Cerr << "COPY SIZE = " << ReadyBatchCopy.size() << Endl;
+        PrintBackTrace();
+    }
 
     static constexpr char ActorName[] = "DQ_PQ_READ_ACTOR";
 
@@ -244,6 +248,8 @@ private:
     void PassAway() override { // Is called from Compute Actor
         std::queue<TReadyBatch> empty;
         ReadyBuffer.swap(empty);
+        PrintBackTrace();
+        decltype(ReadyBatchCopy){}.swap(ReadyBatchCopy);
 
         if (ReadSession) {
             ReadSession->Close(TDuration::Zero());
@@ -405,6 +411,8 @@ private:
         THashMap<NYdb::NTopic::TPartitionSession::TPtr, TList<std::pair<ui64, ui64>>> OffsetRanges; // [start, end)
     };
 
+    NKikimr::NMiniKQL::TUnboxedValueVector ReadyBatchCopy;
+
     bool MaybeReturnReadyBatch(NKikimr::NMiniKQL::TUnboxedValueBatch& buffer, TMaybe<TInstant>& watermark, i64& usedSpace) {
         if (ReadyBuffer.empty()) {
             SubscribeOnNextEvent();
@@ -413,6 +421,7 @@ private:
 
         auto& readyBatch = ReadyBuffer.front();
         buffer.clear();
+        //ReadyBatchCopy = readyBatch.Data;
         std::move(readyBatch.Data.begin(), readyBatch.Data.end(), std::back_inserter(buffer));
         watermark = readyBatch.Watermark;
         usedSpace = readyBatch.UsedSpace;
