@@ -37,12 +37,6 @@ set -ex
     COMMIT;
     CREATE TABLE messages (id Int32, msg STRING, PRIMARY KEY(msg));
     COMMIT;
-    /*
-    INSERT INTO messages (id, msg) VALUES'"
-`awk 'BEGIN { for (i = 2; i < 5000; ++i) { print "(" i ",\\"Message" i "\\")," }};'`
-      "'(100000000, "Message100000000");
-    COMMIT;
-    */
     CREATE TABLE db (b STRING NOT NULL, c Int32, a Int32 NOT NULL, d Int32, f Int32, e Int32, PRIMARY KEY(b, a));
     COMMIT;
     INSERT INTO db (a, b, c, d, e, f) VALUES
@@ -54,6 +48,14 @@ set -ex
     CREATE TABLE dby (id Uint64, age Uint32, hash STRING, PRIMARY KEY(hash));
     COMMIT;
   '
+
+retVal=$?
+if [ $retVal -ne 0 ]; then
+  echo $retVal
+  exit $retVal
+fi
+
+awk 'BEGIN { OFS="\t"; for (i = 2; i < 5000; ++i) { print i, "Message" i  }}'|/ydb -p ${PROFILE} import file tsv -p messages
 
 retVal=$?
 if [ $retVal -ne 0 ]; then
