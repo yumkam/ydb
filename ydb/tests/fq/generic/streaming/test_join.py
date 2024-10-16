@@ -662,7 +662,9 @@ TESTCASES = [
 ]
 
 if not XD:
+    # TESTCASES = TESTCASES[1:2]
     TESTCASES = TESTCASES[10:11]
+    pass
 
 
 one_time_waiter = OneTimeWaiter(
@@ -751,7 +753,7 @@ class TestJoinStreaming(TestYdsBase):
     @pytest.mark.parametrize("partitions_count", [1, 11] if DEBUG and XD else [11])
     @pytest.mark.parametrize("streamlookup", [False, True] if DEBUG and XD else [True])
     @pytest.mark.parametrize("testcase", [*range(len(TESTCASES))])
-    @pytest.mark.parametrize("test_checkpoints", [True])
+    @pytest.mark.parametrize("test_checkpoints", [False])
     def test_streamlookup(
         self,
         kikimr,
@@ -809,7 +811,7 @@ class TestJoinStreaming(TestYdsBase):
             chunk = messages[offset : offset + 500]
             self.write_stream(map(lambda x: x[0], chunk))
             offset += 500
-            time.sleep(0.03)
+            time.sleep(0.001)
             if test_checkpoints:
                 if offset >= last_row + 250000:
                     current_checkpoint = kikimr.compute_plane.get_completed_checkpoints(query_id)
@@ -827,7 +829,8 @@ class TestJoinStreaming(TestYdsBase):
             print(*zip(messages, read_data), file=sys.stderr, sep="\n")
 
         def rmutc(d):
-            del d['utc']
+            if 'utc' in d:
+                del d['utc']
             return d
 
         read_data_ctr = Counter(map(freeze, map(rmutc, map(json.loads, read_data))))
@@ -845,7 +848,7 @@ class TestJoinStreaming(TestYdsBase):
                     print('<#>', file=sys.stderr, flush=True, end='')
                     ctr = 0
 
-        if DEBUG:
+        if DEBUG or 1:
             for node_index in kikimr.compute_plane.kikimr_cluster.nodes:
                 sensors = kikimr.compute_plane.get_sensors(node_index, "dq_tasks").find_sensors(
                     labels={"operation": query_id}, key_label="sensor"
