@@ -321,9 +321,9 @@ namespace NYql::NDq {
             }
 
             auto height = columns[0].size();
+            NUdf::TUnboxedValue* keyItems;
+            NUdf::TUnboxedValue key = HolderFactory.CreateDirectArrayHolder(KeyType->GetMembersCount(), keyItems);
             for (size_t i = 0; i != height; ++i) {
-                NUdf::TUnboxedValue* keyItems;
-                NUdf::TUnboxedValue key = HolderFactory.CreateDirectArrayHolder(KeyType->GetMembersCount(), keyItems);
                 NUdf::TUnboxedValue* outputItems;
                 NUdf::TUnboxedValue output = HolderFactory.CreateDirectArrayHolder(PayloadType->GetMembersCount(), outputItems);
                 for (size_t j = 0; j != columns.size(); ++j) {
