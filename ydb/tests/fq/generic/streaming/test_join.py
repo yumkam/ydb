@@ -181,6 +181,37 @@ def RandomizeDBH(messages, keylen=16):
     return res
 
 
+def RandomizeBIG(messages, keylen=16):
+    res = []
+    dic = {}
+    random.seed(0)
+    biglen = int(1*1000*1000//10)
+    for i in range(256):  # "ABCDEFGHIJKLMNOPQRSTUVWXYZ" + "abcdefghijklmnopqrstuvwxyz" + "0123456789+/":
+        rb = random.randbytes(biglen * 6 // 8)
+        dic[i] = str(base64.b64encode(rb), 'utf-8')
+
+    random.seed(0)  # we want fixed seed
+    for pair in messages:
+        Id = random.randint(0, 256*256*256 - 1)
+        Prefix = Id & 255
+        # Id = (Id * 124151351) % 19000043
+        bx = bytes([Id & 255, (Id >> 8) & 255, (Id >> 16) & 255]) + random.randbytes(keylen * 6 // 8 - 3)
+        Ev = str(base64.b64encode(bx), 'utf-8')
+        Pos = Id % (len(dic[Prefix]) - 4)
+        Uev = dic[Prefix][Pos:Pos + 4]
+        print((Id, Prefix, Pos, Ev, Uev), file=sys.stderr)
+        rpair = []
+        for it in pair:
+            src = json.loads(it)
+            if 'ev' in src:
+                src['ev'] = Ev
+            if 'xx' in src:
+                src['xx'] = Uev
+            rpair += [json.dumps(src)]
+        res += [tuple(rpair)]
+    return res
+
+
 def freeze(json):
     t = type(json)
     if t == dict:
@@ -708,11 +739,48 @@ TESTCASES = [
             * 1000000,
         ),
     ),
+    # 12
+    (
+        R'''
+            $input = SELECT * FROM myyds.`{input_topic}`
+                     WITH (
+                        FORMAT=json_each_row,
+                        SCHEMA (
+                            ev String,
+                        )
+                    );
+
+            $i = select e.ev as ev, String::ToByteList(Coalesce(String::Base64Decode(e.ev),'')) as bl from $input as e;
+
+            $t = select e.ev as ev, db.`dict` as `dict`, e.bl as bl
+                from $i as e
+                left join /*+ streamlookup(TTL 109 MaxDelayedRows 100 MaxCachedRows 12450) */ ydb_conn_{table_name}.big as db
+                on (CAST(e.bl[0] AS Uint64) = db.prefix)
+            ;
+            $enriched =
+            select ev, String::Substring(e.`dict`,(cast(e.bl[2] as Uint32)*65536u+cast(e.bl[1] as Uint32)*256u+cast(e.bl[0] as Uint32))%(Length(e.`dict`)-4),4) as xx from $t as e;
+
+            $formatTime = DateTime::Format("%Y%m%d%H%M%S");
+            $preout = SELECT ev, xx, $formatTime(CurrentUtcTimestamp(ev)) as utc FROM $enriched;
+
+            insert into myyds.`{output_topic}`
+            select Unwrap(Yson::SerializeJson(Yson::From(TableRow()))) from $preout;
+            ''',
+        RandomizeBIG(
+            [
+                (
+                    '{"ev":"abc"}',
+                    '{"ev":"abc","xx":"yyy"}',
+                ),
+            ]
+            * 100000,
+        ),
+    ),
 ]
 
 if not XD:
     # TESTCASES = TESTCASES[1:2]
-    TESTCASES = TESTCASES[10:11]
+    TESTCASES = TESTCASES[12:13]
     pass
 
 
@@ -870,9 +938,11 @@ class TestJoinStreaming(TestYdsBase):
                         last_checkpoint = current_checkpoint
                     last_row = offset
 
+        print(messages, file=sys.stderr, sep="\n")
+
         read_data = self.read_stream(len(messages))
 
-        if DEBUG:
+        if DEBUG or 1:
             print(streamlookup, testcase, file=sys.stderr)
             print(sql, file=sys.stderr)
             print(*zip(messages, read_data), file=sys.stderr, sep="\n")
