@@ -671,6 +671,43 @@ TESTCASES = [
             * 1000000,
         ),
     ),
+    # 11
+    (
+        R'''
+            $input = SELECT * FROM myyds.`{input_topic}`
+                     WITH (
+                        FORMAT=json_each_row,
+                        SCHEMA (
+                            id Uint64,
+                            age Uint32,
+                            hash String,
+                            key String,
+                        )
+                    );
+
+            $enriched = SELECT e.hash as hash, key,
+                    u.id as uid, u.age as uage
+                FROM
+                    $input AS e
+                LEFT JOIN {streamlookup} ydb_conn_{table_name}.`dbz` AS u
+                ON(String::HexDecode(e.hash) = u.hash)
+            ;
+            $formatTime = DateTime::Format("%Y%m%d%H%M%S");
+            $preout = SELECT hash, key, uid, uage, $formatTime(CurrentUtcTimestamp(key)) as utc FROM $enriched;
+
+            insert into myyds.`{output_topic}`
+            select Unwrap(Yson::SerializeJson(Yson::From(TableRow()))) from $preout;
+            ''',
+        RandomizeDBH(
+            [
+                (
+                    '{"id":1,"age":1,"hash":null,"key":"Message5"}',
+                    '{"hash":null,"uid":123,"uage":456,"key":0}',
+                ),
+            ]
+            * 1000000,
+        ),
+    ),
 ]
 
 if not XD:
