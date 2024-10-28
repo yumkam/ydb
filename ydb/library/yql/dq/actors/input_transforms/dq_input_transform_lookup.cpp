@@ -216,6 +216,7 @@ private: //IDqComputeActorAsyncInput
             ReadyQueue.Pop();
         }
     }
+    ui64 MaxKeys = 13;
 
     i64 GetAsyncInputData(NKikimr::NMiniKQL::TUnboxedValueBatch& batch, TMaybe<TInstant>&, bool& finished, i64 freeSpace) final {
         Y_UNUSED(freeSpace);
@@ -232,9 +233,11 @@ private: //IDqComputeActorAsyncInput
             LruCache->Prune(now);
             size_t rowLimit = std::numeric_limits<size_t>::max();
             size_t row = 0;
+            if (MaxKeys > MaxKeysInRequest)
+                MaxKeys = MaxKeysInRequest;
             while (
                 row < rowLimit &&
-                (KeysForLookup->size() < MaxKeysInRequest) &&
+                (KeysForLookup->size() < MaxKeys/*InRequest*/) &&
                 ((InputFlowFetchStatus = FetchWideInputValue(inputRowItems)) == NUdf::EFetchStatus::Ok)) {
                 NUdf::TUnboxedValue* keyItems;
                 NUdf::TUnboxedValue key = HolderFactory.CreateDirectArrayHolder(LookupInputIndexes.size(), keyItems);
@@ -266,6 +269,10 @@ private: //IDqComputeActorAsyncInput
             }
             if (Batches && (!KeysForLookup->empty() || ReadyQueue.RowCount())) {
                 Batches->Inc();
+                if (MaxKeys == MaxKeysInRequest)
+                    MaxKeys = 13;
+                else
+                    ++(MaxKeys *= 2);
                 LruHits->Add(ReadyQueue.RowCount());
                 LruMiss->Add(AwaitingQueue.size());
             }
