@@ -350,7 +350,13 @@ namespace NYql::NDq {
             auto guard = Guard(*Alloc);
             auto ev = new IDqAsyncLookupSource::TEvLookupResult(Request);
             if (AnswerTime) {
-                AnswerTime->Add((TInstant::Now() - SentTime).MilliSeconds());
+                auto reqTime = (TInstant::Now() - SentTime).MilliSeconds();
+                Cerr
+                    << " keys = " << Request->size()
+                    << " time = " << reqTime 
+                    << " perKey = " << reqTime/(double)Request->size()
+                    << Endl;
+                AnswerTime->Add(reqTime);
             }
             Request.reset();
             TActivationContext::ActorSystem()->Send(new NActors::IEventHandle(ParentId, SelfId(), ev));
