@@ -27,4 +27,5 @@ services:
       - ./ydb/init_ydb:/init_ydb
       - ./ydb/01_basic.sh:/01_basic.sh
       - ./ydb/dby.tsv:/dby.tsv
+      - ./ydb/big.tsv:/big.tsv
 version: "3.4"
