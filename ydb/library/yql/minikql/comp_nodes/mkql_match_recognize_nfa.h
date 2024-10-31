@@ -383,30 +383,28 @@ public:
         ActiveStates.emplace(TransitionGraph->Input, TMatchedVars(Defines.size()), std::stack<ui64, std::deque<ui64, TMKQLAllocator<ui64>>>{});
         MakeEpsilonTransitions();
         std::set<TState, std::less<TState>, TMKQLAllocator<TState>> newStates;
-        std::set<TState, std::less<TState>, TMKQLAllocator<TState>> deletedStates;
-        for (const auto& s: ActiveStates) {
+        for (auto it = ActiveStates.begin(); it != ActiveStates.end(); ) {
+            auto next = std::next(it);
             //Here we handle only transitions of TMatchedVarTransition type,
             //all other transitions are handled in MakeEpsilonTransitions
-            if (const auto* matchedVarTransition = std::get_if<TMatchedVarTransition>(&TransitionGraph->Transitions[s.Index])) {
+            if (const auto* matchedVarTransition = std::get_if<TMatchedVarTransition>(&TransitionGraph->Transitions[it->Index])) {
+                auto rec = ActiveStates.extract(it);
+                auto &s = rec.value();
                 MatchedRangesArg->SetValue(ctx, ctx.HolderFactory.Create<TMatchedVarsValue<TRange>>(ctx.HolderFactory, s.Vars));
                 const auto varIndex = matchedVarTransition->first.first;
                 const auto& v = Defines[varIndex]->GetValue(ctx);
                 if (v && v.Get<bool>()) {
                     if (matchedVarTransition->first.second) {
-                        auto vars = s.Vars; //TODO get rid of this copy
-                        auto& matchedVar = vars[varIndex];
+                        auto& matchedVar = s.Vars[varIndex];
                         Extend(matchedVar, currentRowLock);
-                        newStates.emplace(matchedVarTransition->second, std::move(vars), std::stack<ui64, std::deque<ui64, TMKQLAllocator<ui64>>>(s.Quantifiers));
-                    } else {
-                        newStates.emplace(matchedVarTransition->second, s.Vars, std::stack<ui64, std::deque<ui64, TMKQLAllocator<ui64>>>(s.Quantifiers));
                     }
+                    s.Index = matchedVarTransition->second;
+                    newStates.insert(std::move(rec));
                 }
-                deletedStates.insert(s);
             }
+            it = next;
         }
-        for (auto& s: deletedStates)
-            ActiveStates.erase(s);
-        ActiveStates.insert(newStates.begin(), newStates.end());
+        ActiveStates.merge(std::move(newStates));
         MakeEpsilonTransitions();
         EpsilonTransitionsLastRow = 0;
     }
