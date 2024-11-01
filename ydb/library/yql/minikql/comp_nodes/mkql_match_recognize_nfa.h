@@ -459,63 +459,90 @@ public:
 private:
     //TODO (zverevgeny): Consider to change to std::vector for the sake of perf
     using TStateSet = std::set<TState, std::less<TState>, TMKQLAllocator<TState>>;
+    using TStateIterator = TStateSet::iterator;
     struct TTransitionVisitor {
-        TTransitionVisitor(const TState& state, TStateSet& newStates, TStateSet& deletedStates)
-            : State(state)
+        TTransitionVisitor(TStateSet& activeStates, TStateIterator iterator, TStateSet& newStates)
+            : ActiveStates(activeStates)
+	    , Iterator(iterator)
             , NewStates(newStates)
-            , DeletedStates(deletedStates) {}
-        void operator()(const TVoidTransition&) {
+	    {}
+        bool operator()(const TVoidTransition&) {
             //Do nothing for void
+            return false;
         }
-        void operator()(const TMatchedVarTransition& var) {
+        bool operator()(const TMatchedVarTransition& var) {
             //Transitions of TMatchedVarTransition type are handled in ProcessRow method
             Y_UNUSED(var);
+            return false;
         }
-        void operator()(const TEpsilonTransitions& epsilonTransitions) {
-            for (const auto& i: epsilonTransitions) {
-                NewStates.emplace(i, TMatchedVars(State.Vars), std::stack<ui64, std::deque<ui64, TMKQLAllocator<ui64>>>(State.Quantifiers));
+        bool operator()(const TEpsilonTransitions& epsilonTransitions) {
+            auto rec = ActiveStates.extract(Iterator);
+            auto it = epsilonTransitions.begin();
+            auto end = epsilonTransitions.end();
+            if (it == end) {
+                return false;
             }
-            DeletedStates.insert(State);
+            auto& state = rec.value();
+            for (;;) {
+		auto next = std::next(it);
+		if (next == end)
+                    break;
+                NewStates.emplace(*it, TMatchedVars(state.Vars), std::stack<ui64, std::deque<ui64, TMKQLAllocator<ui64>>>(state.Quantifiers));
+                it = next;
+            }
+            state.Index = *it;
+            NewStates.insert(std::move(rec));
+            return true;
         }
-        void operator()(const TQuantityEnterTransition& quantityEnterTransition) {
-            DeletedStates.insert(State);
-            auto quantifiers = State.Quantifiers; //TODO get rid of this copy
+        bool operator()(const TQuantityEnterTransition& quantityEnterTransition) {
+            auto rec = ActiveStates.extract(Iterator);
+            auto& state = rec.value();
+            auto& quantifiers = state.Quantifiers;
             quantifiers.push(0);
-            NewStates.emplace(quantityEnterTransition, TMatchedVars(State.Vars), std::move(quantifiers));
+            state.Index = quantityEnterTransition;
+            NewStates.insert(std::move(rec));
+            return true;
         }
-        void operator()(const TQuantityExitTransition& quantityExitTransition) {
-            DeletedStates.insert(State);
-            auto minQuantity = quantityExitTransition.first.first;
-            auto maxQuantity = quantityExitTransition.first.second;
-            if (State.Quantifiers.top() + 1 < quantityExitTransition.first.second) {
-                auto q = State.Quantifiers;
+        bool operator()(const TQuantityExitTransition& quantityExitTransition) {
+            auto rec = ActiveStates.extract(Iterator);
+            auto& state = rec.value();
+            auto [minQuantity, maxQuantity] = quantityExitTransition.first;
+            auto top = state.Quantifiers.top();
+            if (top + 1 >= minQuantity && top + 1 < maxQuantity) {
+                auto q = state.Quantifiers;
                 q.top()++;
-                NewStates.emplace(quantityExitTransition.second.first, TMatchedVars(State.Vars), std::move(q));
+                NewStates.emplace(quantityExitTransition.second.first, TMatchedVars(state.Vars), std::move(q));
+            } else if (top + 1 < maxQuantity) {
+                auto& q = state.Quantifiers;
+                q.top()++;
+                state.Index = quantityExitTransition.second.first;
+                NewStates.insert(std::move(rec));
+                return true;
             }
-            if (State.Quantifiers.top() + 1 >= minQuantity && State.Quantifiers.top() + 1 <= maxQuantity) {
-                auto q = State.Quantifiers;
+            if (top + 1 >= minQuantity && top + 1 <= maxQuantity) {
+                auto& q = state.Quantifiers;
                 q.pop();
-                NewStates.emplace(quantityExitTransition.second.second, TMatchedVars(State.Vars), std::move(q));
+                state.Index = quantityExitTransition.second.second;
+                NewStates.insert(std::move(rec));
             }
-
+            return true;
         }
-        const TState& State;
+        TStateSet& ActiveStates;
+        TStateIterator Iterator;
         TStateSet& NewStates;
-        TStateSet& DeletedStates;
     };
 
     bool MakeEpsilonTransitionsImpl() {
         TStateSet newStates;
-        TStateSet deletedStates;
-        for (const auto& s: ActiveStates) {
+        bool result = false;
+        for (auto it = ActiveStates.begin(); it != ActiveStates.end(); ) {
+            auto next = std::next(it);
             ++EpsilonTransitionsLastRow;
-            std::visit(TTransitionVisitor(s, newStates, deletedStates), TransitionGraph->Transitions[s.Index]);
+            if (std::visit(TTransitionVisitor(ActiveStates, it, newStates), TransitionGraph->Transitions[it->Index]))
+                result = true; // TODO verify if this is correct replacement
+            it = next;
         }
-        bool result = newStates != deletedStates;
-        for (auto& s: deletedStates) {
-            ActiveStates.erase(s);
-        }
-        ActiveStates.insert(newStates.begin(), newStates.end());
+        ActiveStates.merge(std::move(newStates));
         return result;
     }
 
