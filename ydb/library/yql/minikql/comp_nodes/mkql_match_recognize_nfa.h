@@ -463,47 +463,44 @@ private:
     struct TTransitionVisitor {
         TTransitionVisitor(TStateSet& activeStates, TStateIterator iterator, TStateSet& newStates)
             : ActiveStates(activeStates)
-	    , Iterator(iterator)
+            , Iterator(iterator)
             , NewStates(newStates)
-	    {}
-        bool operator()(const TVoidTransition&) {
+            {}
+        void operator()(const TVoidTransition&) {
             //Do nothing for void
-            return false;
         }
-        bool operator()(const TMatchedVarTransition& var) {
+        void operator()(const TMatchedVarTransition& var) {
             //Transitions of TMatchedVarTransition type are handled in ProcessRow method
             Y_UNUSED(var);
-            return false;
         }
-        bool operator()(const TEpsilonTransitions& epsilonTransitions) {
+        void operator()(const TEpsilonTransitions& epsilonTransitions) {
             auto rec = ActiveStates.extract(Iterator);
             auto it = epsilonTransitions.begin();
             auto end = epsilonTransitions.end();
             if (it == end) {
-                return false;
+                return;
             }
             auto& state = rec.value();
             for (;;) {
-		auto next = std::next(it);
-		if (next == end)
+                auto next = std::next(it);
+                if (next == end) {
                     break;
+                }
                 NewStates.emplace(*it, TMatchedVars(state.Vars), std::stack<ui64, std::deque<ui64, TMKQLAllocator<ui64>>>(state.Quantifiers));
                 it = next;
             }
             state.Index = *it;
             NewStates.insert(std::move(rec));
-            return true;
         }
-        bool operator()(const TQuantityEnterTransition& quantityEnterTransition) {
+        void operator()(const TQuantityEnterTransition& quantityEnterTransition) {
             auto rec = ActiveStates.extract(Iterator);
             auto& state = rec.value();
             auto& quantifiers = state.Quantifiers;
             quantifiers.push(0);
             state.Index = quantityEnterTransition;
             NewStates.insert(std::move(rec));
-            return true;
         }
-        bool operator()(const TQuantityExitTransition& quantityExitTransition) {
+        void operator()(const TQuantityExitTransition& quantityExitTransition) {
             auto rec = ActiveStates.extract(Iterator);
             auto& state = rec.value();
             auto [minQuantity, maxQuantity] = quantityExitTransition.first;
@@ -517,7 +514,7 @@ private:
                 q.top()++;
                 state.Index = quantityExitTransition.second.first;
                 NewStates.insert(std::move(rec));
-                return true;
+                return;
             }
             if (top + 1 >= minQuantity && top + 1 <= maxQuantity) {
                 auto& q = state.Quantifiers;
@@ -525,7 +522,6 @@ private:
                 state.Index = quantityExitTransition.second.second;
                 NewStates.insert(std::move(rec));
             }
-            return true;
         }
         TStateSet& ActiveStates;
         TStateIterator Iterator;
@@ -534,16 +530,15 @@ private:
 
     bool MakeEpsilonTransitionsImpl() {
         TStateSet newStates;
-        bool result = false;
         for (auto it = ActiveStates.begin(); it != ActiveStates.end(); ) {
             auto next = std::next(it);
             ++EpsilonTransitionsLastRow;
-            if (std::visit(TTransitionVisitor(ActiveStates, it, newStates), TransitionGraph->Transitions[it->Index]))
-                result = true; // TODO verify if this is correct replacement
+            std::visit(TTransitionVisitor(ActiveStates, it, newStates), TransitionGraph->Transitions[it->Index]);
             it = next;
         }
+        auto beforeMerge = ActiveStates.size();
         ActiveStates.merge(std::move(newStates));
-        return result;
+        return ActiveStates.size() != beforeMerge;
     }
 
     void MakeEpsilonTransitions() {
