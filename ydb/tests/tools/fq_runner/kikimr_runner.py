@@ -92,8 +92,8 @@ class BaseTenant(abc.ABC):
         self.enable_logging("INTERCONNECT", LogLevels.WARN)  # IC is too verbose
         self.enable_logging("FQ_QUOTA_PROXY")
         self.enable_logging("FQ_QUOTA_SERVICE")
-        # self.enable_logging("KQP_COMPUTE", LogLevels.TRACE)
-        self.enable_logging("KQP_COMPUTE", LogLevels.INFO)
+        self.enable_logging("KQP_COMPUTE", LogLevels.TRACE)
+        # self.enable_logging("KQP_COMPUTE", LogLevels.INFO)
         self.enable_logging("KQP_YQL")
         self.enable_logging("STREAMS")
         self.enable_logging("STREAMS_STORAGE_SERVICE")  # TODO: rename to YQ_STORAGE_SERVICE
