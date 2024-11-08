@@ -28,4 +28,7 @@ services:
       - ./ydb/01_basic.sh:/01_basic.sh
       - ./ydb/dby.tsv:/dby.tsv
       - ./ydb/big.tsv:/big.tsv
+      - ./ydb/ipv6trie.json:/ipv6trie.json
+        # - ./ydb/ipv6plain.json:/ipv6plain.json
+        # - ./ydb/ipv6.json:/ipv6.json
 version: "3.4"

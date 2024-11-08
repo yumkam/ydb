@@ -3,5 +3,7 @@ RECURSE(
     datetime
     knn
     roaring
+    ip_lookup
+    trie
 )
 
