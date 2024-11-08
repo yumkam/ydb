@@ -67,7 +67,7 @@ def RandomizeMessage(messages, field='message', key='uid', header='Message', big
     return res
 
 
-def RandomizeDBX(messages, keylen=16):
+def RandomizeDBX(messages, keylen=16, keyName='key'):
     # '{"id":1,"age":"foobar","key":"Message5"}',
     # '{"name":null,"id":123,"age":456,"key":null}',
     res = []
@@ -84,6 +84,7 @@ def RandomizeDBX(messages, keylen=16):
             Name = f'Message{Id % 1000}'
             Uid = Id
         rpair = []
+        Ip = None
         for it in pair:
             src = json.loads(it)
             if 'id' in src:
@@ -92,10 +93,14 @@ def RandomizeDBX(messages, keylen=16):
                 src['age'] = Age
             if 'name' in src:
                 src['name'] = Name
-            if 'key' in src:
-                src['key'] = Key
+            if keyName in src:
+                src[keyName] = Key
             if 'uid' in src:
                 src['uid'] = Uid
+            if 'ip' in src:
+                if Ip is None:
+                    Ip = ''.join(map(lambda x: '0123456789abcdef'[random.randint(0, 15)] if x == 'X' else x, src['ip']))
+                src['ip'] = Ip
             rpair += [json.dumps(src)]
         res += [tuple(rpair)]
     return res
@@ -776,6 +781,322 @@ TESTCASES = [
             * 100000,
         ),
     ),
+    # 13
+    (
+        R'''
+        PRAGMA AnsiOptionalAs;
+            $input = SELECT * FROM myyds.`{input_topic}`
+                     WITH (
+                        FORMAT=json_each_row,
+                        SCHEMA (
+                            `ip` String,
+                            `payload` String,
+                        )
+                    );
+
+            $with_prefix =
+                 SELECT e.`ip` AS `ip`, e.`payload` AS `payload`, IpLookup::IpPrefix(e.`ip`) AS `prefix`
+                   FROM $input e;
+
+            $with_dict =
+                 SELECT e.`ip` AS `ip`, e.`payload` AS `payload`, COALESCE(db.`ipdict`, '') AS `ipdict`, e.`prefix` AS `prefix`
+                   FROM $with_prefix e
+              LEFT JOIN {streamlookup} ydb_conn_{table_name}.`geoip` db
+                     ON e.`prefix` = db.`prefix`;
+
+            $with_ip_key =
+                 SELECT e.`ip` AS `ip`,
+                        IpLookup::LookupIp(e.`ip`, e.`ipdict`) AS `ip_key`,
+                        e.`payload` AS `payload`, e.`prefix` AS `prefix`
+                   FROM $with_dict e;
+
+            $enriched = $with_ip_key;
+
+            $formatTime = DateTime::Format("%Y%m%d%H%M%S");
+            $preout = SELECT `ip`, `ip_key`, `payload`, $formatTime(CurrentUtcTimestamp(`payload`)) AS utc FROM $enriched e;
+
+            insert into myyds.`{output_topic}`
+            select Unwrap(Yson::SerializeJson(Yson::From(TableRow()))) from $preout;
+            ''',
+        RandomizeDBX(
+            [
+                (
+                    '{"ip":"2001:470:5:37d::123","payload":"*acebook"}',
+                    '{"ip":"2001:470:5:37d::123","ip_key":131,"payload":"*acebook"}',
+                ),
+                (
+                    '{"ip":"2001:470:5:37d:ffff::456","payload":"Amaz*n"}',
+                    '{"ip":"2001:470:5:37d:ffff::456","ip_key":131,"payload":"Amaz*n"}',
+                ),
+                (
+                    '{"ip":"2806:10a6:10:1::1","payload":"*pple"}',
+                    '{"ip":"2806:10a6:10:1::1","ip_key":31247,"payload":"*pple"}',
+                ),
+                (
+                    '{"ip":"2806:10a6:10:1fff::1","payload":"*etflix"}',
+                    '{"ip":"2806:10a6:10:1fff::1","ip_key":31247,"payload":"*etflix"}',
+                ),
+                (
+                    '{"ip":"2806:10a6:10:2000::3","payload":"*oogle"}',
+                    '{"ip":"2806:10a6:10:2000::3","ip_key":32058,"payload":"*oogle"}',
+                ),
+                (
+                    '{"ip":"2a00:11c0:7:1:2:3:4:5","payload":"*oogle"}',
+                    '{"ip":"2a00:11c0:7:1:2:3:4:5","ip_key":107,"payload":"*oogle"}',
+                ),
+                (
+                    '{"ip":"2a00:11c0:7:ffff:eeee:dddd:cccc:bbbb","payload":"*oogle"}',
+                    '{"ip":"2a00:11c0:7:ffff:eeee:dddd:cccc:bbbb","ip_key":107,"payload":"*oogle"}',
+                ),
+                (
+                    '{"ip":"2a00:1e90:fa:fa:effe:ddad:c1cc:bb3b","payload":"*oogle"}',
+                    '{"ip":"2a00:1e90:fa:fa:effe:ddad:c1cc:bb3b","ip_key":297,"payload":"*oogle"}',
+                ),
+                (
+                    '{"ip":"2a0X:XXXX:XXXX:XXXX:XXXX:XXXX:XXXX:XXXX","payload":"*oogle"}',
+                    '{"ip":"2a0X:XXXX:XXXX:XXXX:XXXX:XXXX:XXXX:XXXX","ip_key":297,"payload":"*oogle"}',
+                ),
+                (
+                    '{"ip":"280X:XXXX:XXXX:XXXX:XXXX:XXXX:XXXX:XXXX","payload":"*oogle"}',
+                    '{"ip":"280X:XXXX:XXXX:XXXX:XXXX:XXXX:XXXX:XXXX","ip_key":297,"payload":"*oogle"}',
+                ),
+            ]
+            * 100000,
+            16,
+            'payload'
+        )
+    ),
+    # 14
+    (
+        R'''
+        PRAGMA AnsiOptionalAs;
+            $input = SELECT * FROM myyds.`{input_topic}`
+                     WITH (
+                        FORMAT=json_each_row,
+                        SCHEMA (
+                            `ip` String,
+                            `payload` String,
+                        )
+                    );
+            $with_binip =
+                 SELECT `ip`, `payload`, Ip::FromString(e.`ip`) AS binip
+                   FROM $input e;
+
+            $with_j40 = SELECT e.`ip` AS `ip`, e.`payload` AS `payload`, e.`binip` AS `binip`, d40.`ipdict` AS ip_key
+                    FROM $with_binip e LEFT JOIN {streamlookup} ydb_conn_{table_name}.`geoplain` d40 ON ('\x40' || Ip::GetSubnet(e.`binip`, 64)) = d40.`prefix`;
+
+            $with_j3F = SELECT e.`ip` AS `ip`, e.`payload` AS `payload`, e.`binip` AS `binip`, COALESCE(e.`ip_key`, d3F.`ipdict`) AS ip_key
+                    FROM $with_j40 e LEFT JOIN {streamlookup} ydb_conn_{table_name}.`geoplain` d3F ON ('\x3F' || Ip::GetSubnet(e.`binip`, 63)) = d3F.`prefix`;
+            $with_j3E = SELECT e.`ip` AS `ip`, e.`payload` AS `payload`, e.`binip` AS `binip`, COALESCE(e.`ip_key`, d3E.`ipdict`) AS ip_key
+                    FROM $with_j3F e LEFT JOIN {streamlookup} ydb_conn_{table_name}.`geoplain` d3E ON ('\x3E' || Ip::GetSubnet(e.`binip`, 62)) = d3E.`prefix`;
+            $with_j3D = SELECT e.`ip` AS `ip`, e.`payload` AS `payload`, e.`binip` AS `binip`, COALESCE(e.`ip_key`, d3D.`ipdict`) AS ip_key
+                    FROM $with_j3E e LEFT JOIN {streamlookup} ydb_conn_{table_name}.`geoplain` d3D ON ('\x3D' || Ip::GetSubnet(e.`binip`, 61)) = d3D.`prefix`;
+            $with_j3C = SELECT e.`ip` AS `ip`, e.`payload` AS `payload`, e.`binip` AS `binip`, COALESCE(e.`ip_key`, d3C.`ipdict`) AS ip_key
+                    FROM $with_j3D e LEFT JOIN {streamlookup} ydb_conn_{table_name}.`geoplain` d3C ON ('\x3C' || Ip::GetSubnet(e.`binip`, 60)) = d3C.`prefix`;
+            $with_j3B = SELECT e.`ip` AS `ip`, e.`payload` AS `payload`, e.`binip` AS `binip`, COALESCE(e.`ip_key`, d3B.`ipdict`) AS ip_key
+                    FROM $with_j3C e LEFT JOIN {streamlookup} ydb_conn_{table_name}.`geoplain` d3B ON ('\x3B' || Ip::GetSubnet(e.`binip`, 59)) = d3B.`prefix`;
+            $with_j3A = SELECT e.`ip` AS `ip`, e.`payload` AS `payload`, e.`binip` AS `binip`, COALESCE(e.`ip_key`, d3A.`ipdict`) AS ip_key
+                    FROM $with_j3B e LEFT JOIN {streamlookup} ydb_conn_{table_name}.`geoplain` d3A ON ('\x3A' || Ip::GetSubnet(e.`binip`, 58)) = d3A.`prefix`;
+            $with_j39 = SELECT e.`ip` AS `ip`, e.`payload` AS `payload`, e.`binip` AS `binip`, COALESCE(e.`ip_key`, d39.`ipdict`) AS ip_key
+                    FROM $with_j3A e LEFT JOIN {streamlookup} ydb_conn_{table_name}.`geoplain` d39 ON ('\x39' || Ip::GetSubnet(e.`binip`, 57)) = d39.`prefix`;
+            $with_j38 = SELECT e.`ip` AS `ip`, e.`payload` AS `payload`, e.`binip` AS `binip`, COALESCE(e.`ip_key`, d38.`ipdict`) AS ip_key
+                    FROM $with_j39 e LEFT JOIN {streamlookup} ydb_conn_{table_name}.`geoplain` d38 ON ('\x38' || Ip::GetSubnet(e.`binip`, 56)) = d38.`prefix`;
+            $with_j37 = SELECT e.`ip` AS `ip`, e.`payload` AS `payload`, e.`binip` AS `binip`, COALESCE(e.`ip_key`, d37.`ipdict`) AS ip_key
+                    FROM $with_j38 e LEFT JOIN {streamlookup} ydb_conn_{table_name}.`geoplain` d37 ON ('\x37' || Ip::GetSubnet(e.`binip`, 55)) = d37.`prefix`;
+            $with_j36 = SELECT e.`ip` AS `ip`, e.`payload` AS `payload`, e.`binip` AS `binip`, COALESCE(e.`ip_key`, d36.`ipdict`) AS ip_key
+                    FROM $with_j37 e LEFT JOIN {streamlookup} ydb_conn_{table_name}.`geoplain` d36 ON ('\x36' || Ip::GetSubnet(e.`binip`, 54)) = d36.`prefix`;
+            $with_j35 = SELECT e.`ip` AS `ip`, e.`payload` AS `payload`, e.`binip` AS `binip`, COALESCE(e.`ip_key`, d35.`ipdict`) AS ip_key
+                    FROM $with_j36 e LEFT JOIN {streamlookup} ydb_conn_{table_name}.`geoplain` d35 ON ('\x35' || Ip::GetSubnet(e.`binip`, 53)) = d35.`prefix`;
+            $with_j34 = SELECT e.`ip` AS `ip`, e.`payload` AS `payload`, e.`binip` AS `binip`, COALESCE(e.`ip_key`, d34.`ipdict`) AS ip_key
+                    FROM $with_j35 e LEFT JOIN {streamlookup} ydb_conn_{table_name}.`geoplain` d34 ON ('\x34' || Ip::GetSubnet(e.`binip`, 52)) = d34.`prefix`;
+            $with_j33 = SELECT e.`ip` AS `ip`, e.`payload` AS `payload`, e.`binip` AS `binip`, COALESCE(e.`ip_key`, d33.`ipdict`) AS ip_key
+                    FROM $with_j34 e LEFT JOIN {streamlookup} ydb_conn_{table_name}.`geoplain` d33 ON ('\x33' || Ip::GetSubnet(e.`binip`, 51)) = d33.`prefix`;
+            $with_j32 = SELECT e.`ip` AS `ip`, e.`payload` AS `payload`, e.`binip` AS `binip`, COALESCE(e.`ip_key`, d32.`ipdict`) AS ip_key
+                    FROM $with_j33 e LEFT JOIN {streamlookup} ydb_conn_{table_name}.`geoplain` d32 ON ('\x32' || Ip::GetSubnet(e.`binip`, 50)) = d32.`prefix`;
+            $with_j31 = SELECT e.`ip` AS `ip`, e.`payload` AS `payload`, e.`binip` AS `binip`, COALESCE(e.`ip_key`, d31.`ipdict`) AS ip_key
+                    FROM $with_j32 e LEFT JOIN {streamlookup} ydb_conn_{table_name}.`geoplain` d31 ON ('\x31' || Ip::GetSubnet(e.`binip`, 49)) = d31.`prefix`;
+            $with_j30 = SELECT e.`ip` AS `ip`, e.`payload` AS `payload`, e.`binip` AS `binip`, COALESCE(e.`ip_key`, d30.`ipdict`) AS ip_key
+                    FROM $with_j31 e LEFT JOIN {streamlookup} ydb_conn_{table_name}.`geoplain` d30 ON ('\x30' || Ip::GetSubnet(e.`binip`, 48)) = d30.`prefix`;
+            $with_j2F = SELECT e.`ip` AS `ip`, e.`payload` AS `payload`, e.`binip` AS `binip`, COALESCE(e.`ip_key`, d2F.`ipdict`) AS ip_key
+                    FROM $with_j30 e LEFT JOIN {streamlookup} ydb_conn_{table_name}.`geoplain` d2F ON ('\x2F' || Ip::GetSubnet(e.`binip`, 47)) = d2F.`prefix`;
+            $with_j2E = SELECT e.`ip` AS `ip`, e.`payload` AS `payload`, e.`binip` AS `binip`, COALESCE(e.`ip_key`, d2E.`ipdict`) AS ip_key
+                    FROM $with_j2F e LEFT JOIN {streamlookup} ydb_conn_{table_name}.`geoplain` d2E ON ('\x2E' || Ip::GetSubnet(e.`binip`, 46)) = d2E.`prefix`;
+            $with_j2D = SELECT e.`ip` AS `ip`, e.`payload` AS `payload`, e.`binip` AS `binip`, COALESCE(e.`ip_key`, d2D.`ipdict`) AS ip_key
+                    FROM $with_j2E e LEFT JOIN {streamlookup} ydb_conn_{table_name}.`geoplain` d2D ON ('\x2D' || Ip::GetSubnet(e.`binip`, 45)) = d2D.`prefix`;
+            $with_j2C = SELECT e.`ip` AS `ip`, e.`payload` AS `payload`, e.`binip` AS `binip`, COALESCE(e.`ip_key`, d2C.`ipdict`) AS ip_key
+                    FROM $with_j2D e LEFT JOIN {streamlookup} ydb_conn_{table_name}.`geoplain` d2C ON ('\x2C' || Ip::GetSubnet(e.`binip`, 44)) = d2C.`prefix`;
+            $with_j2B = SELECT e.`ip` AS `ip`, e.`payload` AS `payload`, e.`binip` AS `binip`, COALESCE(e.`ip_key`, d2B.`ipdict`) AS ip_key
+                    FROM $with_j2C e LEFT JOIN {streamlookup} ydb_conn_{table_name}.`geoplain` d2B ON ('\x2B' || Ip::GetSubnet(e.`binip`, 43)) = d2B.`prefix`;
+            $with_j2A = SELECT e.`ip` AS `ip`, e.`payload` AS `payload`, e.`binip` AS `binip`, COALESCE(e.`ip_key`, d2A.`ipdict`) AS ip_key
+                    FROM $with_j2B e LEFT JOIN {streamlookup} ydb_conn_{table_name}.`geoplain` d2A ON ('\x2A' || Ip::GetSubnet(e.`binip`, 42)) = d2A.`prefix`;
+            $with_j29 = SELECT e.`ip` AS `ip`, e.`payload` AS `payload`, e.`binip` AS `binip`, COALESCE(e.`ip_key`, d29.`ipdict`) AS ip_key
+                    FROM $with_j2A e LEFT JOIN {streamlookup} ydb_conn_{table_name}.`geoplain` d29 ON ('\x29' || Ip::GetSubnet(e.`binip`, 41)) = d29.`prefix`;
+            $with_j28 = SELECT e.`ip` AS `ip`, e.`payload` AS `payload`, e.`binip` AS `binip`, COALESCE(e.`ip_key`, d28.`ipdict`) AS ip_key
+                    FROM $with_j29 e LEFT JOIN {streamlookup} ydb_conn_{table_name}.`geoplain` d28 ON ('\x28' || Ip::GetSubnet(e.`binip`, 40)) = d28.`prefix`;
+            $with_j27 = SELECT e.`ip` AS `ip`, e.`payload` AS `payload`, e.`binip` AS `binip`, COALESCE(e.`ip_key`, d27.`ipdict`) AS ip_key
+                    FROM $with_j28 e LEFT JOIN {streamlookup} ydb_conn_{table_name}.`geoplain` d27 ON ('\x27' || Ip::GetSubnet(e.`binip`, 39)) = d27.`prefix`;
+            $with_j26 = SELECT e.`ip` AS `ip`, e.`payload` AS `payload`, e.`binip` AS `binip`, COALESCE(e.`ip_key`, d26.`ipdict`) AS ip_key
+                    FROM $with_j27 e LEFT JOIN {streamlookup} ydb_conn_{table_name}.`geoplain` d26 ON ('\x26' || Ip::GetSubnet(e.`binip`, 38)) = d26.`prefix`;
+            $with_j25 = SELECT e.`ip` AS `ip`, e.`payload` AS `payload`, e.`binip` AS `binip`, COALESCE(e.`ip_key`, d25.`ipdict`) AS ip_key
+                    FROM $with_j26 e LEFT JOIN {streamlookup} ydb_conn_{table_name}.`geoplain` d25 ON ('\x25' || Ip::GetSubnet(e.`binip`, 37)) = d25.`prefix`;
+            $with_j24 = SELECT e.`ip` AS `ip`, e.`payload` AS `payload`, e.`binip` AS `binip`, COALESCE(e.`ip_key`, d24.`ipdict`) AS ip_key
+                    FROM $with_j25 e LEFT JOIN {streamlookup} ydb_conn_{table_name}.`geoplain` d24 ON ('\x24' || Ip::GetSubnet(e.`binip`, 36)) = d24.`prefix`;
+            $with_j23 = SELECT e.`ip` AS `ip`, e.`payload` AS `payload`, e.`binip` AS `binip`, COALESCE(e.`ip_key`, d23.`ipdict`) AS ip_key
+                    FROM $with_j24 e LEFT JOIN {streamlookup} ydb_conn_{table_name}.`geoplain` d23 ON ('\x23' || Ip::GetSubnet(e.`binip`, 35)) = d23.`prefix`;
+            $with_j22 = SELECT e.`ip` AS `ip`, e.`payload` AS `payload`, e.`binip` AS `binip`, COALESCE(e.`ip_key`, d22.`ipdict`) AS ip_key
+                    FROM $with_j23 e LEFT JOIN {streamlookup} ydb_conn_{table_name}.`geoplain` d22 ON ('\x22' || Ip::GetSubnet(e.`binip`, 34)) = d22.`prefix`;
+            $with_j21 = SELECT e.`ip` AS `ip`, e.`payload` AS `payload`, e.`binip` AS `binip`, COALESCE(e.`ip_key`, d21.`ipdict`) AS ip_key
+                    FROM $with_j22 e LEFT JOIN {streamlookup} ydb_conn_{table_name}.`geoplain` d21 ON ('\x21' || Ip::GetSubnet(e.`binip`, 33)) = d21.`prefix`;
+            $with_j20 = SELECT e.`ip` AS `ip`, e.`payload` AS `payload`, e.`binip` AS `binip`, COALESCE(e.`ip_key`, d20.`ipdict`) AS ip_key
+                    FROM $with_j21 e LEFT JOIN {streamlookup} ydb_conn_{table_name}.`geoplain` d20 ON ('\x20' || Ip::GetSubnet(e.`binip`, 32)) = d20.`prefix`;
+            $with_join = $with_j20;
+
+            $enriched = $with_join;
+
+            $formatTime = DateTime::Format("%Y%m%d%H%M%S");
+            $preout = SELECT `ip`, CAST(`ip_key` AS Int64) AS `ip_key`, `payload`, $formatTime(CurrentUtcTimestamp(`payload`)) AS utc FROM $enriched e;
+
+            insert into myyds.`{output_topic}`
+            select Unwrap(Yson::SerializeJson(Yson::From(TableRow()))) from $preout;
+            ''',
+        RandomizeDBX(
+            [
+                (
+                    '{"ip":"2001:470:5:37d::123","payload":"*acebook"}',
+                    '{"ip":"2001:470:5:37d::123","ip_key":131,"payload":"*acebook"}',
+                ),
+                (
+                    '{"ip":"2001:470:5:37d:ffff::456","payload":"Amaz*n"}',
+                    '{"ip":"2001:470:5:37d:ffff::456","ip_key":131,"payload":"Amaz*n"}',
+                ),
+                (
+                    '{"ip":"2806:10a6:10:1::1","payload":"*pple"}',
+                    '{"ip":"2806:10a6:10:1::1","ip_key":31247,"payload":"*pple"}',
+                ),
+                (
+                    '{"ip":"2806:10a6:10:1fff::1","payload":"*etflix"}',
+                    '{"ip":"2806:10a6:10:1fff::1","ip_key":31247,"payload":"*etflix"}',
+                ),
+                (
+                    '{"ip":"2806:10a6:10:2000::3","payload":"*oogle"}',
+                    '{"ip":"2806:10a6:10:2000::3","ip_key":32058,"payload":"*oogle"}',
+                ),
+                (
+                    '{"ip":"2a00:11c0:7:1:2:3:4:5","payload":"*oogle"}',
+                    '{"ip":"2a00:11c0:7:1:2:3:4:5","ip_key":107,"payload":"*oogle"}',
+                ),
+                (
+                    '{"ip":"2a00:11c0:7:ffff:eeee:dddd:cccc:bbbb","payload":"*oogle"}',
+                    '{"ip":"2a00:11c0:7:ffff:eeee:dddd:cccc:bbbb","ip_key":107,"payload":"*oogle"}',
+                ),
+                (
+                    '{"ip":"2a00:1e90:fa:fa:effe:ddad:c1cc:bb3b","payload":"*oogle"}',
+                    '{"ip":"2a00:1e90:fa:fa:effe:ddad:c1cc:bb3b","ip_key":297,"payload":"*oogle"}',
+                ),
+                (
+                    '{"ip":"2a0X:XXXX:XXXX:XXXX:XXXX:XXXX:XXXX:XXXX","payload":"*oogle"}',
+                    '{"ip":"2a0X:XXXX:XXXX:XXXX:XXXX:XXXX:XXXX:XXXX","ip_key":297,"payload":"*oogle"}',
+                ),
+                (
+                    '{"ip":"280X:XXXX:XXXX:XXXX:XXXX:XXXX:XXXX:XXXX","payload":"*oogle"}',
+                    '{"ip":"280X:XXXX:XXXX:XXXX:XXXX:XXXX:XXXX:XXXX","ip_key":297,"payload":"*oogle"}',
+                ),
+            ]
+            * 100000,
+            16,
+            'payload'
+        )
+    ),
+    # 15
+    (
+        R'''
+        PRAGMA AnsiOptionalAs;
+            $input = SELECT * FROM myyds.`{input_topic}`
+                     WITH (
+                        FORMAT=json_each_row,
+                        SCHEMA (
+                            `ip` String,
+                            `payload` String,
+                        )
+                    );
+
+            $with_binip =
+                 SELECT ip, payload, Ip::FromString(e.ip) AS binip
+                   FROM $input e;
+
+            $with_prefix =
+                 SELECT ip, payload, binip,
+                        Ip::GetSubnet(binip, CAST((CASE WHEN Ip::IsIPv4(binip) THEN 8 ELSE 16 END) AS Uint8)) AS prefix
+                   FROM $with_binip e;
+
+            $with_dict =
+                 SELECT e.`ip` AS `ip`, e.`payload` AS `payload`, COALESCE(db.`ipdict`, '') AS `ipdict`, e.`binip` AS `binip`
+                   FROM $with_prefix e
+              LEFT JOIN {streamlookup} ydb_conn_{table_name}.`geotrie` db
+                     ON e.`prefix` = db.`prefix`;
+
+            $with_ip_key =
+                 SELECT `ip`,
+                        `payload`,
+                        Trie::Lookup(e.`binip`, e.`ipdict`) AS `ip_key`
+                   FROM $with_dict e;
+
+            $enriched = $with_ip_key;
+
+            $formatTime = DateTime::Format("%Y%m%d%H%M%S");
+            $preout = SELECT `ip`, `ip_key`, `payload`, $formatTime(CurrentUtcTimestamp(`payload`)) AS utc FROM $enriched e;
+
+            insert into myyds.`{output_topic}`
+            select Unwrap(Yson::SerializeJson(Yson::From(TableRow()))) from $preout;
+            ''',
+        RandomizeDBX(
+            [
+                (
+                    '{"ip":"2001:470:5:37d::123","payload":"*acebook"}',
+                    '{"ip":"2001:470:5:37d::123","ip_key":131,"payload":"*acebook"}',
+                ),
+                (
+                    '{"ip":"2001:470:5:37d:ffff::456","payload":"Amaz*n"}',
+                    '{"ip":"2001:470:5:37d:ffff::456","ip_key":131,"payload":"Amaz*n"}',
+                ),
+                (
+                    '{"ip":"2806:10a6:10:1::1","payload":"*pple"}',
+                    '{"ip":"2806:10a6:10:1::1","ip_key":31247,"payload":"*pple"}',
+                ),
+                (
+                    '{"ip":"2806:10a6:10:1fff::1","payload":"*etflix"}',
+                    '{"ip":"2806:10a6:10:1fff::1","ip_key":31247,"payload":"*etflix"}',
+                ),
+                (
+                    '{"ip":"2806:10a6:10:2000::3","payload":"*oogle"}',
+                    '{"ip":"2806:10a6:10:2000::3","ip_key":32058,"payload":"*oogle"}',
+                ),
+                (
+                    '{"ip":"2a00:11c0:7:1:2:3:4:5","payload":"*oogle"}',
+                    '{"ip":"2a00:11c0:7:1:2:3:4:5","ip_key":107,"payload":"*oogle"}',
+                ),
+                (
+                    '{"ip":"2a00:11c0:7:ffff:eeee:dddd:cccc:bbbb","payload":"*oogle"}',
+                    '{"ip":"2a00:11c0:7:ffff:eeee:dddd:cccc:bbbb","ip_key":107,"payload":"*oogle"}',
+                ),
+                (
+                    '{"ip":"2a00:1e90:fa:fa:effe:ddad:c1cc:bb3b","payload":"*oogle"}',
+                    '{"ip":"2a00:1e90:fa:fa:effe:ddad:c1cc:bb3b","ip_key":297,"payload":"*oogle"}',
+                ),
+                (
+                    '{"ip":"2a0X:XXXX:XXXX:XXXX:XXXX:XXXX:XXXX:XXXX","payload":"*oogle"}',
+                    '{"ip":"2a0X:XXXX:XXXX:XXXX:XXXX:XXXX:XXXX:XXXX","ip_key":297,"payload":"*oogle"}',
+                ),
+                (
+                    '{"ip":"280X:XXXX:XXXX:XXXX:XXXX:XXXX:XXXX:XXXX","payload":"*oogle"}',
+                    '{"ip":"280X:XXXX:XXXX:XXXX:XXXX:XXXX:XXXX:XXXX","ip_key":297,"payload":"*oogle"}',
+                ),
+            ]
+            * 100000,
+            16,
+            'payload'
+        )
+    ),
 ]
 
 if not XD:
@@ -950,10 +1271,12 @@ class TestJoinStreaming(TestYdsBase):
         def rmutc(d):
             if 'utc' in d:
                 del d['utc']
+            if 'ip_key' in d:
+                del d['ip_key']
             return d
 
         read_data_ctr = Counter(map(freeze, map(rmutc, map(json.loads, read_data))))
-        messages_ctr = Counter(map(freeze, map(json.loads, map(itemgetter(1), messages))))
+        messages_ctr = Counter(map(freeze, map(rmutc, map(json.loads, map(itemgetter(1), messages)))))
 
         if False:
             assert read_data_ctr == messages_ctr
