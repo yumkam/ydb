@@ -205,17 +205,11 @@ private: //IDqComputeActorAsyncInput
     }
 
     void Free() {
-<<<<<<< HEAD
-=======
-#ifndef NDEBUG
-        Y_ENSURE(state == EState::Alive || state == EState::Bootstrapped || state == EState::Away);
-#endif
         Cerr << "Final " << LastLruSize << Endl;
         if (LruSize && LastLruSize) {
             LruSize->Add(-LastLruSize);
             LastLruSize = 0;
         }
->>>>>>> ba7f65a499 (streamlookup join: add lru size monitoring)
         auto guard = BindAllocator();
         //All resources, held by this class, that have been created with mkql allocator, must be deallocated here
         KeysForLookup.reset();
@@ -246,7 +240,9 @@ private: //IDqComputeActorAsyncInput
             NUdf::TUnboxedValue* inputRowItems;
             NUdf::TUnboxedValue inputRow = HolderFactory.CreateDirectArrayHolder(InputRowType->GetElementsCount(), inputRowItems);
             const auto now = std::chrono::steady_clock::now();
-            LruCache->Prune(now);
+            while(LruCache->Tick(now))
+                if (Pruned)
+                    Pruned->Inc();
             size_t rowLimit = std::numeric_limits<size_t>::max();
             size_t row = 0;
             if (MaxKeys > MaxKeysInRequest)
@@ -316,6 +312,7 @@ private: //IDqComputeActorAsyncInput
         CpuTimeUs = component->GetCounter("CpuUs");
         Batches = component->GetCounter("Batches");
         LruSize = taskCounters->GetCounter("LruSize");
+        Pruned = taskCounters->GetCounter("StreamLookupPruned");
     }
 
     static TDuration GetCpuTimeDelta(ui64 startCycleCount) {
@@ -384,6 +381,7 @@ protected:
     std::shared_ptr<IDqAsyncLookupSource::TUnboxedValueMap> KeysForLookup;
     i64 LastLruSize;
 
+    ::NMonitoring::TDynamicCounters::TCounterPtr Pruned;
     ::NMonitoring::TDynamicCounters::TCounterPtr LruHits;
     ::NMonitoring::TDynamicCounters::TCounterPtr LruMiss;
     ::NMonitoring::TDynamicCounters::TCounterPtr LruSize;
