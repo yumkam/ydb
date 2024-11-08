@@ -52,6 +52,7 @@ PEERDIR(
     ydb/library/yql/udfs/common/histogram
     ydb/library/yql/udfs/common/hyperloglog
     ydb/library/yql/udfs/common/ip_base
+    ydb/library/yql/udfs/common/ip_lookup
     ydb/library/yql/udfs/common/knn
     ydb/library/yql/udfs/common/json
     ydb/library/yql/udfs/common/json2
@@ -63,6 +64,7 @@ PEERDIR(
     ydb/library/yql/udfs/common/string
     ydb/library/yql/udfs/common/top
     ydb/library/yql/udfs/common/topfreq
+    ydb/library/yql/udfs/common/trie
     ydb/library/yql/udfs/common/unicode_base
     ydb/library/yql/udfs/common/url_base
     ydb/library/yql/udfs/common/yson2

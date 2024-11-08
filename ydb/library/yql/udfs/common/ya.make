@@ -8,6 +8,7 @@ RECURSE(
     histogram
     hyperloglog
     ip_base
+    ip_lookup
     json
     json2
     knn
@@ -23,6 +24,7 @@ RECURSE(
     string
     top
     topfreq
+    trie
     unicode_base
     url_base
     yson2
