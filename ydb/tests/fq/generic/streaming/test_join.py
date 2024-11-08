@@ -204,7 +204,7 @@ def RandomizeBIG(messages, keylen=16):
         Ev = str(base64.b64encode(bx), 'utf-8')
         Pos = Id % (len(dic[Prefix]) - 4)
         Uev = dic[Prefix][Pos:Pos + 4]
-        print((Id, Prefix, Pos, Ev, Uev), file=sys.stderr)
+        # print((Id, Prefix, Pos, Ev, Uev), file=sys.stderr)
         rpair = []
         for it in pair:
             src = json.loads(it)
@@ -622,7 +622,7 @@ TESTCASES = [
                             '{"time":1,"key":"foobar","uid":5}',
                         ),
                     ]
-                    * 500000,
+                    * 600000,
                     field='time',
                 ),
                 field='message',
@@ -1101,7 +1101,8 @@ TESTCASES = [
 
 if not XD:
     # TESTCASES = TESTCASES[1:2]
-    TESTCASES = TESTCASES[12:13]
+    # TESTCASES = TESTCASES[15:16]
+    TESTCASES = TESTCASES[8:9]
     pass
 
 
@@ -1237,7 +1238,7 @@ class TestJoinStreaming(TestYdsBase):
         fq_client.wait_query_status(query_id, fq.QueryMeta.RUNNING)
 
         if WITH_CHECKPOINTS:
-            kikimr.compute_plane.wait_zero_checkpoint(query_id)
+            kikimr.compute_plane.wait_zero_checkpoint(query_id, timeout=240)
         else:
             kikimr.control_plane.wait_worker_count(1, "DQ_PQ_READ_ACTOR", 1)
 

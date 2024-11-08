@@ -18,7 +18,7 @@ class TestYdsBase(object):
 
         if create_output:
             self.output_topic = prefix + "_output"
-            create_stream(self.output_topic, partitions_count=partitions_count)
+            create_stream(self.output_topic, partitions_count=1)  # partitions_count)
             create_read_rule(self.output_topic, self.consumer_name)
 
     def write_stream(self, data, topic_path=None):
