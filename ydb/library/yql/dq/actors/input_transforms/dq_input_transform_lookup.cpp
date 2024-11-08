@@ -245,7 +245,9 @@ private: //IDqComputeActorAsyncInput
             NUdf::TUnboxedValue* inputRowItems;
             NUdf::TUnboxedValue inputRow = HolderFactory.CreateDirectArrayHolder(InputRowType->GetElementsCount(), inputRowItems);
             const auto now = std::chrono::steady_clock::now();
-            LruCache->Prune(now);
+            while(LruCache->Tick(now))
+                if (Pruned)
+                    Pruned->Inc();
             size_t rowLimit = std::numeric_limits<size_t>::max();
             size_t row = 0;
             if (MaxKeys > MaxKeysInRequest)
@@ -315,6 +317,7 @@ private: //IDqComputeActorAsyncInput
         LruSize = component->GetCounter("Size");
         CpuTimeUs = component->GetCounter("CpuUs");
         Batches = component->GetCounter("Batches");
+        Pruned = taskCounters->GetCounter("Pruned");
     }
 
     static TDuration GetCpuTimeDelta(ui64 startCycleCount) {
@@ -383,6 +386,7 @@ protected:
     std::shared_ptr<IDqAsyncLookupSource::TUnboxedValueMap> KeysForLookup;
     i64 LastLruSize;
 
+    ::NMonitoring::TDynamicCounters::TCounterPtr Pruned;
     ::NMonitoring::TDynamicCounters::TCounterPtr LruHits;
     ::NMonitoring::TDynamicCounters::TCounterPtr LruMiss;
     ::NMonitoring::TDynamicCounters::TCounterPtr LruSize;
