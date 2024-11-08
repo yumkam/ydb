@@ -51,6 +51,12 @@ set -ex
     COMMIT;
     CREATE TABLE `big` (`prefix` Uint64, `dict` STRING, PRIMARY KEY(`prefix`));
     COMMIT;
+    CREATE TABLE `geoip` (`prefix` Uint64, `ipdict` STRING, PRIMARY KEY(`prefix`));
+    COMMIT;
+    CREATE TABLE `geoplain` (`prefix` STRING, `ipdict` STRING, PRIMARY KEY(`prefix`));
+    COMMIT;
+    CREATE TABLE `geotrie` (`prefix` STRING, `ipdict` STRING, PRIMARY KEY(`prefix`));
+    COMMIT;
   '
 
 retVal=$?
@@ -80,6 +86,36 @@ if [ -e /dby.tsv ]; then
 else
 awk -v o=$o 'BEGIN { OFS="\t"; for (i = 0; i < 10000000; ++i) { x = i; printf "%d\t%d\thash%028d\n", x,(x%31), x }}'|
     /ydb -p ${PROFILE} import file tsv -p dby
+fi
+retVal=$?
+if [ $retVal -ne 0 ]; then
+  echo $retVal
+  exit $retVal
+fi
+if [ -e /ipv6.json ]; then
+    /ydb -p ${PROFILE} import file json -p geoip < /ipv6.json
+else
+    :
+fi
+retVal=$?
+if [ $retVal -ne 0 ]; then
+  echo $retVal
+  exit $retVal
+fi
+if [ -e /ipv6plain.json ]; then
+    /ydb -p ${PROFILE} import file json -p geoplain < /ipv6plain.json
+else
+    :
+fi
+retVal=$?
+if [ $retVal -ne 0 ]; then
+  echo $retVal
+  exit $retVal
+fi
+if [ -e /ipv6trie.json ]; then
+    /ydb -p ${PROFILE} import file json -p geotrie < /ipv6trie.json
+else
+    :
 fi
 retVal=$?
 if [ $retVal -ne 0 ]; then
@@ -128,6 +164,8 @@ echo $(date +"%T.%6N") "SUCCESS"
 /ydb -p ${PROFILE} table query execute -q "SELECT COUNT(*) FROM dbx" >&2
 /ydb -p ${PROFILE} table query execute -q "SELECT COUNT(*) FROM dby" >&2
 /ydb -p ${PROFILE} table query execute -q "SELECT COUNT(*) FROM dbz" >&2
+/ydb -p ${PROFILE} table query execute -q "SELECT * FROM geoip WHERE prefix = 536937584" >&2
+/ydb -p ${PROFILE} table query execute -q "SELECT * FROM geoip LIMIT 1" >&2
 
 if false; then
 /ydb -p ${PROFILE} table query execute -q "SELECT COUNT(*) FROM dbx" >&2
