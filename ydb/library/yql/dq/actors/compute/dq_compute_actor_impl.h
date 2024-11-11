@@ -387,7 +387,28 @@ protected:
         auto status = ProcessOutputsState.LastRunStatus;
 
         if (status == ERunStatus::PendingInput && ProcessOutputsState.AllOutputsFinished) {
-            CA_LOG_D("All outputs have been finished. Consider finished");
+#define CA_LOG_D_RATELIMITED(s, rateLimit, limit)                                       \
+    LOG_DEBUG_S_RATELIMITED(*NActors::TlsActivationContext, NKikimrServices::KQP_COMPUTE, this->LogPrefix << s, rateLimit, limit)
+#define LOG_DEBUG_S_RATELIMITED(actorCtxOrSystem, component, stream, rateLimit, limit)  \
+    LOG_LOG_S_RATELIMITED(actorCtxOrSystem, NActors::NLog::PRI_DEBUG, component, 0ull, stream, rateLimit, limit)
+#define LOG_LOG_S_RATELIMITED(actorCtxOrSystem, priority, component, sampleBy, stream, rateLimit, limit) \
+    do {                                                                                                 \
+        if (IS_CTX_LOG_PRIORITY_ENABLED(actorCtxOrSystem, priority, component, sampleBy)) {              \
+            auto now = TInstant::Now();                                                                  \
+            if (now - rateLimit.LastReported < limit) {                                                  \
+                ++rateLimit.Skipped;                                                                     \
+            } else {                                                                                     \
+                TStringBuilder logStringBuilder;                                                         \
+                logStringBuilder << stream;                                                              \
+                if (rateLimit.Skipped) logStringBuilder << " (skipped " << rateLimit.Skipped << ")";     \
+                ::NActors::MemLogAdapter(                                                                \
+                    actorCtxOrSystem, priority, component, std::move(logStringBuilder));                 \
+                rateLimit.LastReported = now;                                                            \
+                rateLimit.Skipped = 0;                                                                   \
+            }                                                                                            \
+        }                                                                                                \
+    } while (0) /**/
+            CA_LOG_D_RATELIMITED("All outputs have been finished. Consider finished", AllFinishedRateLimit, TDuration::Seconds(1));
             status = ERunStatus::Finished;
         }
 
@@ -433,8 +454,8 @@ protected:
         // Handle finishing of our task.
         if (status == ERunStatus::Finished && State != NDqProto::COMPUTE_STATE_FINISHED) {
             if (ProcessOutputsState.HasDataToSend || !ProcessOutputsState.ChannelsReady) {
-                CA_LOG_D("Continue execution, either output buffers are not empty or not all channels are ready"
-                    << ", hasDataToSend: " << ProcessOutputsState.HasDataToSend << ", channelsReady: " << ProcessOutputsState.ChannelsReady);
+                CA_LOG_D_RATELIMITED("Continue execution, either output buffers are not empty or not all channels are ready"
+                    << ", hasDataToSend: " << ProcessOutputsState.HasDataToSend << ", channelsReady: " << ProcessOutputsState.ChannelsReady, ContinueExecutionRateLimit, TDuration::Seconds(1));
             } else {
                 if (!Channels->FinishInputChannels()) {
                     CA_LOG_D("Continue execution, not all input channels are initialized");
@@ -1988,6 +2009,12 @@ protected:
     ::NMonitoring::TDynamicCounters::TCounterPtr InputTransformCpuTimeMs;
     THolder<NYql::TCounters> Stat;
     TDuration CpuTimeSpent;
+    struct TSampler {
+        TInstant LastReported;
+        ui64 Skipped {};
+    };
+    TSampler AllFinishedRateLimit;
+    TSampler ContinueExecutionRateLimit;
 };
 
 } // namespace NYql
