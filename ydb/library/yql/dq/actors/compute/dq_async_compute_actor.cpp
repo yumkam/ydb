@@ -392,6 +392,7 @@ private:
     void OnStatisticsResponse(NTaskRunnerActor::TEvStatistics::TPtr& ev) {
         SentStatsRequest = false;
         if (ev->Get()->Stats) {
+            // spams
             CA_LOG_T("update task runner stats");
             TaskRunnerStats = std::move(ev->Get()->Stats);
         }
@@ -439,9 +440,10 @@ private:
         UpdateBlocked(outputChannel, !hasFreeMemory);
 
         if (!shouldSkipData && !outputChannel.EarlyFinish && !hasFreeMemory) {
+            // spams
             CA_LOG_T("DrainOutputChannel return because No free memory in channel, channel: " << outputChannel.ChannelId);
             ProcessOutputsState.HasDataToSend |= !outputChannel.Finished;
-            ProcessOutputsState.AllOutputsFinished = !outputChannel.Finished;
+            ProcessOutputsState.AllOutputsFinished &= outputChannel.Finished;
             return;
         }
 
@@ -608,6 +610,7 @@ private:
         PollAsyncInput();
         if (ProcessSourcesState.Inflight == 0) {
             auto req = GetCheckpointRequest();
+            // spams
             CA_LOG_T("DoExecuteImpl: " << (bool) req);
             AskContinueRun(std::move(req), /* checkpointOnly = */ false);
         }
@@ -672,6 +675,7 @@ private:
         ProfileStats = std::move(ev->Get()->ProfileStats);
         auto status = ev->Get()->RunStatus;
 
+        // spams
         CA_LOG_T("Resume execution, run status: " << status << " checkpoint: " << (bool) ev->Get()->ProgramState
             << " watermark injected: " << ev->Get()->WatermarkInjectedToOutputs);
 
