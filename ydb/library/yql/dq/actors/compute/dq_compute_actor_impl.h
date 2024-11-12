@@ -335,6 +335,7 @@ protected:
     void ProcessOutputsImpl(ERunStatus status) {
         ProcessOutputsState.LastRunStatus = status;
 
+        // spams
         CA_LOG_T("ProcessOutputsState.Inflight: " << ProcessOutputsState.Inflight);
         if (ProcessOutputsState.Inflight == 0) {
             ProcessOutputsState = TProcessOutputsState();
@@ -349,6 +350,7 @@ protected:
                 ProcessOutputsState.ChannelsReady = false;
                 ProcessOutputsState.HasDataToSend = true;
                 ProcessOutputsState.AllOutputsFinished = false;
+                // spams
                 CA_LOG_T("Can not drain channelId: " << channelId << ", no dst actor id");
                 if (Y_UNLIKELY(outputChannel.Stats)) {
                     outputChannel.Stats->NoDstActorId++;
@@ -363,6 +365,7 @@ protected:
                     ProcessOutputsState.HasDataToSend |= !outputChannel.Finished;
                 }
             } else {
+                // spams
                 CA_LOG_T("Do not drain channelId: " << channelId << ", finished");
                 ProcessOutputsState.AllOutputsFinished &= outputChannel.Finished;
             }
@@ -1433,6 +1436,7 @@ protected:
             return;
         }
 
+        // spams
         CA_LOG_T("Poll inputs");
         for (auto& [inputIndex, transform] : InputTransformsMap) {
             if (auto resume = transform.PollAsyncInput(MetricsReporter, WatermarksTracker, RuntimeSettings.AsyncInputPushLimit)) {
@@ -1446,6 +1450,7 @@ protected:
             return;
         }
 
+        // spams
         CA_LOG_T("Poll sources");
         for (auto& [inputIndex, source] : SourcesMap) {
             if (auto resume =  source.PollAsyncInput(MetricsReporter, WatermarksTracker, RuntimeSettings.AsyncInputPushLimit)) {
