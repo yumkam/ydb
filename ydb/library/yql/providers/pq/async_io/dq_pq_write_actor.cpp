@@ -216,6 +216,10 @@ public:
                 Callbacks->OnAsyncOutputStateSaved(BuildState(*checkpoint), OutputIndex, *checkpoint);
             } else {
                 ui64 seqNo = NextSeqNo + Buffer.size() - 1;
+                if (Buffer.empty() && !WaitingAcks.empty()) {
+                    Cerr << TInstant::Now() << " !!!!! NextSeq = " << NextSeqNo << " Seq " << seqNo << " back " << WaitingAcks.back().MessageSize << '/' << WaitingAcks.back().StartTime << " size " << WaitingAcks.size();
+                    Cerr << Endl;
+                }
                 SINK_LOG_D("Defer sending the checkpoint, seqNo: " << seqNo);
                 Metrics.InFlyCheckpoints->Inc();
                 DeferredCheckpoints.emplace(seqNo, *checkpoint);
