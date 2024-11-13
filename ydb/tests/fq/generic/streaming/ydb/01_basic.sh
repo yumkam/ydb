@@ -47,7 +47,7 @@ set -ex
     COMMIT;
     CREATE TABLE dby (id Uint64, age Uint32, hash STRING, PRIMARY KEY(hash));
     COMMIT;
-    CREATE TABLE dbz (id Uint64, age Uint32, hash STRING, PRIMARY KEY(id));
+    CREATE TABLE dbz (id Uint64, age Uint32, hash STRING, PRIMARY KEY(hash));
     COMMIT;
     CREATE TABLE `big` (`prefix` Uint64, `dict` STRING, PRIMARY KEY(`prefix`));
     COMMIT;
