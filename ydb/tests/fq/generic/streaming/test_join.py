@@ -152,7 +152,7 @@ def RandomizeDBH(messages, keylen=16):
     res = []
     random.seed(0)  # we want fixed seed
     for pair in messages:
-        Id = random.randint(0, 10000)
+        Id = random.randint(0, 100000)
         Id = (Id * 124151351) % 19000043
         Key = str(base64.b64encode(random.randbytes(keylen * 6 // 8)), 'utf-8')
         Hash = hashlib.sha256(bytes(str(Id), 'utf-8')).hexdigest()
@@ -1102,7 +1102,8 @@ TESTCASES = [
 if not XD:
     # TESTCASES = TESTCASES[1:2]
     # TESTCASES = TESTCASES[15:16]
-    TESTCASES = TESTCASES[8:9]
+    # TESTCASES = TESTCASES[8:9]
+    TESTCASES = TESTCASES[10:11]
     pass
 
 
