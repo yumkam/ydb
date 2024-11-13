@@ -444,6 +444,7 @@ private:
             CA_LOG_T("DrainOutputChannel return because No free memory in channel, channel: " << outputChannel.ChannelId);
             ProcessOutputsState.HasDataToSend |= !outputChannel.Finished;
             ProcessOutputsState.AllOutputsFinished &= outputChannel.Finished;
+            //ProcessOutputsState.AllOutputsFinished = !outputChannel.Finished;
             return;
         }
 
@@ -610,7 +611,7 @@ private:
         PollAsyncInput();
         if (ProcessSourcesState.Inflight == 0) {
             auto req = GetCheckpointRequest();
-            // spams
+            // spams, spams2
             CA_LOG_T("DoExecuteImpl: " << (bool) req);
             AskContinueRun(std::move(req), /* checkpointOnly = */ false);
         }
