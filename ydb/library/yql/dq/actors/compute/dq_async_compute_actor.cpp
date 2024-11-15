@@ -287,7 +287,7 @@ private:
             html << "<h4>Input Transform Id: " << id << "</h4>";
             html << "LogPrefix: " << info.LogPrefix << "<br />";
             html << "Type: " << info.Type << "<br />";
-            html << "PendingWatermark: " << !info.PendingWatermark << " " << (!info.PendingWatermark ? TString{} : info.PendingWatermark->ToString()) << "<br />";
+            html << "PendingWatermark: " << !!info.PendingWatermark << " " << (!info.PendingWatermark ? TString{} : info.PendingWatermark->ToString()) << "<br />";
             html << "WatermarksMode: " << NDqProto::EWatermarksMode_Name(info.WatermarksMode) << "<br />";
             html << "FreeSpace: " << info.GetFreeSpace() << "<br />";
             if (info.Buffer) {
