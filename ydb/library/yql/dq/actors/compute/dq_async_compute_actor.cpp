@@ -393,7 +393,7 @@ private:
         SentStatsRequest = false;
         if (ev->Get()->Stats) {
             // spams
-            CA_LOG_T("update task runner stats");
+            CA_LOG_T_RATELIMITED("update task runner stats", rl4, TDuration::Seconds(1));
             TaskRunnerStats = std::move(ev->Get()->Stats);
         }
         ComputeActorState = NDqProto::TEvComputeActorState();
@@ -429,11 +429,11 @@ private:
 
         const auto& peerState = Channels->GetOutputChannelInFlightState(channelId);
 
-        CA_LOG_T("About to drain channelId: " << channelId
+        CA_LOG_T_RATELIMITED("About to drain channelId: " << channelId
             << ", hasPeer: " << outputChannel.HasPeer
             << ", peerState:(" << peerState.DebugString() << ")"
 //            << ", finished: " << outputChannel.Channel->IsFinished());
-            );
+            , rl1, TDuration::Seconds(1));
 
         const bool shouldSkipData = Channels->ShouldSkipData(outputChannel.ChannelId);
         const bool hasFreeMemory = Channels->HasFreeMemoryInChannel(outputChannel.ChannelId);
@@ -441,7 +441,7 @@ private:
 
         if (!shouldSkipData && !outputChannel.EarlyFinish && !hasFreeMemory) {
             // spams
-            CA_LOG_T("DrainOutputChannel return because No free memory in channel, channel: " << outputChannel.ChannelId);
+            CA_LOG_T_RATELIMITED("DrainOutputChannel return because No free memory in channel, channel: " << outputChannel.ChannelId, rl2, TDuration::Seconds(1));
             ProcessOutputsState.HasDataToSend |= !outputChannel.Finished;
             ProcessOutputsState.AllOutputsFinished &= outputChannel.Finished;
             //ProcessOutputsState.AllOutputsFinished = !outputChannel.Finished;
@@ -612,7 +612,7 @@ private:
         if (ProcessSourcesState.Inflight == 0) {
             auto req = GetCheckpointRequest();
             // spams, spams2
-            CA_LOG_T("DoExecuteImpl: " << (bool) req);
+            CA_LOG_T_RATELIMITED("DoExecuteImpl: " << (bool) req, DoExecuteImplRatelimit, TDuration::Seconds(1));
             AskContinueRun(std::move(req), /* checkpointOnly = */ false);
         }
     }
@@ -677,8 +677,8 @@ private:
         auto status = ev->Get()->RunStatus;
 
         // spams
-        CA_LOG_T("Resume execution, run status: " << status << " checkpoint: " << (bool) ev->Get()->ProgramState
-            << " watermark injected: " << ev->Get()->WatermarkInjectedToOutputs);
+        CA_LOG_T_RATELIMITED("Resume execution, run status: " << status << " checkpoint: " << (bool) ev->Get()->ProgramState
+            << " watermark injected: " << ev->Get()->WatermarkInjectedToOutputs, rl3, TDuration::Seconds(1));
 
         for (const auto& [channelId, freeSpace] : ev->Get()->InputChannelFreeSpace) {
             auto it = InputChannelsMap.find(channelId);
@@ -1139,6 +1139,8 @@ private:
     NMonitoring::THistogramPtr CpuTimeQuotaWaitDelay;
     NMonitoring::TDynamicCounters::TCounterPtr CpuTime;
     NDqProto::TEvComputeActorState ComputeActorState;
+    ::NActors::TLogRateLimiter DoExecuteImplRatelimit;
+    ::NActors::TLogRateLimiter rl1, rl2, rl3, rl4;
 };
 
 
