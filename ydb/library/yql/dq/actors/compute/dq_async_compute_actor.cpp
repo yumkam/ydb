@@ -196,11 +196,22 @@ private:
             }
         }
 
+#define DUMP(X) html << #X ": " << X << "<br />"
+        DUMP(ProcessSourcesState.Inflight);
+        DUMP(ProcessOutputsState.Inflight);
+        DUMP(ProcessOutputsState.ChannelsReady);
+        DUMP(ProcessOutputsState.HasDataToSend);
+        DUMP(ProcessOutputsState.AllOutputsFinished);
+        DUMP(ProcessOutputsState.LastRunStatus);
+        DUMP(ProcessOutputsState.LastPopReturnedNoData);
+#undef DUMP
+
         html << "ContinueRunStartWaitTime: " << ContinueRunStartWaitTime.ToString() << "<br />";
         html << "ContinueRunInflight: " << ContinueRunInflight << "<br />";
         html << "CpuTimeSpent: " << CpuTimeSpent.ToString() << "<br />";
         html << "CpuTimeQuotaAsked: " << CpuTimeQuotaAsked.ToString() << "<br />";
         html << "UseCpuQuota: " << UseCpuQuota() << "<br />";
+
 
         html << "<h3>Checkpoints</h3>";
         html << "ReadyToCheckpoint: " << ReadyToCheckpoint() << "<br />";
@@ -279,6 +290,7 @@ private:
                 html << "DqInputBuffer.InputType: " << (info.Buffer->GetInputType() ? info.Buffer->GetInputType()->GetKindAsStr() : TString{"unknown"})  << "<br />";
                 html << "DqInputBuffer.InputWidth: " << (info.Buffer->GetInputWidth() ? ToString(*info.Buffer->GetInputWidth()) : TString{"unknown"})  << "<br />";
                 html << "DqInputBuffer.IsFinished: " << info.Buffer->IsFinished() << "<br />";
+                html << "DqInputBuffer.IsPaused: " << info.Buffer->IsPaused() << "<br />";
                 html << "DqInputBuffer.IsPending: " << info.Buffer->IsPending() << "<br />";
 
                 const auto& popStats = info.Buffer->GetPopStats();
