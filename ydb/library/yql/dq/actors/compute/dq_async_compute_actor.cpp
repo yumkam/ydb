@@ -207,6 +207,16 @@ private:
             }
         }
 
+#define DUMP(X) html << #X ": " << X << "<br />"
+        DUMP(ProcessSourcesState.Inflight);
+        DUMP(ProcessOutputsState.Inflight);
+        DUMP(ProcessOutputsState.ChannelsReady);
+        DUMP(ProcessOutputsState.HasDataToSend);
+        DUMP(ProcessOutputsState.AllOutputsFinished);
+        DUMP(ProcessOutputsState.LastRunStatus);
+        DUMP(ProcessOutputsState.LastPopReturnedNoData);
+#undef DUMP
+
         html << "ContinueRunStartWaitTime: " << ContinueRunStartWaitTime.ToString() << "<br />";
         html << "ContinueRunInflight: " << ContinueRunInflight << "<br />";
         html << "CpuTimeSpent: " << CpuTimeSpent.ToString() << "<br />";
