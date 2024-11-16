@@ -607,7 +607,7 @@ TESTCASES = [
                 FROM
                     $input AS e
                 LEFT JOIN {streamlookup} ydb_conn_{table_name}.`messages` AS u
-                ON(e.message = u.msg)
+                ON(substring(e.message, 0, 8) = u.msg)
             ;
 
             insert into myyds.`{output_topic}`
@@ -1252,7 +1252,7 @@ class TestJoinStreaming(TestYdsBase):
             chunk = messages[offset : offset + 500]
             self.write_stream(map(lambda x: x[0], chunk))
             offset += 500
-            time.sleep(0.001)
+            time.sleep(0.0001)
             if test_checkpoints:
                 if offset >= last_row + 5000:
                     current_checkpoint = kikimr.compute_plane.get_completed_checkpoints(query_id)
@@ -1261,7 +1261,7 @@ class TestJoinStreaming(TestYdsBase):
                         last_checkpoint = current_checkpoint
                     last_row = offset
 
-        print(messages, file=sys.stderr, sep="\n")
+        # print(messages, file=sys.stderr, sep="\n")
 
         read_data = self.read_stream(len(messages))
 
@@ -1289,7 +1289,7 @@ class TestJoinStreaming(TestYdsBase):
                 assert read_data_ctr[k] == messages_ctr[k], f'mismatch at {k}: {read_data_ctr[k]} != {messages_ctr[k]}'
                 ctr += 1
                 if ctr == 1000:
-                    print('<#>', file=sys.stderr, flush=True, end='')
+                    # print('<#>', file=sys.stderr, flush=True, end='')
                     ctr = 0
 
         for node_index in kikimr.compute_plane.kikimr_cluster.nodes:
