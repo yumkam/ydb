@@ -7,6 +7,7 @@ class TDqAsyncInputBuffer : public TDqInputImpl<TDqAsyncInputBuffer, IDqAsyncInp
     using TBaseImpl = TDqInputImpl<TDqAsyncInputBuffer, IDqAsyncInputBuffer>;
     friend TBaseImpl;
     bool Pending = false;
+    bool EverPending = false;
 public:
     TDqAsyncInputBufferStats PushStats;
     TDqInputStats PopStats;
@@ -34,6 +35,7 @@ public:
 
     void Push(NKikimr::NMiniKQL::TUnboxedValueBatch&& batch, i64 space) override {
         Pending = space != 0;
+        if (Pending && batch.empty()) EverPending = true;
         if (!batch.empty()) {
             AddBatch(std::move(batch), space);
         }
@@ -45,6 +47,16 @@ public:
 
     bool IsPending() const override {
         return Pending;
+    }
+    bool Empty() const override {
+        if (EverPending)
+            PrintBackTrace();
+        return TBaseImpl::Empty();
+    }
+    bool Pop(NKikimr::NMiniKQL::TUnboxedValueBatch& batch) override {
+        if (EverPending)
+            PrintBackTrace();
+        return TBaseImpl::Pop(batch);
     }
 };
 
