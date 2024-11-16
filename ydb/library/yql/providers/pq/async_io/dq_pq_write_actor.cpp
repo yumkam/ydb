@@ -207,6 +207,7 @@ public:
             Buffer.push(std::move(data));
             return true;
         })) {
+            Cerr << TInstant::Now() << ' ' << LogPrefix << " PQ SendData Early return @ " << NextSeqNo << Endl;
             return;
         }
 
@@ -234,6 +235,7 @@ public:
         while (HandleNewPQEvents()) { } // Write messages while new continuationTokens are arriving
 
         if (FreeSpace <= 0) {
+            Cerr << TInstant::Now() << ' ' << LogPrefix << " Suspend " << NextSeqNo << ' ' << FreeSpace << Endl;
             ShouldNotifyNewFreeSpace = true;
         }
     };
@@ -350,6 +352,7 @@ private:
             }
 
             if (ShouldNotifyNewFreeSpace && FreeSpace > 0) {
+                Cerr << TInstant::Now() << ' ' << LogPrefix << " Resume " << NextSeqNo << ' ' << FreeSpace << Endl;
                 Callbacks->ResumeExecution();
                 ShouldNotifyNewFreeSpace = false;
             }
