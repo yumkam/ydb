@@ -791,7 +791,7 @@ protected:
 
 protected:
     struct TInputChannelInfo {
-        const TString LogPrefix;
+        const TString& LogPrefix;
         ui64 ChannelId;
         ui32 SrcStageId;
         IDqInputChannel::TPtr Channel;
