@@ -9,7 +9,7 @@ namespace NYql::NDq {
 class TDqComputeActorWatermarks
 {
 public:
-    TDqComputeActorWatermarks(NActors::TActorIdentity selfId, const TTxId graphId, ui64 taskId);
+    TDqComputeActorWatermarks(const TString& logPrefix);
 
     void RegisterAsyncInput(ui64 inputId);
     void RegisterInputChannel(ui64 inputId);
@@ -37,9 +37,7 @@ private:
     bool MaybePopPendingWatermark();
 
 private:
-    const NActors::TActorIdentity SelfId;
-    const TTxId TxId;
-    ui64 TaskId;
+    const TString& LogPrefix;
 
     std::unordered_map<ui64, TMaybe<TInstant>> AsyncInputsWatermarks;
     std::unordered_map<ui64, TMaybe<TInstant>> InputChannelsWatermarks;
