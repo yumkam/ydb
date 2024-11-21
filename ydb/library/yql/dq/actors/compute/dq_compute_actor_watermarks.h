@@ -32,12 +32,14 @@ public:
     TMaybe<TInstant> GetPendingWatermark() const;
     void PopPendingWatermark();
 
+    void SetLogPrefix(const TString &logPrefix);
+
 private:
     void RecalcPendingWatermark();
     bool MaybePopPendingWatermark();
 
 private:
-    const TString& LogPrefix;
+    TString LogPrefix;
 
     std::unordered_map<ui64, TMaybe<TInstant>> AsyncInputsWatermarks;
     std::unordered_map<ui64, TMaybe<TInstant>> InputChannelsWatermarks;
