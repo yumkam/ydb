@@ -199,6 +199,7 @@ private:
         DUMP(ProcessOutputsState, Inflight);
         DUMP(ProcessOutputsState, ChannelsReady);
         DUMP(ProcessOutputsState, HasDataToSend);
+        DUMP(ProcessOutputsState, DataWasSent);
         DUMP(ProcessOutputsState, AllOutputsFinished);
         DUMP(ProcessOutputsState, LastRunStatus);
         DUMP(ProcessOutputsState, LastPopReturnedNoData);
