@@ -414,10 +414,22 @@ Y_UNIT_TEST_SUITE(TCheckpointCoordinatorTests) {
             MockRunGraph();
         }
 
-        void SaveFailed(TCheckpointId checkpointId) {
-            MockNodeStateSavedEvent(checkpointId, IngressActor);
-            MockNodeStateSaveFailedEvent(checkpointId, EgressActor);
-            MockNodeStateSaveFailedEvent(checkpointId, MapActor);
+        void SaveFailed(TCheckpointId checkpointId, bool failIngress, bool failEgress, bool failMap) {
+            if (failIngress) {
+                MockNodeStateSaveFailedEvent(checkpointId, IngressActor);
+            } else {
+                MockNodeStateSavedEvent(checkpointId, IngressActor);
+            }
+            if (failEgress) {
+                MockNodeStateSaveFailedEvent(checkpointId, EgressActor);
+            } else {
+                MockNodeStateSavedEvent(checkpointId, EgressActor);
+            }
+            if (failMap) {
+                MockNodeStateSaveFailedEvent(checkpointId, MapActor);
+            } else {
+                MockNodeStateSavedEvent(checkpointId, MapActor);
+            }
 
             Cerr << "Waiting for TEvAbortCheckpointRequest (storage)" << Endl;
             ExpectEvent(StorageProxy, 
@@ -476,13 +488,16 @@ Y_UNIT_TEST_SUITE(TCheckpointCoordinatorTests) {
     }
 
     Y_UNIT_TEST(ShouldAbortPreviousCheckpointsIfNodeStateCantBeSaved) {
-        CheckpointsTestHelper test(ETestGraphFlags::InputWithSource, 0);
-        test.RegisterCoordinator();
-        test.InjectCheckpoint(test.CheckpointId1);
-        test.SaveFailed(test.CheckpointId1);
+        for (ui32 bitmap = 1; bitmap <= 7; ++bitmap) {
+            CheckpointsTestHelper test(ETestGraphFlags::InputWithSource, 0);
+            test.RegisterCoordinator();
+            test.InjectCheckpoint(test.CheckpointId1);
+            test.SaveFailed(test.CheckpointId1,
+                    !!(bitmap & (1<<0)), !!(bitmap & (1<<1)), !!(bitmap & (1<<2)));
 
-        test.ScheduleCheckpointing();
-        test.InjectCheckpoint(test.CheckpointId2, test.GraphDescId, NYql::NDqProto::CHECKPOINT_TYPE_SNAPSHOT);
+            test.ScheduleCheckpointing();
+            test.InjectCheckpoint(test.CheckpointId2, test.GraphDescId, NYql::NDqProto::CHECKPOINT_TYPE_SNAPSHOT);
+        }
     }
 }
 
