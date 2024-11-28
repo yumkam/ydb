@@ -173,7 +173,8 @@ private:
         html << "<h3>State</h3>";
         html << "<pre>" << ComputeActorState.DebugString() << "</pre>";
 
-#define DUMP(P, X) html << #X ": " << P.X << "<br />"
+#define DUMP(P, X,...) html << #X ": " << P.X __VA_ARGS__ << "<br />"
+#define DUMP_PREFIXED(TITLE, S, FIELD,...) html << TITLE << #FIELD ": " << S . FIELD __VA_ARGS__ << "<br />"
         html << "<h4>ProcessSourcesState</h4>";
         DUMP(ProcessSourcesState, Inflight);
         html << "<h4>ProcessOutputsState</h4>";
@@ -193,12 +194,11 @@ private:
         html << "<h3>CPU Quota</h3>";
         html << "QuoterServiceActorId: " << QuoterServiceActorId.ToString() << "<br />";
         if (ContinueRunEvent) {
-            html << "ContinueRunEvent.AskFreeSpace: " << ContinueRunEvent->AskFreeSpace << "<br />";
-            html << "ContinueRunEvent.AskFreeSpace: " << ContinueRunEvent->CheckpointOnly << "<br />";
-            html << "ContinueRunEvent.AskFreeSpace: " << ContinueRunEvent->CheckpointRequest.Defined() << "<br />";
-            html << "ContinueRunEvent.AskFreeSpace: " << ContinueRunEvent->WatermarkRequest.Defined() << "<br />";
-            html << "ContinueRunEvent.AskFreeSpace: " << ContinueRunEvent->CheckpointOnly << "<br />";
-            html << "ContinueRunEvent.AskFreeSpace: " << ContinueRunEvent->MemLimit << "<br />";
+            DUMP_PREFIXED("ContinueRunEvent.", (*ContinueRunEvent), AskFreeSpace);
+            DUMP_PREFIXED("ContinueRunEvent.", (*ContinueRunEvent), CheckpointOnly);
+            DUMP_PREFIXED("ContinueRunEvent.", (*ContinueRunEvent), CheckpointRequest, .Defined());
+            DUMP_PREFIXED("ContinueRunEvent.", (*ContinueRunEvent), WatermarkRequest, .Defined());
+            DUMP_PREFIXED("ContinueRunEvent.", (*ContinueRunEvent), MemLimit);
             for (const auto& sinkId: ContinueRunEvent->SinkIds) {
                 html << "ContinueRunEvent.SinkIds: " << sinkId << "<br />";
             }
@@ -208,46 +208,45 @@ private:
             }
         }
 
-        html << "ContinueRunStartWaitTime: " << ContinueRunStartWaitTime.ToString() << "<br />";
-        html << "ContinueRunInflight: " << ContinueRunInflight << "<br />";
-        html << "CpuTimeSpent: " << CpuTimeSpent.ToString() << "<br />";
-        html << "CpuTimeQuotaAsked: " << CpuTimeQuotaAsked.ToString() << "<br />";
-        html << "UseCpuQuota: " << UseCpuQuota() << "<br />";
-
+        DUMP((*this), ContinueRunStartWaitTime, .ToString());
+        DUMP((*this), ContinueRunInflight);
+        DUMP((*this), CpuTimeSpent, .ToString());
+        DUMP((*this), CpuTimeQuotaAsked, .ToString());
+        DUMP((*this), UseCpuQuota, ());
 
         html << "<h3>Checkpoints</h3>";
-        html << "ReadyToCheckpoint: " << ReadyToCheckpoint() << "<br />";
-        html << "CheckpointRequestedFromTaskRunner: " << CheckpointRequestedFromTaskRunner << "<br />";
+        DUMP((*this), ReadyToCheckpoint, ());
+        DUMP((*this), CheckpointRequestedFromTaskRunner);
 
         auto dumpAsyncStats = [&](auto prefix, auto& asyncStats) {
             html << prefix << "Level: " << static_cast<int>(asyncStats.Level) << "<br />";
-            html << prefix << "MinWaitDuration: " << asyncStats.MinWaitDuration.ToString() << "<br />";
+            DUMP_PREFIXED(prefix, asyncStats, MinWaitDuration, .ToString());
             html << prefix << "CurrentPauseTs: " << (asyncStats.CurrentPauseTs ? asyncStats.CurrentPauseTs->ToString() : TString{}) << "<br />";
-            html << prefix << "MergeWaitPeriod: " << asyncStats.MergeWaitPeriod << "<br />";
-            html << prefix << "Bytes: " << asyncStats.Bytes << "<br />";
-            html << prefix << "DecompressedBytes: " << asyncStats.DecompressedBytes << "<br />";
-            html << prefix << "Rows: " << asyncStats.Rows << "<br />";
-            html << prefix << "Chunks: " << asyncStats.Chunks << "<br />";
-            html << prefix << "Splits: " << asyncStats.Splits << "<br />";
-            html << prefix << "FirstMessageTs: " << asyncStats.FirstMessageTs.ToString() << "<br />";
-            html << prefix << "PauseMessageTs: " << asyncStats.PauseMessageTs.ToString() << "<br />";
-            html << prefix << "ResumeMessageTs: " << asyncStats.ResumeMessageTs.ToString() << "<br />";
-            html << prefix << "LastMessageTs: " << asyncStats.LastMessageTs.ToString() << "<br />";
-            html << prefix << "WaitTime: " << asyncStats.WaitTime.ToString() << "<br />";
+            DUMP_PREFIXED(prefix, asyncStats, MergeWaitPeriod);
+            DUMP_PREFIXED(prefix, asyncStats, Bytes);
+            DUMP_PREFIXED(prefix, asyncStats, DecompressedBytes);
+            DUMP_PREFIXED(prefix, asyncStats, Rows);
+            DUMP_PREFIXED(prefix, asyncStats, Chunks);
+            DUMP_PREFIXED(prefix, asyncStats, Splits);
+            DUMP_PREFIXED(prefix, asyncStats, FirstMessageTs, .ToString());
+            DUMP_PREFIXED(prefix, asyncStats, PauseMessageTs, .ToString());
+            DUMP_PREFIXED(prefix, asyncStats, ResumeMessageTs, .ToString());
+            DUMP_PREFIXED(prefix, asyncStats, LastMessageTs, .ToString());
+            DUMP_PREFIXED(prefix, asyncStats, WaitTime, .ToString());
         };
 
         auto dumpOutputStats = [&](auto prefix, auto& outputStats) {
-            html << prefix << "MaxMemoryUsage: " << outputStats.MaxMemoryUsage << "<br />";
-            html << prefix << "MaxRowsInMemory: " << outputStats.MaxRowsInMemory << "<br />";
+            DUMP_PREFIXED(prefix, outputStats, MaxMemoryUsage);
+            DUMP_PREFIXED(prefix, outputStats, MaxRowsInMemory);
             dumpAsyncStats(prefix, outputStats);
         };
 
         auto dumpInputChannelStats = [&](auto prefix, auto& pushStats) {
-            html << prefix << "ChannelId: " << pushStats.ChannelId << "<br />";
-            html << prefix << "SrcStageId: " << pushStats.SrcStageId << "<br />";
-            html << prefix << "RowsInMemory: " << pushStats.RowsInMemory << "<br />";
-            html << prefix << "MaxMemoryUsage: " << pushStats.MaxMemoryUsage << "<br />";
-            html << prefix << "DeserializationTime: " << pushStats.DeserializationTime.ToString() << "<br />";
+            DUMP_PREFIXED(prefix, pushStats, ChannelId);
+            DUMP_PREFIXED(prefix, pushStats, SrcStageId);
+            DUMP_PREFIXED(prefix, pushStats, RowsInMemory);
+            DUMP_PREFIXED(prefix, pushStats, MaxMemoryUsage);
+            DUMP_PREFIXED(prefix, pushStats, DeserializationTime, .ToString());
             dumpAsyncStats(prefix, pushStats);
         };
 
@@ -256,10 +255,10 @@ private:
         html << "<h3>InputChannels</h3>";
         for (const auto& [id, info]: InputChannelsMap) {
             html << "<h4>Input Channel Id: " << id << "</h4>";
-            html << "LogPrefix: " << info.LogPrefix << "<br />";
-            html << "ChannelId: " << info.ChannelId << "<br />";
-            html << "SrcStageId: " << info.SrcStageId << "<br />";
-            html << "HasPeer: " << info.HasPeer << "<br />";
+            DUMP(info, LogPrefix);
+            DUMP(info, ChannelId);
+            DUMP(info, SrcStageId);
+            DUMP(info, HasPeer);
             html << "PendingWatermarks: " << !info.PendingWatermarks.empty() << " " << (info.PendingWatermarks.empty() ? TString{} : info.PendingWatermarks.back().ToString()) << "<br />";
             html << "WatermarksMode: " << NDqProto::EWatermarksMode_Name(info.WatermarksMode) << "<br />";
             html << "PendingCheckpoint: " << info.PendingCheckpoint.has_value() << " " << (info.PendingCheckpoint ? TStringBuilder{} << info.PendingCheckpoint->GetId() << " " << info.PendingCheckpoint->GetGeneration() : TString{}) << "<br />";
