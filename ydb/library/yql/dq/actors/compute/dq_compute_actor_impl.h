@@ -458,6 +458,11 @@ protected:
             // and sends us a new batch of data.
             bool pollSent = false;
             for (auto& [channelId, inputChannel] : InputChannelsMap) {
+                if (inputChannel.IsPaused()) {
+                    Cerr << "PAUSED BUT POLL " << channelId << Endl;
+                    PrintBackTrace();
+                    CA_LOG_D("PAUSED BUT POLL " << channelId);
+                }
                 pollSent |= Channels->PollChannel(channelId, GetInputChannelFreeSpace(channelId));
             }
             if (!pollSent) {
