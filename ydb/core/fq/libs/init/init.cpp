@@ -189,6 +189,7 @@ void Init(
         credentialsFactory = NYql::CreateSecuredServiceAccountCredentialsOverTokenAccessorFactory(tokenAccessorConfig.GetEndpoint(), tokenAccessorConfig.GetUseSsl(), caContent, tokenAccessorConfig.GetConnectionPoolSize());
     }
 
+    Cerr << "XXXXXX " << (const void *)appData->Mon << Endl;
     if (protoConfig.GetRowDispatcher().GetEnabled()) {
         NYql::TPqGatewayServices pqServices(
             yqSharedResources->UserSpaceYdbDriver,
