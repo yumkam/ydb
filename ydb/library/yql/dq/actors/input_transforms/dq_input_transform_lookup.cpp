@@ -235,6 +235,12 @@ private: //IDqComputeActorAsyncInput
 
         DrainReadyQueue(batch);
 
+        if (!KeysForLookup) { // Before Bootstrap() or after PassAway()
+            Cerr << "ZERO KeysForLookup" << TInstant::Now() << Endl;
+            PrintBackTrace();
+            return 0;
+        }
+
         if (InputFlowFetchStatus != NUdf::EFetchStatus::Finish && KeysForLookup->empty()) {
             Y_DEBUG_ABORT_UNLESS(AwaitingQueue.empty());
             NUdf::TUnboxedValue* inputRowItems;
