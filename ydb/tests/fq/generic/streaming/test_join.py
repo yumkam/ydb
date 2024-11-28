@@ -1195,9 +1195,11 @@ class TestJoinStreaming(TestYdsBase):
     @pytest.mark.parametrize("streamlookup", [False, True] if DEBUG and XD else [True])
     @pytest.mark.parametrize("testcase", [*range(len(TESTCASES))])
     @pytest.mark.parametrize("test_checkpoints", [False])
+    @pytest.mark.parametrize("parallels", [2])
     def test_streamlookup(
         self,
         kikimr,
+        parallels,
         test_checkpoints,
         testcase,
         streamlookup,
@@ -1233,19 +1235,21 @@ class TestJoinStreaming(TestYdsBase):
 
         one_time_waiter.wait()
 
-        query_id = fq_client.create_query(
+        query_ids = [*map(lambda _:fq_client.create_query(
             f"streamlookup_{partitions_count}{streamlookup}{testcase}", sql, type=fq.QueryContent.QueryType.STREAMING
-        ).result.query_id
-        fq_client.wait_query_status(query_id, fq.QueryMeta.RUNNING)
+        ).result.query_id, range(parallels))]
+        for query_id in query_ids:
+            fq_client.wait_query_status(query_id, fq.QueryMeta.RUNNING)
 
-        if WITH_CHECKPOINTS:
-            kikimr.compute_plane.wait_zero_checkpoint(query_id, timeout=240)
-        else:
-            kikimr.control_plane.wait_worker_count(1, "DQ_PQ_READ_ACTOR", 1)
+        for query_id in query_ids:
+            if WITH_CHECKPOINTS:
+                kikimr.compute_plane.wait_zero_checkpoint(query_id, timeout=240)
+            else:
+                kikimr.control_plane.wait_worker_count(1, "DQ_PQ_READ_ACTOR", 1)
 
         if test_checkpoints:
-            last_row = 0
-            last_checkpoint = kikimr.compute_plane.get_completed_checkpoints(query_id)
+            last_rows = [0] * parallels
+            last_checkpoints = map(lambda query_id: kikimr.compute_plane.get_completed_checkpoints(query_id), query_ids)
 
         offset = 0
         while offset < len(messages):
@@ -1254,16 +1258,17 @@ class TestJoinStreaming(TestYdsBase):
             offset += 500
             time.sleep(0.0001)
             if test_checkpoints:
-                if offset >= last_row + 5000:
-                    current_checkpoint = kikimr.compute_plane.get_completed_checkpoints(query_id)
-                    if current_checkpoint >= last_checkpoint + 2:
-                        self.restart_node(kikimr, query_id)
-                        last_checkpoint = current_checkpoint
-                    last_row = offset
+                for i in range(parallels):
+                    if offset >= last_rows[i] + 5000:
+                        current_checkpoint = kikimr.compute_plane.get_completed_checkpoints(query_ids[i])
+                        if current_checkpoint >= last_checkpoints[i] + 2:
+                            self.restart_node(kikimr, query_ids[i])
+                            last_checkpoints[i] = current_checkpoint
+                        last_rows[i] = offset
 
         # print(messages, file=sys.stderr, sep="\n")
 
-        read_data = self.read_stream(len(messages))
+        read_data = self.read_stream(len(messages)*parallels)
 
         if DEBUG or 1:
             print(streamlookup, testcase, file=sys.stderr)
@@ -1286,7 +1291,7 @@ class TestJoinStreaming(TestYdsBase):
             assert len(read_data_ctr) == len(messages_ctr)
             ctr = 0
             for k in read_data_ctr:
-                assert read_data_ctr[k] == messages_ctr[k], f'mismatch at {k}: {read_data_ctr[k]} != {messages_ctr[k]}'
+                assert read_data_ctr[k] == messages_ctr[k]*parallels, f'mismatch at {k}: {read_data_ctr[k]} != {messages_ctr[k]*parallels}'
                 ctr += 1
                 if ctr == 1000:
                     # print('<#>', file=sys.stderr, flush=True, end='')
@@ -1294,21 +1299,25 @@ class TestJoinStreaming(TestYdsBase):
 
         for node_index in kikimr.compute_plane.kikimr_cluster.nodes:
             sensors = kikimr.compute_plane.get_sensors(node_index, "dq_tasks")
-            for component in ["Lookup", "LookupSrc"]:
-                componentSensors = sensors.find_sensors(
-                    labels={"operation": query_id, "component": component},
-                    key_label="sensor",
-                )
-                for k in componentSensors:
-                    print(
-                        f'node[{node_index}].operation[{query_id}].component[{component}].{k} = {componentSensors[k]}',
-                        file=sys.stderr,
+            for query_id in query_ids:
+                for component in ["Lookup", "LookupSrc"]:
+                    componentSensors = sensors.find_sensors(
+                        labels={"operation": query_id, "component": component},
+                        key_label="sensor",
                     )
+                    for k in componentSensors:
+                        print(
+                            f'node[{node_index}].operation[{query_id}].component[{component}].{k} = {componentSensors[k]}',
+                            file=sys.stderr,
+                        )
 
-        fq_client.abort_query(query_id)
-        fq_client.wait_query(query_id)
+        for query_id in query_ids:
+            fq_client.abort_query(query_id)
+        for query_id in query_ids:
+            fq_client.wait_query(query_id)
 
-        describe_response = fq_client.describe_query(query_id)
-        status = describe_response.result.query.meta.status
-        assert not describe_response.issues, str(describe_response.issues)
-        assert status == fq.QueryMeta.ABORTED_BY_USER, fq.QueryMeta.ComputeStatus.Name(status)
+        for query_id in query_ids:
+            describe_response = fq_client.describe_query(query_id)
+            status = describe_response.result.query.meta.status
+            assert not describe_response.issues, str(describe_response.issues)
+            assert status == fq.QueryMeta.ABORTED_BY_USER, fq.QueryMeta.ComputeStatus.Name(status)
