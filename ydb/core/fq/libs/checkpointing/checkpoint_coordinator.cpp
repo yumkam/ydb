@@ -439,7 +439,7 @@ void TCheckpointCoordinator::InjectCheckpoint(const TCheckpointId& checkpointId,
 void TCheckpointCoordinator::Handle(const NYql::NDq::TEvDqCompute::TEvSaveTaskStateResult::TPtr& ev) {
     const auto& proto = ev->Get()->Record;
     const auto& checkpointProto = proto.GetCheckpoint();
-    const auto& status = proto.GetStatus();
+    auto status = proto.GetStatus();
     const TString& statusName = NYql::NDqProto::TEvSaveTaskStateResult_EStatus_Name(status);
 
     if (!OnComputeActorEventReceived(ev)) {
@@ -456,6 +456,11 @@ void TCheckpointCoordinator::Handle(const NYql::NDq::TEvDqCompute::TEvSaveTaskSt
         return;
     }
     auto& checkpoint = it->second;
+
+#if 0
+    if (rand() % 20 == 0)
+        status = NYql::NDqProto::TEvSaveTaskStateResult::STORAGE_ERROR;
+#endif
 
     if (status == NYql::NDqProto::TEvSaveTaskStateResult::OK) {
         checkpoint.Acknowledge(ev->Sender, proto.GetStateSizeBytes());
