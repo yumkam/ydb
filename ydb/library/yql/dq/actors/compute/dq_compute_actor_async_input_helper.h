@@ -97,7 +97,8 @@ public:
             }
 
         } else {
-            CA_LOG_T("Skip polling async input[" << Index << "]: no free space: " << freeSpace);
+            // spams
+            CA_LOG_T_RATELIMITED("Skip polling async input[" << Index << "]: no free space: " << freeSpace, rl1, TDuration::Seconds(1));
             return EResumeSource::CAPollAsyncNoSpace; // If there is no free space in buffer, => we have something to process
         }
         return {};
@@ -106,6 +107,7 @@ public:
     void SetLogPrefix(const TString& logPrefix) {
         LogPrefix = logPrefix;
     }
+    ::NActors::TLogRateLimiter rl1, rl2;
 };
 
 //Used for inputs in Sync ComputeActor and for a base for input transform in both sync and async ComputeActors

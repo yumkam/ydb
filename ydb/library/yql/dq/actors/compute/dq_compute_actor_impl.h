@@ -370,7 +370,8 @@ protected:
     void ProcessOutputsImpl(ERunStatus status) {
         ProcessOutputsState.LastRunStatus = status;
 
-        CA_LOG_T("ProcessOutputsState.Inflight: " << ProcessOutputsState.Inflight);
+        // spams
+        CA_LOG_T_RATELIMITED("ProcessOutputsState.Inflight: " << ProcessOutputsState.Inflight, rl3, TDuration::Seconds(1));
         if (ProcessOutputsState.Inflight == 0) {
             ProcessOutputsState = TProcessOutputsState();
         }
@@ -384,7 +385,8 @@ protected:
                 ProcessOutputsState.ChannelsReady = false;
                 ProcessOutputsState.HasDataToSend = true;
                 ProcessOutputsState.AllOutputsFinished = false;
-                CA_LOG_T("Can not drain channelId: " << channelId << ", no dst actor id");
+                // spams
+                CA_LOG_T_RATELIMITED("Can not drain channelId: " << channelId << ", no dst actor id", rl4, TDuration::Seconds(1));
                 if (Y_UNLIKELY(outputChannel.Stats)) {
                     outputChannel.Stats->NoDstActorId++;
                 }
@@ -398,7 +400,8 @@ protected:
                     ProcessOutputsState.HasDataToSend |= !outputChannel.Finished;
                 }
             } else {
-                CA_LOG_T("Do not drain channelId: " << channelId << ", finished");
+                // spams
+                CA_LOG_T_RATELIMITED("Do not drain channelId: " << channelId << ", finished", rl5, TDuration::Seconds(1));
                 ProcessOutputsState.AllOutputsFinished &= outputChannel.Finished;
             }
         }
@@ -1448,7 +1451,8 @@ protected:
             return;
         }
 
-        CA_LOG_T("Poll inputs");
+        // spams
+        CA_LOG_T_RATELIMITED("Poll inputs", rl1, TDuration::Seconds(1));
         for (auto& [inputIndex, transform] : InputTransformsMap) {
             if (auto resume = transform.PollAsyncInput(MetricsReporter, WatermarksTracker, RuntimeSettings.AsyncInputPushLimit)) {
                 ContinueExecute(*resume);
@@ -1461,7 +1465,8 @@ protected:
             return;
         }
 
-        CA_LOG_T("Poll sources");
+        // spams
+        CA_LOG_T_RATELIMITED("Poll sources", rl2, TDuration::Seconds(1));
         for (auto& [inputIndex, source] : SourcesMap) {
             if (auto resume =  source.PollAsyncInput(MetricsReporter, WatermarksTracker, RuntimeSettings.AsyncInputPushLimit)) {
                 ContinueExecute(*resume);
@@ -2031,6 +2036,7 @@ protected:
     TDuration CpuTimeSpent;
     ::NActors::TLogRateLimiter AllFinishedLogRateLimit;
     ::NActors::TLogRateLimiter ContinueExecutionLogRateLimit;
+    ::NActors::TLogRateLimiter rl1, rl2, rl3, rl4, rl5;
 };
 
 } // namespace NYql
