@@ -1,5 +1,6 @@
 #pragma once
 #include <ydb/library/services/services.pb.h>
+#include <ydb/library/actors/core/log-ratelimited.h>
 
 #if defined CA_LOG_D || defined CA_LOG_I || defined CA_LOG_E || defined CA_LOG_C
 #   error log macro definition clash
@@ -24,3 +25,5 @@
 
 #define CA_LOG_D_RATELIMITED(s, rateLimit, limit)                                       \
     LOG_DEBUG_S_RATELIMITED(*NActors::TlsActivationContext, NKikimrServices::KQP_COMPUTE, this->LogPrefix << s, rateLimit, limit)
+#define CA_LOG_T_RATELIMITED(s, rateLimit, limit)                                       \
+    LOG_TRACE_S_RATELIMITED(*NActors::TlsActivationContext, NKikimrServices::KQP_COMPUTE, this->LogPrefix << s, rateLimit, limit)
