@@ -853,6 +853,10 @@ protected:
         }
 
         void Pause(const NDqProto::TCheckpoint& checkpoint) {
+            if (PendingCheckpoint) {
+                Cerr << TInstant::Now() << Endl;
+                PrintBackTrace();
+            }
             YQL_ENSURE(!PendingCheckpoint);
             YQL_ENSURE(CheckpointingMode != NDqProto::CHECKPOINTING_MODE_DISABLED);
             PendingCheckpoint = checkpoint;
