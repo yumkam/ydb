@@ -122,6 +122,9 @@ if [ $retVal -ne 0 ]; then
   echo $retVal
   exit $retVal
 fi
+compiler_path=/ \
+ydb_path= \
+    bash -ex /update.sh
 if false;then
 delta=500000
 for i in `seq 0 $delta 10000000`; do
