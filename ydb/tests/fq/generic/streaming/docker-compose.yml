@@ -26,9 +26,12 @@ services:
     volumes:
       - ./ydb/init_ydb:/init_ydb
       - ./ydb/01_basic.sh:/01_basic.sh
-      - ./ydb/dby.tsv:/dby.tsv
+        # - ./ydb/dby.tsv:/dby.tsv
+      - ./ydb/update.sh:/update.sh
+      - ./ydb/ip-dict-compiler:/ip-dict-compiler
         # - ./ydb/big.tsv:/big.tsv
         # - ./ydb/ipv6trie.json:/ipv6trie.json
         # - ./ydb/ipv6plain.json:/ipv6plain.json
         # - ./ydb/ipv6.json:/ipv6.json
+      - ./csv2json/csv2json:/csv2json
 version: "3.4"

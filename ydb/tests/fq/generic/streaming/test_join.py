@@ -100,6 +100,7 @@ def RandomizeDBX(messages, keylen=16, keyName='key'):
             if 'ip' in src:
                 if Ip is None:
                     Ip = ''.join(map(lambda x: '0123456789abcdef'[random.randint(0, 15)] if x == 'X' else x, src['ip']))
+                    Ip = ''.join(map(lambda x: str(random.randint(0, 255)) if x == '@' else x, Ip))
                 src['ip'] = Ip
             rpair += [json.dumps(src)]
         res += [tuple(rpair)]
@@ -1097,13 +1098,94 @@ TESTCASES = [
             'payload'
         )
     ),
+    # 16
+    (
+        R'''
+            $input = SELECT * FROM myyds.`{input_topic}`
+                     WITH (
+                        FORMAT=json_each_row,
+                        SCHEMA (
+                            `ip` String,
+                            `payload` String,
+                        )
+                    );
+
+            -- enriches stream with ip in binary format (4 bytes or 16 bytes)
+            $with_binip =
+                 SELECT ip, payload, Ip::FromString(ip) AS binip
+                   FROM $input;
+
+            -- enriches stream with ip prefix in binary format (used as primary key in db of dictionaries)
+            $with_prefix =
+                 SELECT ip, payload, binip,
+                        Ip::GetSubnet(binip,
+                                      CAST(CASE WHEN Ip::IsIPv4(binip) THEN 8 ELSE 16 END AS Uint8)) AS prefix
+                   FROM $with_binip;
+
+            -- enriches stream with dictionary for Trie
+            $with_dict =
+                 SELECT e.ip AS ip, e.binip AS binip, e.payload AS payload,
+                        db.ipdict AS ipdict
+                   FROM $with_prefix AS e
+              LEFT JOIN /*+streamlookup()*/ ydb_conn_{table_name}.`geodb` AS db
+                     ON e.prefix = db.prefix;
+
+            -- enriches stream with ip key
+            $with_ip_key =
+                 SELECT e.ip AS ip,
+                        Trie::Lookup(e.binip, e.ipdict) AS ip_key,
+                        e.payload AS payload
+                   FROM $with_dict AS e;
+
+            -- enriches stream with geodata
+            $with_geodata =
+                 SELECT e.ip AS ip,
+                        db.`country` AS country, db.`city` AS city,
+                        e.payload AS payload
+                   FROM $with_ip_key AS e
+              LEFT JOIN /*+streamlookup()*/ ydb_conn_{table_name}.`geodbmeta` AS db
+                     ON e.ip_key = db.ip_key;
+
+            $enriched = $with_geodata;
+
+            $formatTime = DateTime::Format("%Y%m%d%H%M%S");
+            $preout = SELECT `ip`, `country`, `city`, `payload`, $formatTime(CurrentUtcTimestamp(`payload`)) AS utc FROM $enriched AS e;
+
+            insert into myyds.`{output_topic}`
+            select Unwrap(Yson::SerializeJson(Yson::From(TableRow()))) from $preout;
+            ''',
+        RandomizeDBX(
+            [
+                (
+                    '{"ip":"2001:X:XXXX:XXXX::XXXX","payload":"a"}',
+                    '{"ip":"2001:X:XXXX:XXXX::XXXX","ip_key":131,"payload":"a"}',
+                ),
+                (
+                    '{"ip":"2X0X:ffXX:5:37d:ffff::456","payload":"b"}',
+                    '{"ip":"2X0X:ffXX:5:37d:ffff::456","ip_key":131,"payload":"b"}'
+                ),
+                (
+                    '{"ip":"1.0.@.@","payload":"*pple"}',
+                    '{"ip":"2806:10a6:10:1::1","ip_key":31247,"payload":"*pple"}',
+                ),
+                (
+                    '{"ip":"223.0.@.@","payload":"*etflix"}',
+                    '{"ip":"2806:10a6:10:1fff::1","ip_key":31247,"payload":"*etflix"}',
+                ),
+            ]
+            * 100000,
+            16,
+            'payload'
+        )
+    ),
 ]
 
 if not XD:
     # TESTCASES = TESTCASES[1:2]
     # TESTCASES = TESTCASES[15:16]
     # TESTCASES = TESTCASES[8:9]
-    TESTCASES = TESTCASES[10:11]
+    # TESTCASES = TESTCASES[10:11]
+    TESTCASES = TESTCASES[16:17]
     pass
 
 
@@ -1195,7 +1277,7 @@ class TestJoinStreaming(TestYdsBase):
     @pytest.mark.parametrize("streamlookup", [False, True] if DEBUG and XD else [True])
     @pytest.mark.parametrize("testcase", [*range(len(TESTCASES))])
     @pytest.mark.parametrize("test_checkpoints", [False])
-    @pytest.mark.parametrize("parallels", [2])
+    @pytest.mark.parametrize("parallels", [1])
     def test_streamlookup(
         self,
         kikimr,
@@ -1280,6 +1362,10 @@ class TestJoinStreaming(TestYdsBase):
                 del d['utc']
             if 'ip_key' in d:
                 del d['ip_key']
+            if 'city' in d:
+                del d['city']
+            if 'country' in d:
+                del d['country']
             return d
 
         read_data_ctr = Counter(map(freeze, map(rmutc, map(json.loads, read_data))))

@@ -66,6 +66,7 @@ PEERDIR(
     ydb/tests/tools/fq_runner
     ydb/public/api/protos
     contrib/python/pytest
+    ydb/tests/fq/generic/streaming/csv2json
 )
 
 TEST_SRCS(
@@ -77,3 +78,6 @@ TIMEOUT(1800)
 
 END()
 
+RECURSE_FOR_TESTS(
+   csv2json
+)
