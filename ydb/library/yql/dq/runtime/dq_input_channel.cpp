@@ -64,6 +64,10 @@ private:
     }
 
     void DeserializeAllData() {
+        if (IsPaused()) {
+            Cerr<<"DeserializeAllData while PAUSED " << TInstant::Now() << Endl;
+            return;
+        }
         while (!DataForDeserialize.empty()) {
             PushImpl(std::move(DataForDeserialize.front()));
             DataForDeserialize.pop_front();
