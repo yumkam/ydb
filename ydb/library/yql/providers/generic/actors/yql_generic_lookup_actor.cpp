@@ -432,11 +432,10 @@ namespace NYql::NDq {
                     return k.GetElement(c);
                 });
             }
-            auto& k = Request->begin()->first; // Request is never empty
             // Pad query with dummy clauses to improve caching
             for (ui32 nRequests = Request->size(); !IsPowerOf2(nRequests) && nRequests < MaxKeysInRequest; ++nRequests) {
-                addClause(KeyType->GetMembersCount(), [&k = k](auto c) {
-                    return k.GetElement(c);
+                addClause(KeyType->GetMembersCount(), [](auto) {
+                    return NUdf::TUnboxedValue();
                 });
             }
             *select.mutable_where()->mutable_filter_typed()->mutable_disjunction() = disjunction;
