@@ -71,6 +71,7 @@ public:
         , MaxDelayedRows(maxDelayedRows)
         , CacheTtl(cacheTtl)
         , EstimatedRowSize(OutputRowColumnOrder.size()*sizeof(NUdf::TUnboxedValuePod))
+        , RequestedExtraSize(0)
         , ReadyQueue(OutputRowType)
         , LastLruSize(0)
     {
@@ -238,7 +239,11 @@ private: //IDqComputeActorAsyncInput
         Y_UNUSED(freeSpace);
         auto startCycleCount = GetCycleCountFast();
         auto guard = BindAllocator();
+        size_t extraSize = 0;
 
+        if (!ReadyQueue.empty()) {
+            extraSize += std::exchange(RequestedExtraSize, 0);
+        }
         DrainReadyQueue(batch);
 
         if (InputFlowFetchStatus != NUdf::EFetchStatus::Finish && GetKeysForLookup()->empty()) {
@@ -262,19 +267,27 @@ private: //IDqComputeActorAsyncInput
                 NUdf::TUnboxedValue* otherItems;
                 NUdf::TUnboxedValue other = HolderFactory.CreateDirectArrayHolder(OtherInputIndexes.size(), otherItems);
                 bool nullsInKey = false;
+                size_t rowExtraSize = 0;
                 for (size_t i = 0; i != LookupInputIndexes.size(); ++i) {
                     keyItems[i] = inputRowItems[LookupInputIndexes[i]];
                     if (!keyItems[i]) {
                         nullsInKey = true;
+                    } else if (keyItems[i].IsString()) {
+                        rowExtraSize += keyItems[i].AsStringRef().size();
                     }
                 }
                 for (size_t i = 0; i != OtherInputIndexes.size(); ++i) {
                     otherItems[i] = inputRowItems[OtherInputIndexes[i]];
+                    if (otherItems[i].IsString()) {
+                        rowExtraSize += keyItems[i].AsStringRef().size();
+                    }
                 }
                 if (nullsInKey) {
                     AddReadyQueue(key, other, nullptr);
+                    extraSize += rowExtraSize;
                 } else if (auto lookupPayload = LruCache->Get(key, now)) {
                     AddReadyQueue(key, other, &*lookupPayload);
+                    extraSize += rowExtraSize;
                 } else {
                     if (AwaitingQueue.empty()) {
                         // look ahead at most MaxDelayedRows after first missing
@@ -282,6 +295,7 @@ private: //IDqComputeActorAsyncInput
                     }
                     AwaitingQueue.emplace_back(key, std::move(other));
                     KeysForLookup->emplace(std::move(key), NUdf::TUnboxedValue{});
+                    RequestedExtraSize += rowExtraSize;
                 }
                 ++row;
             }
@@ -305,7 +319,7 @@ private: //IDqComputeActorAsyncInput
             CpuTimeUs->Add(deltaTime.MicroSeconds());
         }
         finished = IsFinished();
-        return batch.empty() ? AwaitingQueue.size() : batch.RowCount() * EstimatedRowSize;
+        return batch.empty() ? AwaitingQueue.size() : batch.RowCount() * EstimatedRowSize + extraSize;
     }
 
     void InitMonCounters(const ::NMonitoring::TDynamicCounterPtr& taskCounters) {
@@ -383,6 +397,7 @@ protected:
     using TAwaitingQueue = std::deque<TInputKeyOtherPair, NKikimr::NMiniKQL::TMKQLAllocator<TInputKeyOtherPair>>; //input row split in two parts: key columns and other columns
     TAwaitingQueue AwaitingQueue;
     size_t EstimatedRowSize;
+    size_t RequestedExtraSize;
     NKikimr::NMiniKQL::TUnboxedValueBatch ReadyQueue;
     NYql::NDq::TDqAsyncStats IngressStats;
     std::shared_ptr<IDqAsyncLookupSource::TUnboxedValueMap> KeysForLookup;
