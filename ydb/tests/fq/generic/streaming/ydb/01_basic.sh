@@ -57,6 +57,8 @@ set -ex
     COMMIT;
     CREATE TABLE `geotrie` (`prefix` STRING, `ipdict` STRING, PRIMARY KEY(`prefix`));
     COMMIT;
+    CREATE TABLE `macroipdb` (`prefix` STRING NOT NULL, `ipdict` STRING, PRIMARY KEY(`prefix`));
+    COMMIT;
   '
 
 retVal=$?
@@ -114,6 +116,16 @@ if [ $retVal -ne 0 ]; then
 fi
 if [ -e /ipv6trie.json ]; then
     /ydb -p ${PROFILE} import file json -p geotrie < /ipv6trie.json
+else
+    :
+fi
+retVal=$?
+if [ $retVal -ne 0 ]; then
+  echo $retVal
+  exit $retVal
+fi
+if [ -e /macroip.json ]; then
+    /ydb -p ${PROFILE} import file json -p macroipdb < /macroip.json
 else
     :
 fi
