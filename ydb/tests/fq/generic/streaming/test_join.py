@@ -643,7 +643,7 @@ TESTCASES = [
                      WITH (
                         FORMAT=json_each_row,
                         SCHEMA (
-                            id Uint64,
+                            id Uint64 NOT NULL,
                             age Uint32,
                             key String,
                         )
