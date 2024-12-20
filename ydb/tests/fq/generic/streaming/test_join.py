@@ -1178,6 +1178,97 @@ TESTCASES = [
             'payload'
         )
     ),
+    # 17
+    (
+        R'''
+            $input = SELECT * FROM myyds.`{input_topic}`
+                     WITH (
+                        FORMAT=json_each_row,
+                        SCHEMA (
+                            `ip` String,
+                            `payload` String,
+                        )
+                    );
+
+-- enriches stream with ip in binary format (4 bytes or 16 bytes)
+$with_binip =
+     SELECT ip, payload, Ip::FromString(ip) AS binip
+       FROM $input;
+
+$ipv4_prefix_size = 8; -- must match options used for ip-dict-compiler
+$ipv6_prefix_size = 16;
+
+-- enriches stream with ip prefix in binary format (used as primary key in db of dictionaries)
+$with_prefix =
+     SELECT ip, payload, binip,
+            Ip::GetSubnet(binip,
+                          CAST(CASE WHEN Ip::IsIPv4(binip)
+                                    THEN $ipv4_prefix_size
+                                    ELSE $ipv6_prefix_size
+                                END AS Uint8)) AS prefix
+       FROM $with_binip;
+
+-- enriches stream with dictionary for Trie
+$with_dict =
+     SELECT e.ip AS ip, e.binip AS binip, e.payload AS payload,
+            db.ipdict AS ipdict
+       FROM $with_prefix AS e
+  LEFT JOIN /*+streamlookup()*/ ydb_conn_join_table.`macroipdb` AS db
+         ON e.prefix = db.prefix;
+
+-- converts ip address in binary format and list of prefix lengths to list of prefixes as human-readable strings. E.g.
+-- '\xc0\x00\x02\xab', [24] -> ['192.0.2.0/24']
+-- '\x20\x01\x0d\xb8\xab\xcd\xef\x12\x34\x56\x78\xab\xcd\xef\x12\x34\x56\x78\xab\xcd', [32] -> '2001:db8::/32']
+$convert = ($ip, $lens)->(
+    ListMap($lens, ($len)->(
+        Ip::ToString(
+            Ip::GetSubnet($ip, CAST($len AS Uint8))
+        ) || '/' || CAST($len AS String))));
+
+-- converts ip address in binary format to list of prefixes as human-readable strings
+-- using dictionary in $dict
+
+$lookup_converted_bin = ($ip, $dict)->($convert($ip, Trie::LookupAllMatches($ip, $dict)));
+
+-- enriches stream with list of ip prefixes
+$with_subnets =
+     SELECT e.ip AS ip,
+            $lookup_converted_bin(e.binip, e.ipdict) as subnets,
+            e.payload AS payload
+       FROM $with_dict AS e;
+
+$enriched = $with_subnets;
+
+$formatTime = DateTime::Format("%Y%m%d%H%M%S"); -- for benchmarks
+$preout = SELECT `ip`, `subnets` as ip_key, `payload`, $formatTime(CurrentUtcTimestamp(`payload`)) AS utc FROM $enriched AS e;
+
+            insert into myyds.`{output_topic}`
+            select Unwrap(Yson::SerializeJson(Yson::From(TableRow()))) from $preout;
+            ''',
+        RandomizeDBX(
+            [
+                (
+                    '{"ip":"2001:X:XXXX:XXXX::XXXX","payload":"a"}',
+                    '{"ip":"2001:X:XXXX:XXXX::XXXX","ip_key":131,"payload":"a"}',
+                ),
+                (
+                    '{"ip":"2X0X:ffXX:5:37d:ffff::456","payload":"b"}',
+                    '{"ip":"2X0X:ffXX:5:37d:ffff::456","ip_key":131,"payload":"b"}'
+                ),
+                (
+                    '{"ip":"1.0.@.@","payload":"*pple"}',
+                    '{"ip":"2806:10a6:10:1::1","ip_key":31247,"payload":"*pple"}',
+                ),
+                (
+                    '{"ip":"223.0.@.@","payload":"*etflix"}',
+                    '{"ip":"2806:10a6:10:1fff::1","ip_key":31247,"payload":"*etflix"}',
+                ),
+            ]
+            * 100000,
+            16,
+            'payload'
+        )
+    ),
 ]
 
 if not XD:
@@ -1185,7 +1276,9 @@ if not XD:
     # TESTCASES = TESTCASES[15:16]
     # TESTCASES = TESTCASES[8:9]
     # TESTCASES = TESTCASES[10:11]
-    TESTCASES = TESTCASES[16:17]
+    # TESTCASES = TESTCASES[9:10]
+    # TESTCASES = TESTCASES[16:17]
+    TESTCASES = TESTCASES[17:18]
     pass
 
 
