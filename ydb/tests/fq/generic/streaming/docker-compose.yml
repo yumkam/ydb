@@ -29,6 +29,7 @@ services:
         # - ./ydb/dby.tsv:/dby.tsv
       - ./ydb/update.sh:/update.sh
       - ./ydb/ip-dict-compiler:/ip-dict-compiler
+      - ./ydb/macroip.json:/macroip.json
         # - ./ydb/big.tsv:/big.tsv
         # - ./ydb/ipv6trie.json:/ipv6trie.json
         # - ./ydb/ipv6plain.json:/ipv6plain.json
