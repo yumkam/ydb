@@ -66,6 +66,7 @@ message TDqInputChannelStats {
     uint64 MaxMemoryUsage = 7;
     uint32 PollRequests = 8;
     uint32 ResentMessages = 9;
+    uint64 RowsInMemory = 15;
 
     google.protobuf.Any Extra = 100;
 
