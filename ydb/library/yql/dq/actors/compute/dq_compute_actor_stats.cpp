@@ -141,6 +141,7 @@ void FillTaskRunnerStats(ui64 taskId, ui32 stageId, const TTaskRunnerStatsBase& 
                             pushStats.Merge(inputChannel->GetPushStats());
                             pushStats.DeserializationTime += inputChannel->GetPushStats().DeserializationTime;
                             pushStats.MaxMemoryUsage += inputChannel->GetPushStats().MaxMemoryUsage;
+                            pushStats.RowsInMemory += inputChannel->GetPushStats().RowsInMemory;
                             popStats.Merge(inputChannel->GetPopStats());
                         }
                     }
@@ -156,6 +157,7 @@ void FillTaskRunnerStats(ui64 taskId, ui32 stageId, const TTaskRunnerStatsBase& 
                         FillAsyncStats(*protoChannel.MutablePop(), popStats);
                         protoChannel.SetDeserializationTimeUs(pushStats.DeserializationTime.MicroSeconds());
                         protoChannel.SetMaxMemoryUsage(pushStats.MaxMemoryUsage);
+                        protoChannel.SetRowsInMemory(pushStats.RowsInMemory);
                     }
                     MergeMinTs(startTime, pushStats.FirstMessageTs);
                 }
