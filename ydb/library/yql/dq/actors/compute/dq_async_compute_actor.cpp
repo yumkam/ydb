@@ -278,8 +278,17 @@ private:
                         auto channelIt = stageIt->second.find(info.ChannelId);
                         if (channelIt != stageIt->second.end()) {
                             channel = channelIt->second;
+                        } else {
+                            html << "channel not found<br/>";
                         }
+                    } else {
+                        html << "stage not found<br/>";
                     }
+                } else {
+                    html << "stats not found<br/>";
+                }
+                if (channel) {
+                    html << "Fallback <br/>";
                 }
             }
             if (channel) {
@@ -359,8 +368,17 @@ private:
                         auto channelIt = stageIt->second.find(info.ChannelId);
                         if (channelIt != stageIt->second.end()) {
                             channel = channelIt->second;
+                        } else {
+                            html << "channel not found<br/>";
                         }
+                    } else {
+                        html << "stage not found<br/>";
                     }
+                } else {
+                    html << "stats not found<br/>";
+                }
+                if (channel) {
+                    html << "Fallback <br/>";
                 }
             }
 
