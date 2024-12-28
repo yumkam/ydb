@@ -48,7 +48,7 @@ namespace NYql::NDq {
         template <typename T>
         T ExtractFromConstFuture(const NThreading::TFuture<T>& f) {
             // We want to avoid making a copy of data stored in a future.
-            // But there is no direct way to extract data from a const future5
+            // But there is no direct way to extract data from a const future
             // So, we make a copy of the future, that is cheap. Then, extract the value from this copy.
             // It destructs the value in the original future, but this trick is legal and documented here:
             // https://docs.yandex-team.ru/arcadia-cpp/cookbook/concurrency
@@ -177,7 +177,7 @@ namespace NYql::NDq {
                         auto ev = new TEvListSplitsPart(std::move(*result.Response));
                         actorSystem->Send(new NActors::IEventHandle(selfId, selfId, ev));
                     } else {
-                        SendError(actorSystem, selfId, result.Status, retriesRemaining);
+                        SendRetryOrError(actorSystem, selfId, result.Status, retriesRemaining);
                     }
                 });
         }
@@ -210,7 +210,7 @@ namespace NYql::NDq {
                     auto ev = new TEvReadSplitsIterator(std::move(result.Iterator));
                     actorSystem->Send(new NActors::IEventHandle(selfId, selfId, ev));
                 } else {
-                    SendError(actorSystem, selfId, result.Status, retriesRemaining);
+                    SendRetryOrError(actorSystem, selfId, result.Status, retriesRemaining);
                 }
             });
         }
@@ -306,7 +306,7 @@ namespace NYql::NDq {
                     auto ev = new TEvListSplitsIterator(std::move(result.Iterator));
                     actorSystem->Send(new NActors::IEventHandle(selfId, selfId, ev));
                 } else {
-                    SendError(actorSystem, selfId, result.Status, retriesRemaining);
+                    SendRetryOrError(actorSystem, selfId, result.Status, retriesRemaining);
                 }
             });
             if (CpuTime) {
@@ -326,6 +326,7 @@ namespace NYql::NDq {
                         YQL_CLOG(DEBUG, ProviderGeneric) << "ActorId=" << selfId << " Got DataChunk";
                         Y_ABORT_UNLESS(result.Response);
                         auto& response = *result.Response;
+                        // TODO: retry on some YDB errors
                         if (NConnector::IsSuccess(response)) {
                             auto ev = new TEvReadSplitsPart(std::move(response));
                             actorSystem->Send(new NActors::IEventHandle(selfId, selfId, ev));
@@ -337,7 +338,7 @@ namespace NYql::NDq {
                         auto ev = new TEvReadSplitsFinished(std::move(result.Status));
                         actorSystem->Send(new NActors::IEventHandle(selfId, selfId, ev));
                     } else {
-                        SendError(actorSystem, selfId, result.Status, retriesRemaining);
+                        SendRetryOrError(actorSystem, selfId, result.Status, retriesRemaining);
                     }
                 });
         }
@@ -409,7 +410,7 @@ namespace NYql::NDq {
                 new TEvError(std::move(error)));
         }
 
-        static void SendError(NActors::TActorSystem* actorSystem, const NActors::TActorId& selfId, const NYdbGrpc::TGrpcStatus& status, const ui32 retriesRemaining) {
+        static void SendRetryOrError(NActors::TActorSystem* actorSystem, const NActors::TActorId& selfId, const NYdbGrpc::TGrpcStatus& status, const ui32 retriesRemaining) {
             if (NConnector::GrpcStatusNeedsRetry(status)) {
                 if (retriesRemaining) {
                     const auto retry = RequestRetriesLimit - retriesRemaining;
@@ -477,7 +478,7 @@ namespace NYql::NDq {
 
             NConnector::NApi::TPredicate_TDisjunction disjunction;
             auto addClause = [&disjunction, KeyType=this->KeyType](ui32 columns, auto&& getter) {
-                // TODO consider skipping alread retrieved keys
+                // TODO consider skipping already retrieved keys
                 // ... but careful, can we end up with zero? TODO
                 NConnector::NApi::TPredicate_TConjunction conjunction;
                 for (ui32 c = 0; c != columns; ++c) {
