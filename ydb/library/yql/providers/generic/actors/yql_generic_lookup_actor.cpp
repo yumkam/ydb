@@ -182,6 +182,10 @@ namespace NYql::NDq {
                 });
         }
 
+        TDuration GetRequestTimeout() const {
+            return RequestRetriesLimit == RetriesRemaining ? RequestTimeout : RequestTimeout / RequestRetriesLimit;
+        }
+
         void Handle(TEvListSplitsPart::TPtr ev) {
             auto response = ev->Get()->Response;
             Cerr << TInstant::Now() << " GenericLookup list split part " << response.splits_size() << Endl;
@@ -199,7 +203,7 @@ namespace NYql::NDq {
             *readRequest.add_splits() = split;
             readRequest.Setformat(NConnector::NApi::TReadSplitsRequest_EFormat::TReadSplitsRequest_EFormat_ARROW_IPC_STREAMING);
             readRequest.set_filtering(NConnector::NApi::TReadSplitsRequest::FILTERING_MANDATORY);
-            Connector->ReadSplits(readRequest, RequestTimeout).Subscribe([
+            Connector->ReadSplits(readRequest, GetRequestTimeout()).Subscribe([
                     actorSystem = TActivationContext::ActorSystem(),
                     selfId = SelfId(),
                     retriesRemaining = RetriesRemaining
@@ -294,7 +298,7 @@ namespace NYql::NDq {
 
             Cerr << TInstant::Now() << " GenericLookup sent request" << Endl;
             splitRequest.Setmax_split_count(1);
-            Connector->ListSplits(splitRequest, RequestTimeout).Subscribe([
+            Connector->ListSplits(splitRequest, GetRequestTimeout()).Subscribe([
                     actorSystem = TActivationContext::ActorSystem(),
                     selfId = SelfId(),
                     retriesRemaining = RetriesRemaining
