@@ -98,7 +98,7 @@ namespace NYql::NConnector {
         template <class TRequest, class TResponse>
         TIteratorAsyncResult<IStreamIterator<TResponse>> ServerSideStreamingCall(
             const TRequest& request,
-            TStreamRpc<NApi::Connector::Stub, TRequest, TResponse, NYdbGrpc::TStreamRequestReadProcessor> rpc, 
+            TStreamRpc<NApi::Connector::Stub, TRequest, TResponse, NYdbGrpc::TStreamRequestReadProcessor> rpc,
             TDuration timeout = {}) {
             using TStreamProcessorPtr = typename NYdbGrpc::IStreamRequestReadProcessor<TResponse>::TPtr;
             using TStreamInitResult = std::pair<NYdbGrpc::TGrpcStatus, TStreamProcessorPtr>;
