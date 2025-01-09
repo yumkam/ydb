@@ -778,7 +778,7 @@ namespace NYql::NConnector::NTest {
             return TReadSplitsExpectationBuilder(this);
         }
 
-        TDescribeTableAsyncResult DescribeTable(const NApi::TDescribeTableRequest& request, TDurationt) override {
+        TDescribeTableAsyncResult DescribeTable(const NApi::TDescribeTableRequest& request, TDuration) override {
             Cerr << "Call DescribeTable.\n"
                  << request.Utf8DebugString() << Endl;
             auto result = DescribeTableImpl(request);
