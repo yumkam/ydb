@@ -507,14 +507,17 @@ namespace NYql::NDq {
             select.mutable_from()->Settable(LookupSource.table());
 
             NConnector::NApi::TPredicate::TDisjunction disjunction;
-            for (const auto& [keys, _] : *Request) {
-                // TODO consider skipping already retrieved keys
-                // ... but careful, can we end up with zero? TODO
+            ui32 nRequests = 0;
+            for (const auto& [keys, value] : *Request) {
+                if (value) {
+                    continue;
+                }
                 AddClause(disjunction, KeyType->GetMembersCount(), keys);
+                ++nRequests;
             }
             auto& keys = Request->begin()->first; // Request is never empty
             // Pad query with dummy clauses to improve caching
-            for (ui32 nRequests = Request->size(); !IsPowerOf2(nRequests) && nRequests < MaxKeysInRequest; ++nRequests) {
+            for (; !IsPowerOf2(nRequests) && nRequests < MaxKeysInRequest; ++nRequests) {
                 AddClause(disjunction, KeyType->GetMembersCount(), keys);
             }
             *select.mutable_where()->mutable_filter_typed()->mutable_disjunction() = disjunction;
