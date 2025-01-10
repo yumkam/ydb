@@ -493,27 +493,32 @@ namespace NYql::NDq {
                 }
                 *disjunction.mutable_operands()->Add()->mutable_conjunction() = conjunction;
             };
-            for (const auto& [k, _] : *Request) {
-                // TODO consider skipping already retrieved keys
-                // ... but careful, can we end up with zero? TODO
+            ui32 nRequests = 0;
+            for (const auto& [k, v] : *Request) {
+                if (v) {
+                    continue;
+                }
                 addClause(KeyType->GetMembersCount(), [&k=k](auto c) { return k.GetElement(c); });
+                ++nRequests;
             }
 #if 0
             // Pad query with dummy clauses to improve caching
-            for (ui32 nRequests = Request->size(); !IsPowerOf2(nRequests) && nRequests < MaxKeysInRequest; ++nRequests) {
+            for (; !IsPowerOf2(nRequests) && nRequests < MaxKeysInRequest; ++nRequests) {
                 addClause(KeyType->GetMembersCount(), [](auto) { return NUdf::TUnboxedValue(); });
             }
 #elif 1
             auto &k = Request->begin()->first;
             // Pad query with dummy clauses to improve caching
-            for (ui32 nRequests = Request->size(); !IsPowerOf2(nRequests) && nRequests < MaxKeysInRequest; ++nRequests) {
+            for (; !IsPowerOf2(nRequests) && nRequests < MaxKeysInRequest; ++nRequests) {
                 addClause(KeyType->GetMembersCount(), [&k=k](auto c) { return k.GetElement(c); });
             }
 #elif 0
             // Pad query with dummy clauses to improve caching
-            for (ui32 nRequests = Request->size(); !IsPowerOf2(nRequests) && nRequests < MaxKeysInRequest; ++nRequests) {
+            for (; !IsPowerOf2(nRequests) && nRequests < MaxKeysInRequest; ++nRequests) {
                 addClause(KeyType->GetMembersCount(), [](auto) { return NUdf::TUnboxedValue {}; });
             }
+#else
+#error "Must pad"
 #endif
             *select.mutable_where()->mutable_filter_typed()->mutable_disjunction() = disjunction;
             //Cerr << "SELECT = " << select << Endl;
