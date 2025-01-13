@@ -294,7 +294,8 @@ private: //IDqComputeActorAsyncInput
                 if (MaxKeys == MaxKeysInRequest)
                     MaxKeys = 13;
                 else
-                    MaxKeys += 5;//++(MaxKeys *= 2);
+                    //MaxKeys += 5;
+                    ++(MaxKeys *= 2);
                 LruHits->Add(ReadyQueue.RowCount());
                 LruMiss->Add(AwaitingQueue.size());
             }
