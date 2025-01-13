@@ -30,7 +30,7 @@ namespace NYql::NDq {
     namespace {
         constexpr ui32 RequestRetriesLimit = 10; // TODO lookup parameters or PRAGMA?
         //constexpr TDuration RequestTimeout = TDuration::Minutes(3); // TODO lookup parameters or PRAGMA?
-        constexpr TDuration RequestTimeout = TDuration::MilliSeconds(10); // TODO lookup parameters or PRAGMA?
+        constexpr TDuration RequestTimeout = TDuration::MilliSeconds(3000); // TODO lookup parameters or PRAGMA?
 
         const NKikimr::NMiniKQL::TStructType* MergeStructTypes(const NKikimr::NMiniKQL::TTypeEnvironment& env, const NKikimr::NMiniKQL::TStructType* t1, const NKikimr::NMiniKQL::TStructType* t2) {
             Y_ABORT_UNLESS(t1);
@@ -183,7 +183,7 @@ namespace NYql::NDq {
         }
 
         TDuration GetRequestTimeout() const {
-            return RequestRetriesLimit == RetriesRemaining ? RequestTimeout : RequestTimeout / RequestRetriesLimit;
+            return RequestRetriesLimit == RetriesRemaining ? RequestTimeout : RequestTimeout * 2;
         }
 
         void Handle(TEvListSplitsPart::TPtr ev) {
@@ -420,10 +420,12 @@ namespace NYql::NDq {
                     const auto retry = RequestRetriesLimit - retriesRemaining;
                     // XXX FIXME tune/tweak
                     const auto delay = TDuration::MilliSeconds(1u << retry); // Exponential delay from 1ms to 1s
+                    Cerr  << TInstant::Now() << " ActorId=" << selfId << " Got retrievable GRPC Error from Connector: " << status.ToDebugString() << ", retry " << (retry + 1) << " of " << RequestRetriesLimit << ", scheduled in " << delay << Endl;
                     YQL_CLOG(WARN, ProviderGeneric) << "ActorId=" << selfId << " Got retrievable GRPC Error from Connector: " << status.ToDebugString() << ", retry " << (retry + 1) << " of " << RequestRetriesLimit << ", scheduled in " << delay;
                     actorSystem->Schedule(delay, new IEventHandle(selfId, selfId, new TEvRetry()));
                     return;
                 }
+                Cerr << TInstant::Now() << " ActorId=" << selfId << " Got retrievable GRPC Error from Connector: " << status.ToDebugString() << ", retry count exceed limit " << RequestRetriesLimit << Endl;
                 YQL_CLOG(ERROR, ProviderGeneric) << "ActorId=" << selfId << " Got retrievable GRPC Error from Connector: " << status.ToDebugString() << ", retry count exceed limit " << RequestRetriesLimit;
             }
             SendError(actorSystem, selfId, NConnector::ErrorFromGRPCStatus(status));
