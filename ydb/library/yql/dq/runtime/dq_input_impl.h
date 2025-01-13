@@ -171,7 +171,6 @@ public:
             pushStats.Resume();
             if (pushStats.CollectFull()) {
                 pushStats.MaxMemoryUsage = std::max(pushStats.MaxMemoryUsage, StoredBytes);
-                pushStats.RowsInMemory += space; 
             }
         }
 
@@ -254,14 +253,6 @@ public:
             popStats.Bytes += popBytes;
             popStats.Rows += GetRowsCount(batch);
             popStats.Chunks++;
-        }
-
-        auto& pushStats = static_cast<TDerived*>(this)->PushStats;
-
-        if (pushStats.CollectBasic()) {
-            if (pushStats.CollectFull()) {
-                pushStats.RowsInMemory -= popBytes;
-            }
         }
 
         Y_ABORT_UNLESS(!batch.empty());
