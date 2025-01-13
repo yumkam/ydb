@@ -38,6 +38,12 @@ public:
         if (Pending && batch.empty()) EverPending = true;
         if (!batch.empty()) {
             AddBatch(std::move(batch), space);
+            Cerr << TInstant::Now() << " Push #" << (const void *)this 
+               << " StoredRows=" << StoredRows
+               << " StoredBytes=" << StoredBytes
+               << " MaxBufferBytes=" << MaxBufferBytes
+               << " EverPending=" << EverPending
+               << Endl;
         }
     }
 
@@ -48,6 +54,7 @@ public:
     bool IsPending() const override {
         return Pending;
     }
+#if 0
     bool Empty() const override {
         if (EverPending)
             PrintBackTrace();
@@ -58,6 +65,7 @@ public:
             PrintBackTrace();
         return TBaseImpl::Pop(batch);
     }
+#endif
 };
 
 IDqAsyncInputBuffer::TPtr CreateDqAsyncInputBuffer(
