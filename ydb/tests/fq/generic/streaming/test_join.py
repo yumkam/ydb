@@ -804,11 +804,18 @@ TESTCASES = [
                     u.id as uid, u.age as uage
                 FROM
                     $input AS e
-                LEFT JOIN {streamlookup} ydb_conn_{table_name}.`dby` AS u
+                LEFT JOIN ANY {streamlookup} ydb_conn_{table_name}.`dby` AS u
                 ON(e.hash = u.hash)
             ;
+            $enriched2 = SELECT e.hash as hash, key, uid, uage,
+                    u2.id as uid2, u2.age as uage2
+                FROM
+                    $enriched AS e
+                LEFT JOIN ANY {streamlookup} ydb_conn_{table_name}.`dby` AS u2
+                ON(e.hash = u2.hash)
+            ;
             $formatTime = DateTime::Format("%Y%m%d%H%M%S");
-            $preout = SELECT hash, key, uid, uage, $formatTime(CurrentUtcTimestamp(key)) as utc FROM $enriched;
+            $preout = SELECT hash, key, uid, uage, $formatTime(CurrentUtcTimestamp(key)) as utc, (uid IS NOT DISTINCT FROM uid2) AS eq1 FROM $enriched2;
 
             insert into myyds.`{output_topic}`
             select Unwrap(Yson::SerializeJson(Yson::From(TableRow()))) from $preout;
@@ -817,7 +824,7 @@ TESTCASES = [
             [
                 (
                     '{"id":1,"age":1,"hash":null,"key":"Message5"}',
-                    '{"hash":null,"uid":123,"uage":456,"key":0}',
+                    '{"hash":null,"uid":123,"uage":456,"key":0,"eq1":true}',
                 ),
             ]
             * 1500000,
@@ -1390,10 +1397,10 @@ if not XD:
     # TESTCASES = TESTCASES[1:2]
     # TESTCASES = TESTCASES[15:16]
     # TESTCASES = TESTCASES[8:9]
-    # TESTCASES = TESTCASES[10:11]
+    TESTCASES = TESTCASES[10:11]
     # TESTCASES = TESTCASES[9:10]
     # TESTCASES = TESTCASES[16:17]
-    TESTCASES = TESTCASES[17:18]
+    # TESTCASES = TESTCASES[17:18]
     pass
 
 
