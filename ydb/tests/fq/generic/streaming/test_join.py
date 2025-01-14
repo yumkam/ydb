@@ -804,14 +804,14 @@ TESTCASES = [
                     u.id as uid, u.age as uage
                 FROM
                     $input AS e
-                LEFT JOIN ANY {streamlookup} ydb_conn_{table_name}.`dby` AS u
+                LEFT JOIN {streamlookup} ANY ydb_conn_{table_name}.`dby` AS u
                 ON(e.hash = u.hash)
             ;
             $enriched2 = SELECT e.hash as hash, key, uid, uage,
                     u2.id as uid2, u2.age as uage2
                 FROM
                     $enriched AS e
-                LEFT JOIN ANY {streamlookup} ydb_conn_{table_name}.`dby` AS u2
+                LEFT JOIN {streamlookup} ANY ydb_conn_{table_name}.`dby` AS u2
                 ON(e.hash = u2.hash)
             ;
             $formatTime = DateTime::Format("%Y%m%d%H%M%S");
