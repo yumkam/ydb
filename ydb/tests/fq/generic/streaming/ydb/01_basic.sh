@@ -85,6 +85,8 @@ fi
 
 if [ -e /dby.tsv ]; then
     /ydb -p ${PROFILE} import file tsv -p dby < /dby.tsv
+elif [ -x /gendb ]; then
+    /gendb | /ydb -p ${PROFILE} import file tsv -p dby
 else
 awk -v o=$o 'BEGIN { OFS="\t"; for (i = 0; i < 10000000; ++i) { x = i; printf "%d\t%d\thash%028d\n", x,(x%31), x }}'|
     /ydb -p ${PROFILE} import file tsv -p dby
