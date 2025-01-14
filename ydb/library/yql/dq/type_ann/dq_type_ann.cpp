@@ -5,7 +5,6 @@
 #include <yql/essentials/core/type_ann/type_ann_core.h>
 #include <yql/essentials/core/yql_type_helpers.h>
 #include <yql/essentials/utils/log/log.h>
-#include <ydb/library/yql/providers/dq/expr_nodes/dqs_expr_nodes.h>
 
 #include <yql/essentials/providers/common/provider/yql_provider.h>
 
@@ -614,18 +613,6 @@ TStatus AnnotateDqConnection(const TExprNode::TPtr& input, TExprContext& ctx) {
 
     input->SetTypeAnn(resultType);
     return TStatus::Ok;
-}
-
-TStatus AnnotateTDqSourceWrapBase(const TExprNode::TPtr& input, TExprContext& /*ctx*/) {
-    [[maybe_unused]]
-    auto dqLookupSourceWrap = TDqSourceWrapBase(input);
-    return TStatus::Ok;
-}
-
-TStatus AnnotateTDqLookupSourceWrap(const TExprNode::TPtr& input, TExprContext& ctx) {
-    [[maybe_unused]]
-    auto dqLookupSourceWrap = TDqLookupSourceWrap(input).Input();
-    return AnnotateTDqSourceWrapBase(input, ctx);
 }
 
 TStatus AnnotateDqCnStreamLookup(const TExprNode::TPtr& input, TExprContext& ctx) {
