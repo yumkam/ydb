@@ -30,7 +30,7 @@ namespace NYql::NDq {
     namespace {
         constexpr ui32 RequestRetriesLimit = 10; // TODO lookup parameters or PRAGMA?
         //constexpr TDuration RequestTimeout = TDuration::Minutes(3); // TODO lookup parameters or PRAGMA?
-        constexpr TDuration RequestTimeout = TDuration::MilliSeconds(3000); // TODO lookup parameters or PRAGMA?
+        constexpr TDuration RequestTimeout = TDuration::MilliSeconds(30000); // TODO lookup parameters or PRAGMA?
 
         const NKikimr::NMiniKQL::TStructType* MergeStructTypes(const NKikimr::NMiniKQL::TTypeEnvironment& env, const NKikimr::NMiniKQL::TStructType* t1, const NKikimr::NMiniKQL::TStructType* t2) {
             Y_ABORT_UNLESS(t1);
