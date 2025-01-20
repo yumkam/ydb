@@ -705,7 +705,7 @@ TESTCASES = [
             ]
         ),
     ),
-    # 8
+    # 10
     (
         R'''
             $input = SELECT * FROM myyds.`{input_topic}`
@@ -751,7 +751,7 @@ TESTCASES = [
             header='key',
         ),
     ),
-    # 9
+    # 11
     (
         R'''
             $input = SELECT * FROM myyds.`{input_topic}`
@@ -786,7 +786,7 @@ TESTCASES = [
             * 700000,
         ),
     ),
-    # 10
+    # 12
     (
         R'''
             $input = SELECT * FROM myyds.`{input_topic}`
@@ -830,7 +830,7 @@ TESTCASES = [
             * 1500000,
         ),
     ),
-    # 11
+    # 13
     (
         R'''
             $input = SELECT * FROM myyds.`{input_topic}`
@@ -867,7 +867,7 @@ TESTCASES = [
             * 1000000,
         ),
     ),
-    # 12
+    # 14
     (
         R'''
             $input = SELECT * FROM myyds.`{input_topic}`
@@ -904,7 +904,7 @@ TESTCASES = [
             * 100000,
         ),
     ),
-    # 13
+    # 15
     (
         R'''
         PRAGMA AnsiOptionalAs;
@@ -989,7 +989,7 @@ TESTCASES = [
             'payload'
         )
     ),
-    # 14
+    # 16
     (
         R'''
         PRAGMA AnsiOptionalAs;
@@ -1130,7 +1130,7 @@ TESTCASES = [
             'payload'
         )
     ),
-    # 15
+    # 17
     (
         R'''
         PRAGMA AnsiOptionalAs;
@@ -1220,7 +1220,7 @@ TESTCASES = [
             'payload'
         )
     ),
-    # 16
+    # 18
     (
         R'''
             $input = SELECT * FROM myyds.`{input_topic}`
@@ -1300,7 +1300,7 @@ TESTCASES = [
             'payload'
         )
     ),
-    # 17
+    # 19
     (
         R'''
             $input = SELECT * FROM myyds.`{input_topic}`
@@ -1395,12 +1395,12 @@ $preout = SELECT `ip`, `subnets` as ip_key, `payload`, $formatTime(CurrentUtcTim
 
 if not XD:
     # TESTCASES = TESTCASES[1:2]
-    # TESTCASES = TESTCASES[15:16]
-    # TESTCASES = TESTCASES[8:9]
-    TESTCASES = TESTCASES[10:11]
-    # TESTCASES = TESTCASES[9:10]
-    # TESTCASES = TESTCASES[16:17]
     # TESTCASES = TESTCASES[17:18]
+    # TESTCASES = TESTCASES[10:11]
+    TESTCASES = TESTCASES[12:13]
+    # TESTCASES = TESTCASES[11:12]
+    # TESTCASES = TESTCASES[18:19]
+    # TESTCASES = TESTCASES[19:20]
     pass
 
 
