@@ -384,9 +384,9 @@ private:
         privateApiConfig->SetTaskServiceEndpoint(endpoint);
         privateApiConfig->SetTaskServiceDatabase(database);
 
-        auto* nodesMenagerConfig = fqConfig.MutableNodesManager();
-        nodesMenagerConfig->SetPort(grpcPort);
-        nodesMenagerConfig->SetHost("localhost");
+        auto* nodesManagerConfig = fqConfig.MutableNodesManager();
+        nodesManagerConfig->SetPort(grpcPort);
+        nodesManagerConfig->SetHost("localhost");
 
         fqConfig.MutableCommon()->SetYdbMvpCloudEndpoint(TStringBuilder() << "http://localhost:" << httpPort << "/yql-mock/abc");
 
