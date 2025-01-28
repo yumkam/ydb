@@ -661,6 +661,34 @@ namespace {
 
             UNIT_ASSERT_VALUES_EQUAL(numCopies, 0);
         }
+
+        Y_UNIT_TEST(ReturningUnitializedFuture) {
+            auto promise = MakePromise<bool>();
+            auto f2 = promise.GetFuture().Apply([](const TFuture<bool> &f1) {
+               if (f1.GetValue()) {
+                   Cerr << "Return uninitialized future" << Endl;
+                   return TFuture<int>();
+               }
+               return MakeFuture<int>(123);
+            });
+            auto f3 = f2.Apply([](const TFuture<int> &f2) {
+                UNIT_ASSERT(f2.Initialized());
+                Cerr << "Got Initialized" << f2.Initialized() << Endl;
+                if (f2.HasException()) {
+                    Cerr << "With exception" << Endl;
+                } else {
+                    try {
+                        Cerr << "Got Value" << f2.GetValue() << Endl;
+                        Cerr << "For Real" << Endl;
+                    } catch(...) {
+                        Cerr << "Got Exception" << Endl << CurrentExceptionMessage() << Endl;
+                    }
+                }
+                return f2.GetValue();
+            });
+            promise.SetValue(true);
+            //UNIT_ASSERT_VALUES_EQUAL(f3.GetValue(TDuration::Max()), 0);
+        }
     }
 
 }
