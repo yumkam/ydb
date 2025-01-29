@@ -726,8 +726,8 @@ TFuture<TIssues> TStateStorage::DeleteGraph(const TString& graphId) {
 
                 DELETE
                 FROM %s
-                WHERE graph_id = $graph_id;
-            )", prefix.c_str(), StatesTable);
+                WHERE graph_id = "%s";
+            )", prefix.c_str(), StatesTable, graphId.c_str());
 
             auto future = session.ExecuteDataQuery(
                 query,
