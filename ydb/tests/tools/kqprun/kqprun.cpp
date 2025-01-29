@@ -847,8 +847,13 @@ protected:
             .SetFlag(&EmulateYt);
 
         options.AddLongOption("enable-fq", "Enable fq proxy for streaming requests")
-            .NoArgument()
-            .SetFlag(&RunnerOptions.YdbSettings.FqEnabled);
+            .OptionalArgument("uint")
+            .Handler1([this](const NLastGetopt::TOptsParser* option) {
+                RunnerOptions.YdbSettings.FqEnabled = true;
+                if (const TString& port = option->CurVal()) {
+                    RunnerOptions.YdbSettings.FqHttpPort = FromString(port);
+                }
+            });
 
         options.AddLongOption("domain", "Test cluster domain name")
             .RequiredArgument("name")

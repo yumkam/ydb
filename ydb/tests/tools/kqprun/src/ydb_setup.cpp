@@ -399,6 +399,7 @@ private:
         }
 
         const ui32 httpPort = PortManager_.GetPort();
+        Cout << "Fq httpPort " << httpPort << Endl;
         const auto fqConfig = GetFqProxyConfig(grpcPort, httpPort);
         const auto ydbCredFactory = NKikimr::CreateYdbCredentialsProviderFactory;
         for (ui32 nodeIdx = 0; nodeIdx < GetRuntime()->GetNodeCount(); ++nodeIdx) {

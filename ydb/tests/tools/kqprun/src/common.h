@@ -47,6 +47,7 @@ struct TYdbSetupSettings {
     ui16 MonitoringPortOffset = 0;
 
     bool FqEnabled = false;
+    ui16 FqHttpPort = 0;
     bool GrpcEnabled = false;
     ui16 GrpcPort = 0;
 
