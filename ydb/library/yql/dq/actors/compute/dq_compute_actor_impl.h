@@ -1481,7 +1481,7 @@ protected:
 
         // Don't produce any input from sources if we're about to save checkpoint.
         if ((Checkpoints && Checkpoints->HasPendingCheckpoint() && !Checkpoints->ComputeActorStateSaved())) {
-            CA_LOG_T("Skip polling sources because of pending checkpoint");
+            CA_LOG_T_RATELIMITED("Skip polling sources because of pending checkpoint", rl6, TDuration::Seconds(1));
             return;
         }
 
@@ -2081,7 +2081,7 @@ protected:
     TDuration CpuTimeSpent;
     ::NActors::TLogRateLimiter AllFinishedLogRateLimit;
     ::NActors::TLogRateLimiter ContinueExecutionLogRateLimit;
-    ::NActors::TLogRateLimiter rl1, rl2, rl3, rl4, rl5;
+    ::NActors::TLogRateLimiter rl1, rl2, rl3, rl4, rl5, rl6;
 };
 
 } // namespace NYql
