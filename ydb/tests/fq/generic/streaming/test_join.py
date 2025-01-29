@@ -830,7 +830,44 @@ TESTCASES = [
             * 1500000,
         ),
     ),
-    # 13
+    # 12
+    (
+        R'''
+            $input = SELECT * FROM myyds.`{input_topic}`
+                     WITH (
+                        FORMAT=json_each_row,
+                        SCHEMA (
+                            id Uint64,
+                            age Uint32,
+                            hash String,
+                            key String,
+                        )
+                    );
+
+            $enriched = SELECT e.hash as hash, key,
+                    u.id as uid, u.age as uage
+                FROM
+                    $input AS e
+                LEFT JOIN {streamlookup} ANY ydb_conn_{table_name}.`dby` AS u
+                ON(e.hash = u.hash)
+            ;
+            $formatTime = DateTime::Format("%Y%m%d%H%M%S");
+            $preout = SELECT hash, key, uid, uage, $formatTime(CurrentUtcTimestamp(key)) as utc FROM $enriched;
+
+            insert into myyds.`{output_topic}`
+            select Unwrap(Yson::SerializeJson(Yson::From(TableRow()))) from $preout;
+            ''',
+        RandomizeDBH(
+            [
+                (
+                    '{"id":1,"age":1,"hash":null,"key":"Message5"}',
+                    '{"hash":null,"uid":123,"uage":456,"key":0}',
+                ),
+            ]
+            * 1500000,
+        ),
+    ),
+    # 14
     (
         R'''
             $input = SELECT * FROM myyds.`{input_topic}`
@@ -867,7 +904,7 @@ TESTCASES = [
             * 1000000,
         ),
     ),
-    # 14
+    # 15
     (
         R'''
             $input = SELECT * FROM myyds.`{input_topic}`
@@ -904,7 +941,7 @@ TESTCASES = [
             * 100000,
         ),
     ),
-    # 15
+    # 16
     (
         R'''
         PRAGMA AnsiOptionalAs;
@@ -989,7 +1026,7 @@ TESTCASES = [
             'payload'
         )
     ),
-    # 16
+    # 17
     (
         R'''
         PRAGMA AnsiOptionalAs;
@@ -1130,7 +1167,7 @@ TESTCASES = [
             'payload'
         )
     ),
-    # 17
+    # 18
     (
         R'''
         PRAGMA AnsiOptionalAs;
@@ -1220,7 +1257,7 @@ TESTCASES = [
             'payload'
         )
     ),
-    # 18
+    # 19
     (
         R'''
             $input = SELECT * FROM myyds.`{input_topic}`
@@ -1300,7 +1337,7 @@ TESTCASES = [
             'payload'
         )
     ),
-    # 19
+    # 20
     (
         R'''
             $input = SELECT * FROM myyds.`{input_topic}`
@@ -1397,7 +1434,8 @@ if not XD:
     # TESTCASES = TESTCASES[1:2]
     # TESTCASES = TESTCASES[17:18]
     # TESTCASES = TESTCASES[10:11]
-    TESTCASES = TESTCASES[12:13]
+    # TESTCASES = TESTCASES[12:13]
+    TESTCASES = TESTCASES[13:14]
     # TESTCASES = TESTCASES[11:12]
     # TESTCASES = TESTCASES[18:19]
     # TESTCASES = TESTCASES[19:20]
