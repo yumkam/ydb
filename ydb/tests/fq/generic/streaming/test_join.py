@@ -107,46 +107,6 @@ def RandomizeDBX(messages, keylen=16, keyName='key'):
     return res
 
 
-def RandomizeDBY(messages, keylen=16):
-    # '{"id":1,"age":"foobar","key":"Message5"}',
-    # '{"name":null,"id":123,"age":456,"key":null}',
-    res = []
-    random.seed(0)  # we want fixed seed
-    for pair in messages:
-        Id = random.randint(0, 10000)
-        Id = (Id * 124151351) % 1900000043
-        Key = str(base64.b64encode(random.randbytes(keylen * 6 // 8)), 'utf-8')
-        Hash = f'hash{Id:028}'
-        Age = Id % 31
-        Uid = None
-        Uhash = None
-        Uage = None
-        if Id < 10000000//2:
-            Uid = Id
-            Uage = Id % 31
-            Uhash = Hash
-        rpair = []
-        for it in pair:
-            src = json.loads(it)
-            if 'id' in src:
-                src['id'] = Id
-            if 'uage' in src:
-                src['uage'] = Uage
-            if 'age' in src:
-                src['age'] = Age
-            if 'uhash' in src:
-                src['uhash'] = Uhash
-            if 'hash' in src:
-                src['hash'] = Hash
-            if 'key' in src:
-                src['key'] = Key
-            if 'uid' in src:
-                src['uid'] = Uid
-            rpair += [json.dumps(src)]
-        res += [tuple(rpair)]
-    return res
-
-
 def RandomizeDBH(messages, keylen=16):
     # '{"id":1,"age":"foobar","key":"Message5"}',
     # '{"name":null,"id":123,"age":456,"key":null}',
