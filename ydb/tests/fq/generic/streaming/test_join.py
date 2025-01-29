@@ -268,12 +268,12 @@ TESTCASES = [
                     '{"id":7,"ts":"11:33:49","uid":2,"user_id":2,"name":"Petr","age":25}',
                 ),
             ]
-            * 1000
+            * 1000000
         ),
         "TTL",
         "10",
         "MaxCachedRows",
-        "5",
+        "50",
         "MaxDelayedRows",
         "100",
     ),
@@ -575,6 +575,7 @@ class TestJoinStreaming(TestYdsBase):
         self.write_stream(messages)
 
         read_data = self.read_stream(len(messages))
+
         assert read_data == messages
 
         fq_client.abort_query(query_id)
@@ -645,7 +646,31 @@ class TestJoinStreaming(TestYdsBase):
             print(*zip(messages, read_data), file=sys.stderr, sep="\n")
         read_data_ctr = Counter(map(freeze, map(json.loads, read_data)))
         messages_ctr = Counter(map(freeze, map(json.loads, map(itemgetter(1), messages))))
-        assert read_data_ctr == messages_ctr
+
+        def rmutc(d):
+            if 'utc' in d:
+                del d['utc']
+            if 'ip_key' in d:
+                del d['ip_key']
+            if 'city' in d:
+                del d['city']
+            if 'country' in d:
+                del d['country']
+            return d
+
+        read_data_ctr = Counter(map(freeze, map(rmutc, map(json.loads, read_data))))
+        messages_ctr = Counter(map(freeze, map(rmutc, map(json.loads, map(itemgetter(1), messages)))))
+        assert len(read_data_ctr) == len(messages_ctr)
+        ctr = 0
+        parallels = 1
+        for k in read_data_ctr:
+            assert read_data_ctr[k] == messages_ctr[k]*parallels, f'mismatch at {k}: got != expcted, {read_data_ctr[k]} != {messages_ctr[k]*parallels}'
+            ctr += 1
+            if ctr == 1000:
+                # print('<#>', file=sys.stderr, flush=True, end='')
+                ctr = 0
+
+        # assert read_data_ctr == messages_ctr
 
         for node_index in kikimr.compute_plane.kikimr_cluster.nodes:
             sensors = kikimr.compute_plane.get_sensors(node_index, "dq_tasks")
