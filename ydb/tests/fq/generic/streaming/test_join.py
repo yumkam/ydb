@@ -121,7 +121,7 @@ def RandomizeDBY(messages, keylen=16):
         Uid = None
         Uhash = None
         Uage = None
-        if Id < 10000000:
+        if Id < 10000000//2:
             Uid = Id
             Uage = Id % 31
             Uhash = Hash
