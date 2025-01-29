@@ -437,6 +437,7 @@ namespace NYql::NDq {
         static void SendRetryOrError(NActors::TActorSystem* actorSystem, const NActors::TActorId& selfId, const NYdbGrpc::TGrpcStatus& status, std::shared_ptr<ILookupRetryState> retryState) {
             auto nextRetry = retryState->GetNextRetryDelay(status);
             if (nextRetry) {
+                Cerr << TInstant::Now() << " GENERIC RETRY " "ActorId=" << selfId << " Got retrievable GRPC Error from Connector: " << status.ToDebugString() << ", retry scheduled in " << *nextRetry << Endl;
                 YQL_CLOG(WARN, ProviderGeneric) << "ActorId=" << selfId << " Got retrievable GRPC Error from Connector: " << status.ToDebugString() << ", retry scheduled in " << *nextRetry;
                 actorSystem->Schedule(*nextRetry, new IEventHandle(selfId, selfId, new TEvLookupRetry()));
                 return;
