@@ -70,8 +70,6 @@ public:
         , LruCache(std::make_unique<NKikimr::NMiniKQL::TUnboxedKeyValueLruCacheWithTtl>(cacheLimit, lookupKeyType))
         , MaxDelayedRows(maxDelayedRows)
         , CacheTtl(cacheTtl)
-        , MinimumRowSize(OutputRowColumnOrder.size()*sizeof(NUdf::TUnboxedValuePod))
-        , PayloadExtraSize(0)
         , ReadyQueue(OutputRowType)
         , LastLruSize(0)
     {
@@ -131,9 +129,6 @@ private: //events
                     case EOutputRowItemSource::None:
                         Y_ABORT();
                         break;
-                }
-                if (outputRowItems[i].IsString()) {
-                    PayloadExtraSize += outputRowItems[i].AsStringRef().size();
                 }
             }
             ReadyQueue.PushRow(outputRowItems, OutputRowType->GetElementsCount());
@@ -310,18 +305,7 @@ private: //IDqComputeActorAsyncInput
             CpuTimeUs->Add(deltaTime.MicroSeconds());
         }
         finished = IsFinished();
-        if (batch.empty()) {
-            // Use non-zero value to signal presence of pending request
-            // (value is NOT used for used space accounting)
-            return !AwaitingQueue.empty();
-        } else {
-            // Attempt to estimate actual byte size;
-            // May be over-estimated for shared strings;
-            // May be under-estimated for complex types;
-            auto usedSpace = batch.RowCount() * MinimumRowSize + PayloadExtraSize;
-            PayloadExtraSize = 0;
-            return usedSpace;
-        }
+        return AwaitingQueue.size();
     }
 
     void InitMonCounters(const ::NMonitoring::TDynamicCounterPtr& taskCounters) {
@@ -398,8 +382,6 @@ protected:
     using TInputKeyOtherPair = std::pair<NUdf::TUnboxedValue, NUdf::TUnboxedValue>;
     using TAwaitingQueue = std::deque<TInputKeyOtherPair, NKikimr::NMiniKQL::TMKQLAllocator<TInputKeyOtherPair>>; //input row split in two parts: key columns and other columns
     TAwaitingQueue AwaitingQueue;
-    size_t MinimumRowSize; // only account for unboxed parts
-    size_t PayloadExtraSize; // non-embedded part of strings in ReadyQueue
     NKikimr::NMiniKQL::TUnboxedValueBatch ReadyQueue;
     NYql::NDq::TDqAsyncStats IngressStats;
     std::shared_ptr<IDqAsyncLookupSource::TUnboxedValueMap> KeysForLookup;
