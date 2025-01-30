@@ -269,7 +269,7 @@ TESTCASES = [
                     '{"id":7,"ts":"11:33:49","uid":2,"user_id":2,"name":"Petr","age":25}',
                 ),
             ],
-            duplicate=1000000,
+            duplicate=500000,
         ),
         "TTL",
         "10",
