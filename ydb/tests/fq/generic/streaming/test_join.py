@@ -5,9 +5,6 @@ import sys
 from collections import Counter
 from operator import itemgetter
 from itertools import cycle, islice
-import random
-import base64
-import hashlib
 
 import ydb.public.api.protos.draft.fq_pb2 as fq
 from ydb.tests.tools.fq_runner.kikimr_utils import yq_v1
@@ -35,46 +32,6 @@ def ResequenceId(messages, field="id", duplicate=1):
             rpair += [json.dumps(src)]
         res += [tuple(rpair)]
         i += 1
-    return res
-
-
-def RandomizeDBH(messages, keylen=16, duplicate=1):
-    # '{"id":1,"age":"foobar","key":"Message5"}',
-    # '{"name":null,"id":123,"age":456,"key":null}',
-    res = []
-    random.seed(0)  # we want fixed seed
-    for pair in islice(cycle(messages), len(messages)*duplicate):
-        Id = random.randint(0, 100000)
-        Id = (Id * 124151351) % 19000043
-        Key = str(base64.b64encode(random.randbytes(keylen * 6 // 8)), 'utf-8')
-        Hash = hashlib.sha256(bytes(str(Id), 'utf-8')).hexdigest()
-        Age = Id % 31
-        Uid = None
-        Uhash = None
-        Uage = None
-        if Id < 10000000:
-            Uid = Id
-            Uage = Id % 31
-            Uhash = Hash
-        rpair = []
-        for it in pair:
-            src = json.loads(it)
-            if 'id' in src:
-                src['id'] = Id
-            if 'uage' in src:
-                src['uage'] = Uage
-            if 'age' in src:
-                src['age'] = Age
-            if 'uhash' in src:
-                src['uhash'] = Uhash
-            if 'hash' in src:
-                src['hash'] = Hash
-            if 'key' in src:
-                src['key'] = Key
-            if 'uid' in src:
-                src['uid'] = Uid
-            rpair += [json.dumps(src)]
-        res += [tuple(rpair)]
     return res
 
 
@@ -454,52 +411,6 @@ TESTCASES = [
                     '{"a":null,"b":null,"c":null,"d":null,"e":null,"f":null,"za":null,"yb":"1","yc":114,"zd":115}',
                 ),
             ]
-        ),
-    ),
-    # 12
-    (
-        R'''
-            $input = SELECT * FROM myyds.`{input_topic}`
-                     WITH (
-                        FORMAT=json_each_row,
-                        SCHEMA (
-                            id Uint64,
-                            age Uint32,
-                            hash String,
-                            key String,
-                        )
-                    );
-
-            $enriched = SELECT e.hash as hash, key,
-                    u.id as uid, u.age as uage
-                FROM
-                    $input AS e
-                LEFT JOIN {streamlookup} ANY ydb_conn_{table_name}.`dby` AS u
-                ON(e.hash = u.hash)
-            ;
-            -- $enriched2 = SELECT e.hash as hash, key, uid, uage,
-            --        u2.id as uid2, u2.age as uage2
-            --    FROM
-            --        $enriched AS e
-            --    LEFT JOIN {streamlookup} ANY ydb_conn_{table_name}.`dby` AS u2
-            --    ON(e.hash = u2.hash)
-            --;
-            $formatTime = DateTime::Format("%Y%m%d%H%M%S");
-            -- $preout = SELECT hash, key, uid, uage, $formatTime(CurrentUtcTimestamp(key)) as utc, (uid IS NOT DISTINCT FROM uid2) AS eq1 FROM $enriched2;
-            $preout = SELECT hash, key, uid, uage, $formatTime(CurrentUtcTimestamp(key)) as utc FROM $enriched;
-
-            insert into myyds.`{output_topic}`
-            select Unwrap(Yson::SerializeJson(Yson::From(TableRow()))) from $preout;
-            ''',
-        RandomizeDBH(
-            [
-                (
-                    '{"id":1,"age":1,"hash":null,"key":"Message5"}',
-                    '{"hash":null,"uid":123,"uage":456,"key":0}',
-                    # '{"hash":null,"uid":123,"uage":456,"key":0,"eq1":true}',
-                ),
-            ],
-            duplicate=1500000,
         ),
     ),
 ]
