@@ -248,7 +248,8 @@ protected:
 
     void ReportEventElapsedTime() {
         if (RuntimeSettings.CollectBasic()) {
-            ComputeActorElapsedTicks += NActors::TlsActivationContext->GetCurrentEventTicks();
+            ui64 elapsedMicros = NActors::TlsActivationContext->GetCurrentEventTicksAsSeconds() * 1'000'000ull;
+            CpuTime += TDuration::MicroSeconds(elapsedMicros);
         }
     }
 
@@ -1708,8 +1709,7 @@ public:
             ReportEventElapsedTime();
         }
 
-        ui64 computeActorElapsedUs = NHPTimer::GetSeconds(ComputeActorElapsedTicks) * 1'000'000ull;
-        dst->SetCpuTimeUs(computeActorElapsedUs + SourceCpuTime.MicroSeconds() + InputTransformCpuTime.MicroSeconds());
+        dst->SetCpuTimeUs(CpuTime.MicroSeconds() + SourceCpuTime.MicroSeconds() + InputTransformCpuTime.MicroSeconds());
         dst->SetMaxMemoryUsage(MemoryLimits.MemoryQuotaManager->GetMaxMemorySize());
 
         if (auto memProfileStats = GetMemoryProfileStats(); memProfileStats) {
@@ -1745,9 +1745,9 @@ public:
             auto cpuTimeUs = taskStats->ComputeCpuTime.MicroSeconds() + taskStats->BuildCpuTime.MicroSeconds();
             if (TDerived::HasAsyncTaskRunner) {
                 // Async TR is another actor, summarize CPU usage
-                cpuTimeUs = NHPTimer::GetSeconds(ComputeActorElapsedTicks + TaskRunnerActorElapsedTicks) * 1'000'000ull;
+                cpuTimeUs += CpuTime.MicroSeconds();
             }
-            // cpuTimeUs does include SourceCpuTime
+            // CpuTimeUs does include SourceCpuTime
             protoTask->SetCpuTimeUs(cpuTimeUs + SourceCpuTime.MicroSeconds() + InputTransformCpuTime.MicroSeconds());
             protoTask->SetSourceCpuTimeUs(SourceCpuTime.MicroSeconds());
 
@@ -2020,8 +2020,7 @@ protected:
     bool ResumeEventScheduled = false;
     NDqProto::EComputeState State;
     TIntrusivePtr<NYql::NDq::TRequestContext> RequestContext;
-    ui64 ComputeActorElapsedTicks = 0;
-    ui64 TaskRunnerActorElapsedTicks = 0;
+    TDuration CpuTime;
 
     struct TProcessOutputsState {
         int Inflight = 0;
