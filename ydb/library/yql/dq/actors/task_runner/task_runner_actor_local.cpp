@@ -83,7 +83,6 @@ public:
                 /*flags=*/0,
                 ev->Cookie);
         }
-        ActorElapsedTicks += NActors::TlsActivationContext->GetCurrentEventTicks();
     }
 
 private:
@@ -100,7 +99,7 @@ private:
             inputTransforms[inputTransformId] = TaskRunner->GetInputTransform(inputTransformId)->second.Get();
         }
 
-        ev->Get()->Stats = TDqTaskRunnerStatsView(TaskRunner->GetStats(), std::move(sinks), std::move(inputTransforms), ActorElapsedTicks);
+        ev->Get()->Stats = TDqTaskRunnerStatsView(TaskRunner->GetStats(), std::move(sinks), std::move(inputTransforms));
         Send(
             ParentId,
             ev->Release().Release(),
@@ -248,7 +247,7 @@ private:
                 inputTransforms[inputTransformId] = TaskRunner->GetInputTransform(inputTransformId)->second.Get();
             }
 
-            st->Stats = TDqTaskRunnerStatsView(TaskRunner->GetStats(), std::move(sinks), std::move(inputTransforms), ActorElapsedTicks);
+            st->Stats = TDqTaskRunnerStatsView(TaskRunner->GetStats(), std::move(sinks), std::move(inputTransforms));
             Send(ParentId, st.Release());
         }
 
@@ -509,7 +508,6 @@ private:
     TIntrusivePtr<NDq::IDqTaskRunner> TaskRunner;
     THashSet<ui32> InputChannelsWithDisabledCheckpoints;
     THolder<TDqMemoryQuota> MemoryQuota;
-    ui64 ActorElapsedTicks = 0;
 };
 
 struct TLocalTaskRunnerActorFactory: public ITaskRunnerActorFactory {
