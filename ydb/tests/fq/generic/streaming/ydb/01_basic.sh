@@ -41,12 +41,23 @@ set -ex
       (1, "2", 3, 4, 5, 6),
       (7, "8", 9, 10, 11, 12);
     COMMIT;
+    CREATE TABLE dby (id Uint64 NOT NULL, age Uint32, hash STRING, PRIMARY KEY(hash));
+    COMMIT;
   '
 
 retVal=$?
 if [ $retVal -ne 0 ]; then
   echo $retVal
   exit $retVal
+fi
+
+if [ -x /gendb ]; then
+    /gendb | /ydb -p ${PROFILE} import file tsv -p dby
+    retVal=$?
+    if [ $retVal -ne 0 ]; then
+      echo $retVal
+      exit $retVal
+    fi
 fi
 
 /ydb -p ${PROFILE} yql -s '
