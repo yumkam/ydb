@@ -4,6 +4,7 @@ import json
 import sys
 from collections import Counter
 from operator import itemgetter
+from itertools import cycle, islice
 
 import ydb.public.api.protos.draft.fq_pb2 as fq
 from ydb.tests.tools.fq_runner.kikimr_utils import yq_v1
@@ -19,10 +20,10 @@ import conftest
 DEBUG = 0
 
 
-def ResequenceId(messages, field="id"):
+def ResequenceId(messages, field="id", duplicate=1):
     res = []
     i = 1
-    for pair in messages:
+    for pair in islice(cycle(messages), len(messages)*duplicate):
         rpair = []
         for it in pair:
             src = json.loads(it)
@@ -139,8 +140,8 @@ TESTCASES = [
                 ('{"id":5,"user":3}', '{"id":5,"user_id":3,"lookup":"ydb30"}'),
                 ('{"id":6,"user":1}', '{"id":6,"user_id":1,"lookup":"ydb10"}'),
                 ('{"id":7,"user":2}', '{"id":7,"user_id":2,"lookup":"ydb20"}'),
-            ]
-            * 20
+            ],
+            duplicate=20,
         ),
     ),
     # 3
@@ -202,8 +203,8 @@ TESTCASES = [
                     '{"id":7,"ts":"20240701T113349","ev_type":"foo7","user":2}',
                     '{"id":7,"ts":"11:33:49","user_id":2,"lookup":"ydb20"}',
                 ),
-            ]
-            * 10
+            ],
+            duplicate=10,
         ),
     ),
     # 4
@@ -267,8 +268,8 @@ TESTCASES = [
                     '{"id":7,"ts":"20240701T113349","ev_type":"foo7","user":2}',
                     '{"id":7,"ts":"11:33:49","uid":2,"user_id":2,"name":"Petr","age":25}',
                 ),
-            ]
-            * 1000000
+            ],
+            duplicate=1000000,
         ),
         "TTL",
         "10",
