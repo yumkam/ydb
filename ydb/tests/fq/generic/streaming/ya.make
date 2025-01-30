@@ -53,6 +53,7 @@ ENDIF()
 
 DEPENDS(
     ydb/tests/tools/pq_read
+    ydb/tests/fq/generic/streaming/gendb
 )
 
 PEERDIR(
@@ -75,3 +76,6 @@ TEST_SRCS(
 
 END()
 
+RECURSE_FOR_TESTS(
+    gendb
+)
