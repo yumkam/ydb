@@ -53,7 +53,6 @@ ENDIF()
 
 DEPENDS(
     ydb/tests/tools/pq_read
-    ydb/tests/fq/generic/streaming/gendb
 )
 
 PEERDIR(
@@ -78,6 +77,3 @@ TIMEOUT(1800)
 
 END()
 
-RECURSE_FOR_TESTS(
-    gendb
-)
