@@ -318,6 +318,7 @@ protected:
         }
         auto leftLabel = join.LeftLabel().Maybe<NNodes::TCoAtom>() ? join.LeftLabel().Cast<NNodes::TCoAtom>().Ptr() : ctx.NewAtom(pos, "");
         Y_ENSURE(join.RightLabel().Maybe<NNodes::TCoAtom>());
+#if 0
         auto cn = Build<TDqCnStreamLookup>(ctx, pos)
             .Output(left.Output().Cast())
             .LeftLabel(leftLabel)
@@ -343,6 +344,49 @@ protected:
             .Program(lambda)
             .Settings(TDqStageSettings().BuildNode(ctx, pos))
             .Done();
+#else
+        auto shuffleStage = Build<TDqStage>(ctx, pos)
+            .Inputs()
+                .Add(left.Output().Cast())
+                .Build()
+            .Program()
+                .Args({"stream"})
+                .Body("stream")
+                .Build()
+            .Settings(TDqStageSettings().BuildNode(ctx, pos))
+            .Done();
+
+        auto leftShuffle = Build<TDqCnHashShuffle>(ctx, pos)
+            .Output()
+                .Stage(shuffleStage)
+                .Index().Build("0")
+                .Build()
+            .KeyColumns()
+                .Add(join.LeftJoinKeyNames())
+                .Build()
+            .Done();
+
+        auto cn = Build<TDqCnStreamLookup>(ctx, pos)
+            .Output(shuffle)
+            .LeftLabel(leftLabel)
+            .RightInput(rightInput)
+            .RightLabel(join.RightLabel().Cast<NNodes::TCoAtom>())
+            .JoinKeys(join.JoinKeys())
+            .JoinType(join.JoinType())
+            .LeftJoinKeyNames(join.LeftJoinKeyNames())
+            .RightJoinKeyNames(join.RightJoinKeyNames())
+            .TTL(ttl)
+            .MaxCachedRows(maxCachedRows)
+            .MaxDelayedRows(maxDelayedRows)
+        .Done();
+        const auto stage = Build<TDqStage>(ctx, pos)
+            .Inputs()
+                .Add(cn)
+                .Build()
+            .Program(lambda)
+            .Settings(TDqStageSettings().BuildNode(ctx, pos))
+            .Done();
+#endif
 
         return Build<TDqCnUnionAll>(ctx, pos)
             .Output()
