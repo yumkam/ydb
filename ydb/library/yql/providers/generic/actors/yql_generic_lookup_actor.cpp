@@ -118,6 +118,7 @@ namespace NYql::NDq {
             AnswerTime = component->GetCounter("AnswerMs");
             CpuTime = component->GetCounter("CpuUs");
             InFlight = component->GetCounter("InFlight");
+            Retries = component->GetCounter("Retries", true);
         }
     public:
 
@@ -239,6 +240,8 @@ namespace NYql::NDq {
         void Handle(TEvRetry::TPtr ev) {
             auto guard = Guard(*Alloc);
             RetriesRemaining = ev->Get()->NextRetries;
+            if (Retries)
+                Retries->Inc();
             SendRequest();
         }
 
@@ -519,6 +522,7 @@ namespace NYql::NDq {
         ::NMonitoring::TDynamicCounters::TCounterPtr AnswerTime;
         ::NMonitoring::TDynamicCounters::TCounterPtr CpuTime;
         ::NMonitoring::TDynamicCounters::TCounterPtr InFlight;
+        ::NMonitoring::TDynamicCounters::TCounterPtr Retries;
         TInstant SentTime;
     };
 
