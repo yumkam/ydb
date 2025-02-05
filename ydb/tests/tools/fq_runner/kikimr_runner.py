@@ -528,7 +528,7 @@ class YqTenant(BaseTenant):
 
         fq_config['quotas_manager'] = {'enabled': True}
 
-        fq_config['rate_limiter'] = {'enabled': True}
+        fq_config['rate_limiter'] = {'enabled': False}
         fq_config['quotas_manager'] = {'enabled': True}
         self.fill_rate_limiter_config(fq_config['rate_limiter'], "RateLimiter_" + self.uuid)
 
