@@ -7,6 +7,7 @@ import base64
 import logging
 import time
 import hashlib
+from itertools import islice, cycle
 from collections import Counter
 from operator import itemgetter
 
@@ -27,10 +28,16 @@ XD = 0
 WITH_CHECKPOINTS = 1
 
 
-def ResequenceId(messages, field="id"):
+def GetDuplicate(messages, duplicate=1):
+    if duplicate == 1:
+        return messages
+    return islice(cycle(messages), duplicate*len(messages))
+
+
+def ResequenceId(messages, field="id", duplicate=1):
     res = []
     i = 1
-    for pair in messages:
+    for pair in GetDuplicate(messages, duplicate):
         rpair = []
         for it in pair:
             src = json.loads(it)
@@ -42,10 +49,10 @@ def ResequenceId(messages, field="id"):
     return res
 
 
-def RandomizeMessage(messages, field='message', key='uid', header='Message', biglen=1000):
+def RandomizeMessage(messages, field='message', key='uid', header='Message', biglen=1000, duplicate=1):
     res = []
     random.seed(0)  # we want fixed seed
-    for pair in messages:
+    for pair in GetDuplicate(messages, duplicate):
         rpair = []
         r = random.randint(1, 4)
         if r > 3:
@@ -67,12 +74,12 @@ def RandomizeMessage(messages, field='message', key='uid', header='Message', big
     return res
 
 
-def RandomizeDBX(messages, keylen=16, keyName='key'):
+def RandomizeDBX(messages, keylen=16, keyName='key', duplicate=1):
     # '{"id":1,"age":"foobar","key":"Message5"}',
     # '{"name":null,"id":123,"age":456,"key":null}',
     res = []
     random.seed(0)  # we want fixed seed
-    for pair in messages:
+    for pair in GetDuplicate(messages, duplicate):
         Id = random.randint(0, 1000000)
         Age = random.randint(0, 64)
         Key = str(base64.b64encode(random.randbytes(keylen * 6 // 8)), 'utf-8')
@@ -107,12 +114,12 @@ def RandomizeDBX(messages, keylen=16, keyName='key'):
     return res
 
 
-def RandomizeDBH(messages, keylen=16):
+def RandomizeDBH(messages, keylen=16, duplicate=1):
     # '{"id":1,"age":"foobar","key":"Message5"}',
     # '{"name":null,"id":123,"age":456,"key":null}',
     res = []
     random.seed(0)  # we want fixed seed
-    for pair in messages:
+    for pair in GetDuplicate(messages, duplicate):
         Id = random.randint(0, 100000)
         Id = (Id * 124151351) % 19000043
         Key = str(base64.b64encode(random.randbytes(keylen * 6 // 8)), 'utf-8')
@@ -147,7 +154,7 @@ def RandomizeDBH(messages, keylen=16):
     return res
 
 
-def RandomizeBIG(messages, keylen=16):
+def RandomizeBIG(messages, keylen=16, duplicate=1):
     res = []
     dic = {}
     random.seed(0)
@@ -157,7 +164,7 @@ def RandomizeBIG(messages, keylen=16):
         dic[i] = str(base64.b64encode(rb), 'utf-8')
 
     random.seed(0)  # we want fixed seed
-    for pair in messages:
+    for pair in GetDuplicate(messages, duplicate):
         Id = random.randint(0, 256*256*256 - 1)
         Prefix = Id & 255
         # Id = (Id * 124151351) % 19000043
@@ -283,8 +290,8 @@ TESTCASES = [
                 ('{"id":5,"user":3}', '{"id":5,"user_id":3,"lookup":"ydb30"}'),
                 ('{"id":6,"user":1}', '{"id":6,"user_id":1,"lookup":"ydb10"}'),
                 ('{"id":7,"user":2}', '{"id":7,"user_id":2,"lookup":"ydb20"}'),
-            ]
-            * 20
+            ],
+            duplicate=20,
         ),
     ),
     # 3
@@ -346,8 +353,8 @@ TESTCASES = [
                     '{"id":7,"ts":"20240701T113349","ev_type":"foo7","user":2}',
                     '{"id":7,"ts":"11:33:49","user_id":2,"lookup":"ydb20"}',
                 ),
-            ]
-            * 10
+            ],
+            duplicate=10,
         ),
     ),
     # 4
@@ -411,8 +418,8 @@ TESTCASES = [
                     '{"id":7,"ts":"20240701T113349","ev_type":"foo7","user":2}',
                     '{"id":7,"ts":"11:33:49","uid":2,"user_id":2,"name":"Petr","age":25}',
                 ),
-            ]
-            * 10000
+            ],
+            duplicate=10000,
         ),
         "TTL",
         "10",
@@ -697,8 +704,8 @@ TESTCASES = [
                             '{"time":1,"key":"foobar","message":"Message5"}',
                             '{"time":1,"key":"foobar","uid":5}',
                         ),
-                    ]
-                    * 600000,
+                    ],
+                    duplicate=600000,
                     field='time',
                 ),
                 field='message',
@@ -742,8 +749,8 @@ TESTCASES = [
                     '{"id":1,"age":1,"key":"Message5"}',
                     '{"name":null,"id":123,"age":456,"key":0}',
                 ),
-            ]
-            * 700000,
+            ],
+            duplicate=700000,
         ),
     ),
     # 12
@@ -786,11 +793,11 @@ TESTCASES = [
                     '{"id":1,"age":1,"hash":null,"key":"Message5"}',
                     '{"hash":null,"uid":123,"uage":456,"key":0,"eq1":true}',
                 ),
-            ]
-            * 1500000,
+            ],
+            duplicate=1500000,
         ),
     ),
-    # 12
+    # 13
     (
         R'''
             $input = SELECT * FROM myyds.`{input_topic}`
@@ -823,8 +830,8 @@ TESTCASES = [
                     '{"id":1,"age":1,"hash":null,"key":"Message5"}',
                     '{"hash":null,"uid":123,"uage":456,"key":0}',
                 ),
-            ]
-            * 1500000,
+            ],
+            duplicate=1500000,
         ),
     ),
     # 14
@@ -860,8 +867,8 @@ TESTCASES = [
                     '{"id":1,"age":1,"hash":null,"key":"Message5"}',
                     '{"hash":null,"uid":123,"uage":456,"key":0}',
                 ),
-            ]
-            * 1000000,
+            ],
+            duplicate=1000000,
         ),
     ),
     # 15
@@ -897,8 +904,8 @@ TESTCASES = [
                     '{"ev":"abc"}',
                     '{"ev":"abc","xx":"yyy"}',
                 ),
-            ]
-            * 100000,
+            ],
+            duplicate=100000,
         ),
     ),
     # 16
@@ -980,10 +987,10 @@ TESTCASES = [
                     '{"ip":"280X:XXXX:XXXX:XXXX:XXXX:XXXX:XXXX:XXXX","payload":"*oogle"}',
                     '{"ip":"280X:XXXX:XXXX:XXXX:XXXX:XXXX:XXXX:XXXX","ip_key":297,"payload":"*oogle"}',
                 ),
-            ]
-            * 100000,
+            ],
             16,
-            'payload'
+            'payload',
+            duplicate=100000,
         )
     ),
     # 17
@@ -1121,10 +1128,10 @@ TESTCASES = [
                     '{"ip":"280X:XXXX:XXXX:XXXX:XXXX:XXXX:XXXX:XXXX","payload":"*oogle"}',
                     '{"ip":"280X:XXXX:XXXX:XXXX:XXXX:XXXX:XXXX:XXXX","ip_key":297,"payload":"*oogle"}',
                 ),
-            ]
-            * 100000,
+            ],
             16,
-            'payload'
+            'payload',
+            duplicate=100000,
         )
     ),
     # 18
@@ -1211,10 +1218,10 @@ TESTCASES = [
                     '{"ip":"280X:XXXX:XXXX:XXXX:XXXX:XXXX:XXXX:XXXX","payload":"*oogle"}',
                     '{"ip":"280X:XXXX:XXXX:XXXX:XXXX:XXXX:XXXX:XXXX","ip_key":297,"payload":"*oogle"}',
                 ),
-            ]
-            * 100000,
+            ],
             16,
-            'payload'
+            'payload',
+            duplicate=100000,
         )
     ),
     # 19
@@ -1291,10 +1298,10 @@ TESTCASES = [
                     '{"ip":"223.0.@.@","payload":"*etflix"}',
                     '{"ip":"2806:10a6:10:1fff::1","ip_key":31247,"payload":"*etflix"}',
                 ),
-            ]
-            * 100000,
+            ],
             16,
-            'payload'
+            'payload',
+            duplicate=100000,
         )
     ),
     # 20
@@ -1382,10 +1389,10 @@ $preout = SELECT `ip`, `subnets` as ip_key, `payload`, $formatTime(CurrentUtcTim
                     '{"ip":"223.0.@.@","payload":"*etflix"}',
                     '{"ip":"2806:10a6:10:1fff::1","ip_key":31247,"payload":"*etflix"}',
                 ),
-            ]
-            * 100000,
+            ],
             16,
-            'payload'
+            'payload',
+            duplicate=100000,
         )
     ),
 ]
@@ -1395,7 +1402,7 @@ if not XD:
     # TESTCASES = TESTCASES[17:18]
     # TESTCASES = TESTCASES[10:11]
     # TESTCASES = TESTCASES[12:13]
-    TESTCASES = TESTCASES[13:14]
+    TESTCASES = TESTCASES[12:13]
     # TESTCASES = TESTCASES[11:12]
     # TESTCASES = TESTCASES[18:19]
     # TESTCASES = TESTCASES[19:20]
