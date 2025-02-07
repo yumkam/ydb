@@ -454,7 +454,11 @@ bool IsSupportedForWide(const TDqConnection& conn) {
 
 bool IsSupportedForWideBlocks(const TDqConnection& conn) {
     // currently all connections supporting wide channels also support wide block channels
-    return !conn.Maybe<TDqCnStreamLookup>() && IsSupportedForWide(conn);
+    // TODO ... except for StreamLookup
+    if (conn.Maybe<TDqCnStreamLookup>()) {
+        Cerr << "TRY SLJ FOR WIDE_BLOCK" << Endl;
+    }
+    return /*!conn.Maybe<TDqCnStreamLookup>() && */IsSupportedForWide(conn);
 }
 
 const TStructExprType* GetStageOutputItemType(const TDqPhyStage& stage) {

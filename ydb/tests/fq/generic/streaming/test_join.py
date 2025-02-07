@@ -631,6 +631,7 @@ class TestJoinStreaming(TestYdsBase):
             sql = 'pragma dq.UseWideChannels = "true";\n' + sql
         elif wide_channels is not None:
             sql = 'pragma dq.UseWideChannels = "false";\n' + sql
+        sql = 'pragma UseBlocks;\n' + sql
 
         one_time_waiter.wait()
 
