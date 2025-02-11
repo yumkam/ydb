@@ -152,7 +152,6 @@ public:
 
             return true;
         }
-        PushStats.TryPause();
         return false;
     }
 
@@ -168,7 +167,6 @@ public:
 
             return true;
         }
-        PushStats.TryPause();
         return false;
     }
 
