@@ -393,6 +393,9 @@ protected:
             if (!outputChannel.Finished || Checkpoints) {
                 if (Channels->CanSendChannelData(channelId)) {
                     DrainOutputChannel(outputChannel);
+                    if (Terminated) {
+                        return;
+                    }
                 } else {
                     ProcessOutputsState.HasDataToSend |= !outputChannel.Finished;
                 }
@@ -404,10 +407,16 @@ protected:
 
         for (auto& [outputIndex, info] : OutputTransformsMap) {
             DrainAsyncOutput(outputIndex, info);
+            if (Terminated) {
+                return;
+            }
         }
 
         for (auto& [outputIndex, info] : SinksMap) {
             DrainAsyncOutput(outputIndex, info);
+            if (Terminated) {
+                return;
+            }
         }
 
         CheckRunStatus();
