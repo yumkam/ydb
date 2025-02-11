@@ -1346,9 +1346,10 @@ void TWriteSessionImpl::ResetForRetryImpl() {
 void TWriteSessionImpl::FlushWriteIfRequiredImpl() {
     Y_ABORT_UNLESS(Lock.IsLocked());
 
-    if (!CurrentBatch.Empty() && !CurrentBatch.FlushRequested) {
+    if (!CurrentBatch.Empty()) {
         MessagesAcquired += static_cast<uint64_t>(CurrentBatch.Acquire());
         if (TInstant::Now() - CurrentBatch.StartedAt >= Settings.BatchFlushInterval_.value_or(TDuration::Zero())
+            || CurrentBatch.FlushRequested
             || CurrentBatch.CurrentSize >= Settings.BatchFlushSizeBytes_.value_or(0)
             || CurrentBatch.CurrentSize >= MaxBlockSize
             || CurrentBatch.Messages.size() >= MaxBlockMessageCount
