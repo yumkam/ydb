@@ -128,7 +128,7 @@ def RandomizeDBH(messages, keylen=16, duplicate=1):
         Uid = None
         Uhash = None
         Uage = None
-        if Id < 10000000:
+        if Id < 10000000//2:
             Uid = Id
             Uage = Id % 31
             Uhash = Hash
@@ -1402,7 +1402,7 @@ if not XD:
     # TESTCASES = TESTCASES[17:18]
     # TESTCASES = TESTCASES[10:11]
     # TESTCASES = TESTCASES[12:13]
-    TESTCASES = TESTCASES[12:13]
+    TESTCASES = TESTCASES[13:14]
     # TESTCASES = TESTCASES[11:12]
     # TESTCASES = TESTCASES[18:19]
     # TESTCASES = TESTCASES[19:20]
@@ -1493,12 +1493,12 @@ class TestJoinStreaming(TestYdsBase):
         "mvp_external_ydb_endpoint", [{"endpoint": "tests-fq-generic-streaming-ydb:2136"}], indirect=True
     )
     @pytest.mark.parametrize("fq_client", [{"folder_id": "my_folder_slj"}], indirect=True)
-    @pytest.mark.parametrize("blocks", [False, True] if DEBUG else [False])
-    @pytest.mark.parametrize("wide_channels", [False, True] if DEBUG else [True, False])
+    @pytest.mark.parametrize("blocks", [0, 1] if DEBUG and XD else [0])
+    @pytest.mark.parametrize("wide_channels", [0, 1] if DEBUG else [0, 1])
     @pytest.mark.parametrize("partitions_count", [1, 11] if DEBUG and XD else [11])
-    @pytest.mark.parametrize("streamlookup", [False, True] if DEBUG and XD else [True])
+    @pytest.mark.parametrize("streamlookup", [0, 1] if DEBUG and XD else [1])
     @pytest.mark.parametrize("testcase", [*range(len(TESTCASES))])
-    @pytest.mark.parametrize("test_checkpoints", [False])
+    @pytest.mark.parametrize("test_checkpoints", [0])
     @pytest.mark.parametrize("parallels", [1])
     def test_streamlookup(
         self,
@@ -1516,7 +1516,7 @@ class TestJoinStreaming(TestYdsBase):
         if test_checkpoints and not WITH_CHECKPOINTS:
             return
         self.init_topics(
-            f"pq_yq_slj_{partitions_count}{streamlookup}{testcase}w{wide_channels}_{yq_version}",
+            f"pq_yq_slj_{partitions_count}{streamlookup}{testcase}w{wide_channels}b{blocks}_{yq_version}",
             partitions_count=partitions_count,
         )
         fq_client.create_yds_connection("myyds", os.getenv("YDB_DATABASE"), os.getenv("YDB_ENDPOINT"))
@@ -1551,7 +1551,7 @@ class TestJoinStreaming(TestYdsBase):
         one_time_waiter.wait()
 
         query_ids = [*map(lambda _:fq_client.create_query(
-            f"slj_{partitions_count}{streamlookup}{testcase}w{wide_channels}",
+            f"slj_{partitions_count}{streamlookup}{testcase}w{wide_channels}b{blocks}i{_}",
             sql,
             type=fq.QueryContent.QueryType.STREAMING,
         ).result.query_id, range(parallels))]
