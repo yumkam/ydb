@@ -1348,11 +1348,11 @@ void TWriteSessionImpl::FlushWriteIfRequiredImpl() {
 
     if (!CurrentBatch.Empty()) {
         MessagesAcquired += static_cast<uint64_t>(CurrentBatch.Acquire());
-        if (TInstant::Now() - CurrentBatch.StartedAt >= Settings.BatchFlushInterval_.value_or(TDuration::Zero())
+        if (CurrentBatch.Messages.size() >= MaxBlockMessageCount
             || CurrentBatch.FlushRequested
-            || CurrentBatch.CurrentSize >= Settings.BatchFlushSizeBytes_.value_or(0)
             || CurrentBatch.CurrentSize >= MaxBlockSize
-            || CurrentBatch.Messages.size() >= MaxBlockMessageCount
+            || CurrentBatch.CurrentSize >= Settings.BatchFlushSizeBytes_.value_or(0)
+            || TInstant::Now() - CurrentBatch.StartedAt >= Settings.BatchFlushInterval_.value_or(TDuration::Zero())
             || CurrentBatch.HasCodec()
         ) {
             WriteBatchImpl();
