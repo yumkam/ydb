@@ -206,6 +206,7 @@ private:
                 return false;
             auto currSize = Data.size();
             Data.Append(Messages.back().DataRef.data(), Messages.back().DataRef.size());
+            Y_ENSURE(Messages.size() == 1); // below assignment deadly broken otherwise
             Messages.back().DataRef = std::string_view(Data.data() + currSize, Data.size() - currSize);
             Acquired = true;
             return true;
