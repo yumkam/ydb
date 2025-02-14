@@ -1466,7 +1466,7 @@ protected:
         }
     }
 
-    void PollAsyncInput() {
+    void PollAsyncInput(bool continueExecuteOnFull = true) {
         if (!Running) {
             CA_LOG_T("Skip polling inputs and sources because not running");
             return;
@@ -1476,7 +1476,9 @@ protected:
         CA_LOG_T_RATELIMITED("Poll inputs", rl1, TDuration::Seconds(1));
         for (auto& [inputIndex, transform] : InputTransformsMap) {
             if (auto resume = transform.PollAsyncInput(MetricsReporter, WatermarksTracker, RuntimeSettings.AsyncInputPushLimit)) {
-                ContinueExecute(*resume);
+                if (*resume != EResumeSource::CAPollAsyncNoSpace || continueExecuteOnFull) {
+                    ContinueExecute(*resume);
+                }
             }
         }
 
@@ -1490,7 +1492,9 @@ protected:
         CA_LOG_T_RATELIMITED("Poll sources", rl2, TDuration::Seconds(1));
         for (auto& [inputIndex, source] : SourcesMap) {
             if (auto resume =  source.PollAsyncInput(MetricsReporter, WatermarksTracker, RuntimeSettings.AsyncInputPushLimit)) {
-                ContinueExecute(*resume);
+                if (*resume != EResumeSource::CAPollAsyncNoSpace || continueExecuteOnFull) {
+                    ContinueExecute(*resume);
+                }
             }
         }
     }
