@@ -368,13 +368,14 @@ protected:
     }
 
     void ProcessOutputsImpl(ERunStatus status) {
-        ProcessOutputsState.LastRunStatus = status;
-
         // spams
         CA_LOG_T_RATELIMITED("ProcessOutputsState.Inflight: " << ProcessOutputsState.Inflight, rl3, TDuration::Seconds(1));
+
         if (ProcessOutputsState.Inflight == 0) {
             ProcessOutputsState = TProcessOutputsState();
         }
+
+        ProcessOutputsState.LastRunStatus = status;
 
         for (auto& entry : OutputChannelsMap) {
             const ui64 channelId = entry.first;
