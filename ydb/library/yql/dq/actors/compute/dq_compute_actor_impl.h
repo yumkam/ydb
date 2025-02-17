@@ -391,6 +391,7 @@ protected:
     void ProcessOutputsImpl(ERunStatus status) {
         // spams
         CA_LOG_T_RATELIMITED("ProcessOutputsState.Inflight: " << ProcessOutputsState.Inflight, rl3, TDuration::Seconds(1));
+
         if (ProcessOutputsState.Inflight == 0) {
             ProcessOutputsState = TProcessOutputsState();
         }
