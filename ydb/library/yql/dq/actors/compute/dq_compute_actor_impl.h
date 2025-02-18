@@ -464,7 +464,7 @@ protected:
             return;
         }
 
-        if (status != ERunStatus::Finished) {
+        if (status == ERunStatus::PendingInput) {
             for (auto& [id, inputTransform] : InputTransformsMap) {
                 if (!inputTransform.Buffer->Empty()) {
                     ContinueExecute(EResumeSource::CAPendingInput);
@@ -2060,6 +2060,7 @@ protected:
         bool AllOutputsFinished = true;
         ERunStatus LastRunStatus = ERunStatus::PendingInput;
         bool LastPopReturnedNoData = false;
+        bool IsFull = false;
     };
     TProcessOutputsState ProcessOutputsState;
 
