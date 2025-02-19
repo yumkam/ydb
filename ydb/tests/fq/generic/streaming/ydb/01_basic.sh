@@ -50,7 +50,7 @@ if [ $retVal -ne 0 ]; then
   exit $retVal
 fi
 
-if [ -f / ip_to_macros.json ]; then
+if [ -f /ip_to_macros.json ]; then
 /ydb -p ${PROFILE} import file json -p ip_to_macros_v2_net_to_macros_trie_index < /ip_to_macros.json
 
 retVal=$?
@@ -59,19 +59,6 @@ if [ $retVal -ne 0 ]; then
   exit $retVal
 fi
 fi # ip_to_macros.json
-
-/ydb -p ${PROFILE} yql -s '
-    CREATE TABLE dummy_table (name String, cnt Uint64, PRIMARY KEY(name));
-    COMMIT;
-    INSERT INTO dummy_table (name, cnt) SELECT "db", COUNT(*) FROM db;
-    COMMIT;
-  '
-
-retVal=$?
-if [ $retVal -ne 0 ]; then
-  echo $retVal
-  exit $retVal
-fi
 
 /ydb -p ${PROFILE} yql -s '
     CREATE TABLE dummy_table (name String, cnt Uint64, PRIMARY KEY(name));
