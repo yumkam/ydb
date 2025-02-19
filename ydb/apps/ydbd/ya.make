@@ -54,6 +54,7 @@ PEERDIR(
     yql/essentials/udfs/common/hyperloglog
     yql/essentials/udfs/common/ip_base
     ydb/library/yql/udfs/common/knn
+    ydb/library/yql/udfs/common/trie
     ydb/library/yql/udfs/common/roaring
     yql/essentials/udfs/common/json
     yql/essentials/udfs/common/json2

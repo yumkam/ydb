@@ -22,4 +22,5 @@ services:
     volumes:
       - ./ydb/init_ydb:/init_ydb
       - ./ydb/01_basic.sh:/01_basic.sh
+      - ./ydb/ip_to_macros.json:/ip_to_macros.json
 version: "3.4"

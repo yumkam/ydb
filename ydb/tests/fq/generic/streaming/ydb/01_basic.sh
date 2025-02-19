@@ -41,6 +41,7 @@ set -ex
       (1, "2", 3, 4, 5, 6),
       (7, "8", 9, 10, 11, 12);
     COMMIT;
+    CREATE TABLE `ip_to_macros_v2_net_to_macros_trie_index` (prefix STRING, trie STRING, PRIMARY KEY(prefix));
   '
 
 retVal=$?
@@ -48,6 +49,16 @@ if [ $retVal -ne 0 ]; then
   echo $retVal
   exit $retVal
 fi
+
+if [ -f /ip_to_macros.json ]; then
+/ydb -p ${PROFILE} import file json -p ip_to_macros_v2_net_to_macros_trie_index < /ip_to_macros.json
+
+retVal=$?
+if [ $retVal -ne 0 ]; then
+  echo $retVal
+  exit $retVal
+fi
+fi # ip_to_macros.json
 
 /ydb -p ${PROFILE} yql -s '
     CREATE TABLE dummy_table (name String, cnt Uint64, PRIMARY KEY(name));

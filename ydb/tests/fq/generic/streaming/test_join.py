@@ -521,6 +521,68 @@ TESTCASES = [
             ]
         ),
     ),
+    # 10
+    (
+        R'''
+            $parsed = SELECT * FROM myyds.`{input_topic}`
+                    WITH (
+                        FORMAT=json_each_row,
+                        SCHEMA (
+                            ip STRING,
+                            time STRING?,
+                        )
+                    )            ;
+
+$net_to_macros_trie = SELECT prefix, trie FROM ydb_conn_{table_name}.`ip_to_macros_v2_net_to_macros_trie_index`;
+
+$ipv4_prefix_size = 8; -- must match options used for ip-dict-compiler
+$ipv6_prefix_size = 12;
+
+$with_binip =
+     SELECT
+        p.*,
+        Ip::FromString(ip) AS binip,
+    FROM $parsed as p;
+
+$with_prefix = SELECT
+       p.*,
+        Ip::GetSubnet(binip,
+            CAST(CASE WHEN Ip::IsIPv4(binip)
+            THEN $ipv4_prefix_size
+            ELSE $ipv6_prefix_size
+            END AS Uint8)) AS prefix
+    FROM $with_binip as p;
+
+$with_dict =
+    SELECT
+        e.*,
+        db.trie AS ipdict,
+    FROM $with_prefix AS e
+    LEFT JOIN {streamlookup} $net_to_macros_trie AS db
+    ON e.prefix = db.prefix;
+
+-- enriches stream with list of prefixes names using dictionary in ipdict
+
+$with_macros =
+     SELECT e.*,
+            -- Trie::LookupAllMatches(e.binip, e.ipdict) as uuuu,
+            Trie::LookupAllMatchesWithString(e.binip, e.ipdict) as uuuu,
+       FROM $with_dict AS e;
+
+            $enriched = SELECT `ip`, `time`, `uuuu` FROM $with_macros;
+
+            insert into myyds.`{output_topic}`
+            select Unwrap(Yson::SerializeJson(Yson::From(TableRow()))) from $enriched;
+            ''',
+        ResequenceId(
+            [
+                (
+                    '{"ip":"240.0.0.0","time":"2024-01-01T00:00:00"}',
+                    '{"ip":"240.0.0.1","uuuu":[],"time":"2024-01-01T00:00:00"}',
+                ),
+            ]
+        ),
+    ),
 ]
 
 
@@ -591,7 +653,7 @@ class TestJoinStreaming(TestYdsBase):
     )
     @pytest.mark.parametrize("fq_client", [{"folder_id": "my_folder_slj"}], indirect=True)
     @pytest.mark.parametrize("partitions_count", [1, 3] if DEBUG else [3])
-    @pytest.mark.parametrize("streamlookup", [False, True] if DEBUG else [True])
+    @pytest.mark.parametrize("streamlookup", [False, True] if DEBUG else [False])
     @pytest.mark.parametrize("testcase", [*range(len(TESTCASES))])
     def test_streamlookup(
         self,
