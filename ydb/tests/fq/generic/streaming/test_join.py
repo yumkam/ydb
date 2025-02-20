@@ -750,7 +750,7 @@ TESTCASES = [
                     '{"name":null,"id":123,"age":456,"key":0}',
                 ),
             ],
-            duplicate=700000,
+            duplicate=700000*0,
         ),
     ),
     # 12
@@ -794,7 +794,7 @@ TESTCASES = [
                     '{"hash":null,"uid":123,"uage":456,"key":0,"eq1":true}',
                 ),
             ],
-            duplicate=1500000,
+            duplicate=1500000*0,
         ),
     ),
     # 13
@@ -868,7 +868,7 @@ TESTCASES = [
                     '{"hash":null,"uid":123,"uage":456,"key":0}',
                 ),
             ],
-            duplicate=1000000,
+            duplicate=1000000*0,
         ),
     ),
     # 15

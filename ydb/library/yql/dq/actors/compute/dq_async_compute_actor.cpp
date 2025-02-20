@@ -731,7 +731,7 @@ private:
             // we need to stop polling when output is full and all input buffers are full
             isFull = true;
         }
-        PollAsyncInput(!ProcessOutputsState.IsFull);
+        PollAsyncInput(!ProcessOutputsState.IsFull && !CpuTimeQuotaAsked);
         if (ProcessSourcesState.Inflight == 0) {
             auto req = GetCheckpointRequest();
             // spams, spams2
