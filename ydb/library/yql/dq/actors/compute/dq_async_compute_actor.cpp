@@ -546,10 +546,6 @@ private:
         const bool shouldSkipData = Channels->ShouldSkipData(outputChannel.ChannelId);
         const bool hasFreeMemory = Channels->HasFreeMemoryInChannel(outputChannel.ChannelId);
         UpdateBlocked(outputChannel, !hasFreeMemory);
-        if (!hasFreeMemory) {
-            if (!ProcessOutputsState.IsFull) Cerr << TInstant::Now() << LogPrefix << " DrainOutputChannel " << outputChannel.ChannelId << " Full->true" << Endl;
-            ProcessOutputsState.IsFull = true;
-        }
 
         if (!shouldSkipData && !outputChannel.EarlyFinish && !hasFreeMemory) {
             // spams
@@ -578,10 +574,6 @@ private:
 
         const ui32 allowedOvercommit = AllowedChannelsOvercommit();
         const i64 sinkFreeSpaceBeforeSend = sinkInfo.AsyncOutput->GetFreeSpace();
-        if (sinkFreeSpaceBeforeSend <= 0) {
-            if (!ProcessOutputsState.IsFull) Cerr << TInstant::Now() << LogPrefix << " DrainAsyncOutput " << outputIndex << " Full->true" << Endl;
-            ProcessOutputsState.IsFull = true;
-        }
 
         i64 toSend = sinkFreeSpaceBeforeSend + allowedOvercommit;
         CA_LOG_T("About to drain sink " << outputIndex
@@ -723,15 +715,12 @@ private:
     }
 
     void DoExecuteImpl() override {
-        [[maybe_unused]]
-        bool isFull = false;
-        if (ProcessOutputsState.Inflight == 0 && ProcessOutputsState.HasDataToSend && !ProcessOutputsState.DataWasSent && ProcessOutputsState.LastRunStatus == ERunStatus::PendingOutput || ProcessOutputsState.IsFull) {
-            Cerr << TInstant::Now() <<' ' << LogPrefix << " LRS="<< ProcessOutputsState.LastRunStatus << " LPRND=" << ProcessOutputsState.LastPopReturnedNoData << " isFull = " << ProcessOutputsState.IsFull << Endl;
-            // FIXME is this condition correct?
-            // we need to stop polling when output is full and all input buffers are full
-            isFull = true;
+        LastPollResult = PollAsyncInput();
+
+        if (LastPollResult && *LastPollResult != EResumeSource::CAPollAsyncNoSpace) {
+            ContinueExecute(*std::exchange(LastPollResult, {}));
         }
-        PollAsyncInput(!ProcessOutputsState.IsFull && !CpuTimeQuotaAsked);
+
         if (ProcessSourcesState.Inflight == 0) {
             auto req = GetCheckpointRequest();
             // spams, spams2
@@ -970,11 +959,6 @@ private:
             }
         }
 
-        if (!Channels->HasFreeMemoryInChannel(outputChannel.ChannelId)) {
-            if (!ProcessOutputsState.IsFull) Cerr << TInstant::Now() << LogPrefix << " SendAsyncChannelData " << outputChannel.ChannelId << " Full->true" << Endl;
-            ProcessOutputsState.IsFull = true;
-        }
-
         ProcessOutputsState.DataWasSent |= asyncData.Changed;
 
         ProcessOutputsState.AllOutputsFinished =
@@ -1054,10 +1038,6 @@ private:
         CA_LOG_T("Drain sink " << outputIndex
             << ". Free space decreased: " << (sinkInfo.FreeSpaceBeforeSend - sinkInfo.AsyncOutput->GetFreeSpace())
             << ", sent data from buffer: " << dataSize);
-        if (sinkInfo.AsyncOutput->GetFreeSpace() <= 0) {
-            if (!ProcessOutputsState.IsFull) Cerr << TInstant::Now() << LogPrefix << " SendSink " << index << " Full->true" << Endl;
-            ProcessOutputsState.IsFull = true;
-        }
 
         ProcessOutputsState.DataWasSent |= dataWasSent;
         ProcessOutputsState.AllOutputsFinished =
@@ -1225,6 +1205,9 @@ private:
             CA_LOG_T("AsyncCheckRunStatus: TakeInputChannelDataRequests: " << TakeInputChannelDataRequests.size());
             return;
         }
+        if (ProcessOutputsState.LastRunStatus == ERunStatus::PendingInput && LastPollResult) {
+            ContinueExecute(*LastPollResult);
+        }
         TBase::CheckRunStatus();
     }
 
@@ -1272,6 +1255,7 @@ private:
     NMonitoring::THistogramPtr CpuTimeQuotaWaitDelay;
     NMonitoring::TDynamicCounters::TCounterPtr CpuTime;
     NDqProto::TEvComputeActorState ComputeActorState;
+    TMaybe<EResumeSource> LastPollResult;
     ::NActors::TLogRateLimiter DoExecuteImplRatelimit;
     ::NActors::TLogRateLimiter rl1, rl2, rl3, rl4;
 };
