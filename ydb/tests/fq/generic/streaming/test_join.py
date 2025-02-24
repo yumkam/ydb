@@ -121,7 +121,7 @@ def RandomizeDBH(messages, keylen=16, duplicate=1):
     random.seed(0)  # we want fixed seed
     for pair in GetDuplicate(messages, duplicate):
         Id = random.randint(0, 100000)
-        Id = (Id * 124151351) % 19000043
+        Id = (Id * 16958943) % 19000043
         Key = str(base64.b64encode(random.randbytes(keylen * 6 // 8)), 'utf-8')
         Hash = hashlib.sha256(bytes(str(Id), 'utf-8')).hexdigest()
         Age = Id % 31
