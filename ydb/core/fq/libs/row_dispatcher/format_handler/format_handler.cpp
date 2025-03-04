@@ -352,7 +352,7 @@ public:
     }
 
 public:
-    void ParseMessages(const std::vector<NYdb::NTopic::TReadSessionEvent::TDataReceivedEvent::TMessage>& messages) override {
+    void ParseMessages(const std::vector<NYdb::NFederatedTopic::TReadSessionEvent::TDataReceivedEvent::TMessage>& messages) override {
         LOG_ROW_DISPATCHER_TRACE("Send " << messages.size() << " messages to parser");
 
         if (!messages.empty()) {

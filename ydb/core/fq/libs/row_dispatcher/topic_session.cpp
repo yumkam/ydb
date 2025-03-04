@@ -11,7 +11,7 @@
 
 #include <ydb/public/sdk/cpp/adapters/issue/issue.h>
 
-#include <ydb-cpp-sdk/client/topic/client.h>
+#include <ydb-cpp-sdk/client/federated_topic/federated_topic.h>
 
 #include <util/generic/queue.h>
 
@@ -205,14 +205,14 @@ private:
     };
 
     struct TTopicEventProcessor {
-        void operator()(NYdb::NTopic::TReadSessionEvent::TDataReceivedEvent& event);
-        void operator()(NYdb::NTopic::TSessionClosedEvent& event);
-        void operator()(NYdb::NTopic::TReadSessionEvent::TStartPartitionSessionEvent& event);
-        void operator()(NYdb::NTopic::TReadSessionEvent::TStopPartitionSessionEvent& event);
-        void operator()(NYdb::NTopic::TReadSessionEvent::TEndPartitionSessionEvent& event);
-        void operator()(NYdb::NTopic::TReadSessionEvent::TPartitionSessionClosedEvent& event);
-        void operator()(NYdb::NTopic::TReadSessionEvent::TCommitOffsetAcknowledgementEvent&) {}
-        void operator()(NYdb::NTopic::TReadSessionEvent::TPartitionSessionStatusEvent&) { }
+        void operator()(NYdb::NFederatedTopic::TReadSessionEvent::TDataReceivedEvent& event);
+        void operator()(NYdb::NFederatedTopic::TSessionClosedEvent& event);
+        void operator()(NYdb::NFederatedTopic::TReadSessionEvent::TStartPartitionSessionEvent& event);
+        void operator()(NYdb::NFederatedTopic::TReadSessionEvent::TStopPartitionSessionEvent& event);
+        void operator()(NYdb::NFederatedTopic::TReadSessionEvent::TEndPartitionSessionEvent& event);
+        void operator()(NYdb::NFederatedTopic::TReadSessionEvent::TPartitionSessionClosedEvent& event);
+        void operator()(NYdb::NFederatedTopic::TReadSessionEvent::TCommitOffsetAcknowledgementEvent&) {}
+        void operator()(NYdb::NFederatedTopic::TReadSessionEvent::TPartitionSessionStatusEvent&) { }
 
         TTopicSession& Self;
         const TString& LogPrefix;
@@ -239,8 +239,11 @@ private:
     bool InflightReconnect = false;
     TDuration ReconnectPeriod;
 
-    NYql::ITopicClient::TPtr TopicClient;
-    std::shared_ptr<NYdb::NTopic::IReadSession> ReadSession;
+    using ITopicClient = NYdb::NFederatedTopic::TFederatedTopicClient;
+    using ITopicClientPtr = std::shared_ptr<ITopicClient>;
+
+    ITopicClientPtr TopicClient;
+    std::shared_ptr<NYdb::NFederatedTopic::IFederatedReadSession> ReadSession;
     std::map<ITopicFormatHandler::TSettings, ITopicFormatHandler::TPtr> FormatHandlers;
     std::unordered_map<TActorId, TClientsInfo::TPtr> Clients;
 
@@ -280,13 +283,13 @@ public:
     static constexpr char ActorName[] = "FQ_ROW_DISPATCHER_SESSION";
 
 private:
-    NYdb::NTopic::TTopicClientSettings GetTopicClientSettings(const NYql::NPq::NProto::TDqPqTopicSource& sourceParams) const;
-    NYql::ITopicClient& GetTopicClient(const NYql::NPq::NProto::TDqPqTopicSource& sourceParams);
-    NYdb::NTopic::TReadSessionSettings GetReadSessionSettings(const NYql::NPq::NProto::TDqPqTopicSource& sourceParams) const;
+    NYdb::NFederatedTopic::TFederatedTopicClientSettings GetTopicClientSettings(const NYql::NPq::NProto::TDqPqTopicSource& sourceParams) const;
+    ITopicClient& GetTopicClient(const NYql::NPq::NProto::TDqPqTopicSource& sourceParams);
+    NYdb::NFederatedTopic::TFederatedReadSessionSettings GetReadSessionSettings(const NYql::NPq::NProto::TDqPqTopicSource& sourceParams) const;
     void CreateTopicSession();
     void CloseTopicSession();
     void SubscribeOnNextEvent();
-    void SendToParsing(const std::vector<NYdb::NTopic::TReadSessionEvent::TDataReceivedEvent::TMessage>& messages);
+    void SendToParsing(const std::vector<NYdb::NFederatedTopic::TReadSessionEvent::TDataReceivedEvent::TMessage>& messages);
     void SendData(TClientsInfo& info);
     void FatalError(const TStatus& status);
     void ThrowFatalError(const TStatus& status);
@@ -410,17 +413,22 @@ void TTopicSession::SubscribeOnNextEvent() {
     });
 }
 
-NYdb::NTopic::TTopicClientSettings TTopicSession::GetTopicClientSettings(const NYql::NPq::NProto::TDqPqTopicSource& sourceParams) const {
-    return PqGateway->GetTopicClientSettings()
+NYdb::NFederatedTopic::TFederatedTopicClientSettings TTopicSession::GetTopicClientSettings(const NYql::NPq::NProto::TDqPqTopicSource& sourceParams) const {
+    NYdb::NFederatedTopic::TFederatedTopicClientSettings opts;
+    opts.DefaultCompressionExecutor(PqGateway->GetTopicClientSettings().DefaultCompressionExecutor_);
+    opts.DefaultHandlersExecutor(PqGateway->GetTopicClientSettings().DefaultHandlersExecutor_);
+
+    opts
         .Database(Database)
         .DiscoveryEndpoint(Endpoint)
         .SslCredentials(NYdb::TSslCredentials(sourceParams.GetUseSsl()))
         .CredentialsProviderFactory(CredentialsProviderFactory);
+    return opts;
 }
 
-NYql::ITopicClient& TTopicSession::GetTopicClient(const NYql::NPq::NProto::TDqPqTopicSource& sourceParams) {
+TTopicSession::ITopicClient& TTopicSession::GetTopicClient(const NYql::NPq::NProto::TDqPqTopicSource& sourceParams) {
     if (!TopicClient) {
-        TopicClient = PqGateway->GetTopicClient(Driver, GetTopicClientSettings(sourceParams));
+        TopicClient = std::make_shared<ITopicClient>(Driver, GetTopicClientSettings(sourceParams)); // FIXME
     }
     return *TopicClient;
 }
@@ -435,7 +443,7 @@ TInstant TTopicSession::GetMinStartingMessageTimestamp() const {
     return result;
 }
 
-NYdb::NTopic::TReadSessionSettings TTopicSession::GetReadSessionSettings(const NYql::NPq::NProto::TDqPqTopicSource& sourceParams) const {
+NYdb::NFederatedTopic::TFederatedReadSessionSettings TTopicSession::GetReadSessionSettings(const NYql::NPq::NProto::TDqPqTopicSource& sourceParams) const {
     NYdb::NTopic::TTopicReadSettings topicReadSettings;
     topicReadSettings.Path(TopicPath);
     topicReadSettings.AppendPartitionIds(PartitionId);
@@ -445,7 +453,8 @@ NYdb::NTopic::TReadSessionSettings TTopicSession::GetReadSessionSettings(const N
         << ", StartingMessageTimestamp " << minTime
         << ", BufferSize " << BufferSize << ", WithoutConsumer " << Config.GetWithoutConsumer());
 
-    auto settings = NYdb::NTopic::TReadSessionSettings()
+    auto settings = NYdb::NFederatedTopic::TFederatedReadSessionSettings();
+    settings
         .AppendTopics(topicReadSettings)
         .MaxMemoryUsageBytes(BufferSize)
         .ReadFromTimestamp(minTime);
@@ -453,6 +462,7 @@ NYdb::NTopic::TReadSessionSettings TTopicSession::GetReadSessionSettings(const N
         settings.WithoutConsumer();
     } else {
         settings.ConsumerName(sourceParams.GetConsumerName());
+        Cerr << "consumerName = " <<sourceParams.GetConsumerName() << Endl;
     }
     return settings;
 }
@@ -530,7 +540,7 @@ void TTopicSession::HandleNewEvents() {
             LOG_ROW_DISPATCHER_TRACE("Too much used memory (" << QueuedBytes << " bytes), stop reading from yds");
             break;
         }
-        std::optional<NYdb::NTopic::TReadSessionEvent::TEvent> event = ReadSession->GetEvent(false);
+        std::optional<NYdb::NFederatedTopic::TReadSessionEvent::TEvent> event = ReadSession->GetEvent(false);
         if (!event) {
             break;
         }
@@ -551,10 +561,10 @@ void TTopicSession::CloseTopicSession() {
     ReadSession.reset();
 }
 
-void TTopicSession::TTopicEventProcessor::operator()(NYdb::NTopic::TReadSessionEvent::TDataReceivedEvent& event) {
+void TTopicSession::TTopicEventProcessor::operator()(NYdb::NFederatedTopic::TReadSessionEvent::TDataReceivedEvent& event) {
     ui64 dataSize = 0;
     for (const auto& message : event.GetMessages()) {
-        LOG_ROW_DISPATCHER_TRACE("Data received: " << message.DebugString(true));
+        LOG_ROW_DISPATCHER_TRACE("Data received: " ); // << message.DebugString(true));
         dataSize += message.GetData().size();
         Self.LastMessageOffset = message.GetOffset();
     }
@@ -566,7 +576,7 @@ void TTopicSession::TTopicEventProcessor::operator()(NYdb::NTopic::TReadSessionE
     Self.SendToParsing(event.GetMessages());
 }
 
-void TTopicSession::TTopicEventProcessor::operator()(NYdb::NTopic::TSessionClosedEvent& ev) {
+void TTopicSession::TTopicEventProcessor::operator()(NYdb::NFederatedTopic::TSessionClosedEvent& ev) {
     const TString message = TStringBuilder() << "Read session to topic \"" << Self.TopicPathPartition << "\" was closed";
     LOG_ROW_DISPATCHER_DEBUG(message << ": " << ev.DebugString());
 
@@ -576,7 +586,7 @@ void TTopicSession::TTopicEventProcessor::operator()(NYdb::NTopic::TSessionClose
     ).AddParentIssue(message));
 }
 
-void TTopicSession::TTopicEventProcessor::operator()(NYdb::NTopic::TReadSessionEvent::TStartPartitionSessionEvent& event) {
+void TTopicSession::TTopicEventProcessor::operator()(NYdb::NFederatedTopic::TReadSessionEvent::TStartPartitionSessionEvent& event) {
     LOG_ROW_DISPATCHER_DEBUG("StartPartitionSessionEvent received");
 
     std::optional<ui64> minOffset;
@@ -589,16 +599,16 @@ void TTopicSession::TTopicEventProcessor::operator()(NYdb::NTopic::TReadSessionE
     event.Confirm(minOffset);
 }
 
-void TTopicSession::TTopicEventProcessor::operator()(NYdb::NTopic::TReadSessionEvent::TStopPartitionSessionEvent& event) {
+void TTopicSession::TTopicEventProcessor::operator()(NYdb::NFederatedTopic::TReadSessionEvent::TStopPartitionSessionEvent& event) {
     LOG_ROW_DISPATCHER_DEBUG("SessionId: " << Self.GetSessionId() << " StopPartitionSessionEvent received");
     event.Confirm();
 }
 
-void TTopicSession::TTopicEventProcessor::operator()(NYdb::NTopic::TReadSessionEvent::TEndPartitionSessionEvent& /*event*/) {
+void TTopicSession::TTopicEventProcessor::operator()(NYdb::NFederatedTopic::TReadSessionEvent::TEndPartitionSessionEvent& /*event*/) {
     LOG_ROW_DISPATCHER_WARN("TEndPartitionSessionEvent");
 }
 
-void TTopicSession::TTopicEventProcessor::operator()(NYdb::NTopic::TReadSessionEvent::TPartitionSessionClosedEvent& /*event*/) {
+void TTopicSession::TTopicEventProcessor::operator()(NYdb::NFederatedTopic::TReadSessionEvent::TPartitionSessionClosedEvent& /*event*/) {
     LOG_ROW_DISPATCHER_WARN("TPartitionSessionClosedEvent");
 }
 
@@ -606,7 +616,7 @@ TString TTopicSession::GetSessionId() const {
     return ReadSession ? TString{ReadSession->GetSessionId()} : TString{"empty"};
 }
 
-void TTopicSession::SendToParsing(const std::vector<NYdb::NTopic::TReadSessionEvent::TDataReceivedEvent::TMessage>& messages) {
+void TTopicSession::SendToParsing(const std::vector<NYdb::NFederatedTopic::TReadSessionEvent::TDataReceivedEvent::TMessage>& messages) {
     LOG_ROW_DISPATCHER_TRACE("SendToParsing, messages: " << messages.size());
     for (const auto& [_, formatHandler] : FormatHandlers) {
         if (formatHandler->HasClients()) {
@@ -817,7 +827,7 @@ void TTopicSession::StopReadSession() {
         ReadSession->Close(TDuration::Zero());
         ReadSession.reset();
     }
-    TopicClient.Reset();
+    TopicClient.reset();
 }
 
 void TTopicSession::SendDataArrived(TClientsInfo& info) {
