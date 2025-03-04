@@ -217,8 +217,7 @@ public:
     }
 
     using TMessageInformation = NYdb::NTopic::TReadSessionEvent::TDataReceivedEvent::TMessageInformation; 
-    using TMessage = NYdb::NFederatedTopic::TReadSessionEvent::TDataReceivedEvent::TMessage; 
-    using TTopicMessage = NYdb::NTopic::TReadSessionEvent::TDataReceivedEvent::TMessage; 
+    using TMessage = NYdb::NTopic::TReadSessionEvent::TDataReceivedEvent::TMessage; 
 
     TMessageInformation MakeNextMessageInformation(size_t offset, size_t uncompressedSize) { 
         auto now = TInstant::Now(); 
@@ -246,11 +245,11 @@ public:
             TVector<TMessage> msgs;
             size_t size = 0;
             for (const auto& s : sequence) {
-                TMessage msg(TTopicMessage(s, nullptr, MakeNextMessageInformation(offset++, s.size()), {}), CreatePartitionSession());
+                TMessage msg(s, nullptr, MakeNextMessageInformation(offset++, s.size()), CreatePartitionSession());
                 msgs.emplace_back(msg);
                 size += s.size();
             }
-            MockPqGateway->AddEvent(TopicPath, NYdb::NFederatedTopic::TReadSessionEvent::TDataReceivedEvent(msgs, CreatePartitionSession()), size);
+            MockPqGateway->AddEvent(TopicPath, NYdb::NTopic::TReadSessionEvent::TDataReceivedEvent(msgs, {}, CreatePartitionSession()), size);
         }
     }
 

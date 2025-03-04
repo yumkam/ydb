@@ -5,7 +5,6 @@
 
 #include <ydb/library/actors/core/actor.h>
 #include <ydb/library/actors/util/rope.h>
-#include <ydb-cpp-sdk/client/federated_topic/federated_topic.h>
 
 namespace NFq::NRowDispatcher {
 
@@ -46,7 +45,7 @@ public:
     };
 
 public:
-    virtual void ParseMessages(const std::vector<NYdb::NFederatedTopic::TReadSessionEvent::TDataReceivedEvent::TMessage>& messages) = 0;
+    virtual void ParseMessages(const std::vector<NYdb::NTopic::TReadSessionEvent::TDataReceivedEvent::TMessage>& messages) = 0;
 
     // vector of (messages batch, [offsets])
     virtual TQueue<std::pair<TRope, TVector<ui64>>> ExtractClientData(NActors::TActorId clientId) = 0;

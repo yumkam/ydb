@@ -10,7 +10,6 @@
 #include <yql/essentials/minikql/mkql_alloc.h>
 
 #include <ydb-cpp-sdk/client/topic/client.h>
-#include <ydb-cpp-sdk/client/federated_topic/federated_topic.h>
 #include <ydb/core/testlib/basics/runtime.h>
 
 #include <library/cpp/testing/unittest/registar.h>
@@ -34,7 +33,7 @@ public:
     virtual void AddEvent(const TString& topic, NYdb::NTopic::TReadSessionEvent::TEvent&& e, size_t size) = 0;
 };
 
-NYdb::NFederatedTopic::TFederatedPartitionSession::TPtr CreatePartitionSession();
+NYdb::NTopic::TPartitionSession::TPtr CreatePartitionSession();
 
 TIntrusivePtr<IMockPqGateway> CreateMockPqGateway(
     NActors::TTestActorRuntime& runtime,
