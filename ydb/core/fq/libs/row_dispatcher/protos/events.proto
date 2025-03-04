@@ -13,12 +13,14 @@ message TEvGetAddressRequest {
     NYql.NPq.NProto.TDqPqTopicSource Source = 1;
     repeated uint32 PartitionId = 2 [deprecated=true];
     repeated uint32 PartitionIds = 3;
+    // Actor handles all clusters for Federated
 }
 
 message TEvPartitionAddress {
     repeated uint32 PartitionId = 1 [deprecated=true];
     NActorsProto.TActorId ActorId = 2;
     repeated uint32 PartitionIds = 3;
+    // Actor handles all clusters for Federated
 }
 
 message TEvGetAddressResponse {
@@ -32,6 +34,7 @@ message TPartitionOffset {
 
 message TEvStartSession {
     NYql.NPq.NProto.TDqPqTopicSource Source = 1;
+    // string Cluster = XXX ;           // never introduced
     uint32 PartitionId = 2 [deprecated=true];
     string Token = 3;
     optional uint64 Offset = 4 [deprecated=true];
@@ -48,17 +51,20 @@ message TEvStartSessionAck {
 }
 
 message TEvGetNextBatch {
+    string Cluster = 2;
     uint32 PartitionId = 1;
     optional NYql.NDqProto.TMessageTransportMeta TransportMeta = 100;
 }
 
 message TEvNewDataArrived {
+    string Cluster = 2;
     uint32 PartitionId = 1;
     optional NYql.NDqProto.TMessageTransportMeta TransportMeta = 100;
 }
 
 message TEvStopSession {
     NYql.NPq.NProto.TDqPqTopicSource Source = 1;
+    // string Cluster = XXX ;           // never introduced
     uint32 PartitionId = 2 [deprecated=true];
     optional NYql.NDqProto.TMessageTransportMeta TransportMeta = 100;
 }
@@ -72,17 +78,20 @@ message TEvMessage {
 
 message TEvMessageBatch {
     repeated TEvMessage Messages = 1;
+    string Cluster = 4;
     uint32 PartitionId = 2;
     uint64 NextMessageOffset = 3;
     optional NYql.NDqProto.TMessageTransportMeta TransportMeta = 100;
 }
 
 message TPartitionStatistics {
+    string Cluster = 3;
     uint32 PartitionId = 1;
     uint64 NextMessageOffset = 2;
 }
 
 message TEvStatistics {
+    // string Cluster = XXX ;           // was never introduced
     uint32 PartitionId = 1;             // deprecated
     uint64 NextMessageOffset = 2;       // deprecated
     uint64 ReadBytes = 3;
@@ -98,6 +107,7 @@ message TEvStatistics {
 message TEvSessionError {
     reserved 1;
     uint32 PartitionId = 2 [deprecated=true];
+    // string Cluster = XXX ;           // was never introduced
     NYql.NDqProto.StatusIds.StatusCode StatusCode = 3;
     repeated Ydb.Issue.IssueMessage Issues = 4;
     optional NYql.NDqProto.TMessageTransportMeta TransportMeta = 100;
@@ -105,11 +115,13 @@ message TEvSessionError {
 
 message TEvHeartbeat {
     uint32 PartitionId = 1;
+    // Actor handles all clusters for Federated case
     optional NYql.NDqProto.TMessageTransportMeta TransportMeta = 100;
 }
 
 message TEvNoSession {
     uint32 PartitionId = 1;
+    // Actor handles all clusters for Federated case
 }
 
 message TEvGetInternalStateRequest {

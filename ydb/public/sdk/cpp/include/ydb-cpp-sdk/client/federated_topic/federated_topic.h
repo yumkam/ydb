@@ -515,6 +515,44 @@ struct TFederatedTopicClientSettings : public TCommonClientSettingsBase<TFederat
     FLUENT_SETTING_DEFAULT(NTopic::IRetryPolicy::TPtr, RetryPolicy, NTopic::IRetryPolicy::GetDefaultPolicy());
 };
 
+struct TFederatedDbState {
+public:
+    using TDbInfo = Ydb::FederationDiscovery::DatabaseInfo;
+
+    TStatus Status;
+    std::string ControlPlaneEndpoint;
+    std::string SelfLocation;
+    std::vector<std::shared_ptr<TDbInfo>> DbInfos;
+
+public:
+    TFederatedDbState() : Status(EStatus::STATUS_UNDEFINED, {}) {}
+    TFederatedDbState(Ydb::FederationDiscovery::ListFederationDatabasesResult result, TStatus status)
+        : Status(std::move(status))
+        , ControlPlaneEndpoint(result.control_plane_endpoint())
+        , SelfLocation(result.self_location())
+        {
+            // TODO ensure that all databases have unique names?
+            for (const auto& db : result.federation_databases()) {
+                DbInfos.push_back(std::make_shared<TDbInfo>(db));
+            }
+        }
+
+    std::shared_ptr<TDbInfo> TryGetDbInfo(const std::string& name) const noexcept {
+        // There are few databases per federation usually, so the linear search is probably ok.
+        // TODO better profile this
+        for (const auto& dbInfo : DbInfos) {
+            if (AsciiEqualsIgnoreCase(dbInfo->name(), name)) {
+                return dbInfo;
+            }
+        }
+        return nullptr;
+    }
+
+    friend IOutputStream& operator<<(IOutputStream& out, TFederatedDbState const& state);
+};
+
+
+
 class TFederatedTopicClient {
 public:
     class TImpl;

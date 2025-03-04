@@ -31,6 +31,14 @@ public:
         const NYdb::NTopic::TCommitOffsetSettings& settings = {}) = 0;
 };
 
+class IFederatedTopicClient : public TThrRefBase {
+public:
+    using TPtr = TIntrusivePtr<ITopicClient>;
+
+    virtual NYdb::NTopic::TAsyncDescribeTopicResult DescribeTopic(const TString& path, 
+        const NYdb::NTopic::TDescribeTopicSettings& settings = {}) = 0;
+};
+
 class TNativeTopicClient : public ITopicClient {
 public:
     TNativeTopicClient(const NYdb::TDriver& driver, const NYdb::NTopic::TTopicClientSettings& settings = {}):
