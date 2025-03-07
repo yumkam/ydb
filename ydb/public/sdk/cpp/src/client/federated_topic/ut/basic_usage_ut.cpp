@@ -513,6 +513,7 @@ Y_UNIT_TEST_SUITE(BasicUsage) {
             auto& messages = ev.GetMessages();
             for (size_t i = 0u; i < messages.size(); ++i) {
                 auto& message = messages[i];
+                Cerr << message.DebugString() << Endl;
                 UNIT_ASSERT_VALUES_EQUAL(message.GetData(), sentMessages[totalReceived]);
                 totalReceived++;
             }
