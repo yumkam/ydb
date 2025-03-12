@@ -915,8 +915,11 @@ bool TTopicSession::CheckNewClient(NFq::TEvRowDispatcher::TEvStartSession::TPtr&
 }
 
 TMaybe<ui64> TTopicSession::GetOffset(const NFq::NRowDispatcherProto::TEvStartSession& settings) {
-    // FIXME Cluster???
+    // FIXME replace with hashmap?
     for (auto p : settings.GetOffsets()) {
+        if (p.GetCluster() != Cluster) {
+            continue;
+        }
         if (p.GetPartitionId() != PartitionId) {
             continue;
         }

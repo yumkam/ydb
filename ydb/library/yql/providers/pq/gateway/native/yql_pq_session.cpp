@@ -2,6 +2,8 @@
 
 #include <yql/essentials/utils/yql_panic.h>
 
+#include <library/cpp/threading/future/wait/wait.h>
+
 namespace NYql {
 
 namespace {
@@ -85,14 +87,28 @@ NPq::NConfigurationManager::TAsyncDescribePathResult TPqSession::DescribePath(co
             return client->DescribePath(path);
         }
 
-        return GetYdbPqClient(cluster, database, *config, credentialsProviderFactory).DescribeTopic(path).Apply([cluster, path, database](const NYdb::NTopic::TAsyncDescribeTopicResult& describeTopicResultFuture) {
-            const NYdb::NTopic::TDescribeTopicResult& describeTopicResult = describeTopicResultFuture.GetValue();
-            if (!describeTopicResult.IsSuccess()) {
-                throw yexception() << "Failed to describe topic `" << cluster << "`.`" << path << "` in the database `" << database << "`: " << describeTopicResult.GetIssues().ToString();
-            }
-            NPq::NConfigurationManager::TTopicDescription desc(path);
-            desc.PartitionsCount = describeTopicResult.GetTopicDescription().GetTotalPartitionsCount();
-            return NPq::NConfigurationManager::TDescribePathResult::Make<NPq::NConfigurationManager::TTopicDescription>(std::move(desc));
+        auto future = GetYdbPqClient(cluster, database, *config, credentialsProviderFactory).DescribeTopic(path);
+        return future.Apply([cluster, path, database, future](const auto &) mutable {
+            auto f1 = future.ExtractValue();
+            auto f2 = NThreading::WaitAll(f1);
+            return f2.Apply([f1 = std::move(f1), cluster, path, database](const auto& ) mutable {
+                ui32 partitions = 0;
+                yexception ex;
+                for (auto& f4: f1) {
+                    auto describeTopicResult = f4.ExtractValue();
+                    if (!describeTopicResult.IsSuccess()) {
+                        ex << "Failed to describe topic `" << cluster << "`.`" << path << "` in the database `" << database << "`: " << describeTopicResult.GetIssues().ToString();
+                        continue;
+                    }
+                    partitions = std::max(partitions, describeTopicResult.GetTopicDescription().GetTotalPartitionsCount());
+                }
+                if (!partitions) {
+                    throw ex;
+                }
+                NPq::NConfigurationManager::TTopicDescription desc(path);
+                desc.PartitionsCount = partitions;
+                return NPq::NConfigurationManager::TDescribePathResult::Make<NPq::NConfigurationManager::TTopicDescription>(std::move(desc));
+            });
         });
     }
 }

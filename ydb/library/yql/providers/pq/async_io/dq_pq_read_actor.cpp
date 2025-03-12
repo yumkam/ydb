@@ -15,6 +15,7 @@
 #include <ydb/library/yql/providers/pq/async_io/dq_pq_rd_read_actor.h>
 #include <ydb/library/yql/providers/pq/async_io/dq_pq_read_actor_base.h>
 #include <ydb/library/yql/providers/pq/common/pq_meta_fields.h>
+#include <ydb/library/yql/providers/pq/common/pq_partition_key.h>
 #include <ydb/library/yql/providers/pq/proto/dq_io_state.pb.h>
 #include <yql/essentials/utils/log/log.h>
 #include <yql/essentials/utils/yql_panic.h>
@@ -124,7 +125,8 @@ class TDqPqReadActor : public NActors::TActor<TDqPqReadActor>, public NYql::NDq:
     };
 
 public:
-    using TPartitionKey = std::pair<TString, ui64>; // Cluster, partition id.
+    using TPartitionKey = ::NPq::TPartitionKey;
+    using TPartitionKeyHash = ::NPq::TPartitionKeyHash;
     using TDebugOffsets = TMaybe<std::pair<ui64, ui64>>;
 
     TDqPqReadActor(
@@ -352,6 +354,7 @@ private:
             res.emplace_back(currentPartition); // 0-based in topic API
             currentPartition += ReadParams.GetPartitioningParams().GetDqPartitionsCount();
         } while (currentPartition < ReadParams.GetPartitioningParams().GetTopicPartitionsCount());
+        // FIXME replace with *current* maximum partition count taken from federated client
 
         return res;
     }
@@ -391,8 +394,8 @@ private:
     }
 
     static TPartitionKey MakePartitionKey(const NYdb::NFederatedTopic::TFederatedPartitionSession::TPtr& partitionSession) {
-        auto cluster = partitionSession->GetDatabaseName(); // todo: switch to federatedfTopicApi to support lb federation
-        return std::make_pair(cluster, partitionSession->GetPartitionId());
+        auto cluster = partitionSession->GetDatabaseName();
+        return { TString(cluster), partitionSession->GetPartitionId() };
     }
 
     void SubscribeOnNextEvent() {
@@ -468,21 +471,16 @@ private:
     }
 
     struct TTopicEventProcessor {
-        static TString ToString(const TPartitionKey& key) {
-            return TStringBuilder{} << "[" << key.first << ", " << key.second << "]";
-        }
-
         void operator()(NYdb::NFederatedTopic::TReadSessionEvent::TDataReceivedEvent& event) {
             const auto partitionKey = MakePartitionKey(event.GetFederatedPartitionSession());
-            const auto partitionKeyStr = ToString(partitionKey);
             for (const auto& message : event.GetMessages()) {
                 const std::string& data = message.GetData();
                 Self.IngressStats.Bytes += data.size();
                 LWPROBE(PqReadDataReceived, TString(TStringBuilder() << Self.TxId), Self.SourceParams.GetTopicPath(), TString{data});
-                SRC_LOG_T("SessionId: " << Self.GetSessionId() << " Key: " << partitionKeyStr << " Data received: " /*<< message.DebugString(true) FIXME */);
+                SRC_LOG_T("SessionId: " << Self.GetSessionId() << " Key: " << partitionKey << " Data received: " /*<< message.DebugString(true) FIXME */);
 
                 if (message.GetWriteTime() < Self.StartingMessageTimestamp) {
-                    SRC_LOG_D("SessionId: " << Self.GetSessionId() << " Key: " << partitionKeyStr << " Skip data. StartingMessageTimestamp: " << Self.StartingMessageTimestamp << ". Write time: " << message.GetWriteTime());
+                    SRC_LOG_D("SessionId: " << Self.GetSessionId() << " Key: " << partitionKey << " Skip data. StartingMessageTimestamp: " << Self.StartingMessageTimestamp << ". Write time: " << message.GetWriteTime());
                     continue;
                 }
 
@@ -517,38 +515,33 @@ private:
 
         void operator()(NYdb::NFederatedTopic::TReadSessionEvent::TStartPartitionSessionEvent& event) {
             const auto partitionKey = MakePartitionKey(event.GetFederatedPartitionSession());
-            const auto partitionKeyStr = ToString(partitionKey);
-
-            SRC_LOG_D("SessionId: " << Self.GetSessionId() << " Key: " << partitionKeyStr << " StartPartitionSessionEvent received");
+            SRC_LOG_D("SessionId: " << Self.GetSessionId() << " Key: " << partitionKey << " StartPartitionSessionEvent received");
 
             std::optional<ui64> readOffset;
             const auto offsetIt = Self.PartitionToOffset.find(partitionKey);
             if (offsetIt != Self.PartitionToOffset.end()) {
                 readOffset = offsetIt->second;
             }
-            SRC_LOG_D("SessionId: " << Self.GetSessionId() << " Key: " << partitionKeyStr << " Confirm StartPartitionSession with offset " << readOffset);
+            SRC_LOG_D("SessionId: " << Self.GetSessionId() << " Key: " << partitionKey << " Confirm StartPartitionSession with offset " << readOffset);
             event.Confirm(readOffset);
         }
 
         void operator()(NYdb::NFederatedTopic::TReadSessionEvent::TStopPartitionSessionEvent& event) {
             const auto partitionKey = MakePartitionKey(event.GetFederatedPartitionSession());
-            const auto partitionKeyStr = ToString(partitionKey);
-            SRC_LOG_D("SessionId: " << Self.GetSessionId() << " Key: " << partitionKeyStr << " StopPartitionSessionEvent received");
+            SRC_LOG_D("SessionId: " << Self.GetSessionId() << " Key: " << partitionKey << " StopPartitionSessionEvent received");
             event.Confirm();
         }
 
         void operator()(NYdb::NFederatedTopic::TReadSessionEvent::TEndPartitionSessionEvent& event) {
             const auto partitionKey = MakePartitionKey(event.GetFederatedPartitionSession());
-            const auto partitionKeyStr = ToString(partitionKey);
-            SRC_LOG_D("SessionId: " << Self.GetSessionId() << " Key: " << partitionKeyStr << " EndPartitionSessionEvent received");
+            SRC_LOG_D("SessionId: " << Self.GetSessionId() << " Key: " << partitionKey << " EndPartitionSessionEvent received");
         }
 
         void operator()(NYdb::NFederatedTopic::TReadSessionEvent::TPartitionSessionStatusEvent&) { }
 
         void operator()(NYdb::NFederatedTopic::TReadSessionEvent::TPartitionSessionClosedEvent& event) {
             const auto partitionKey = MakePartitionKey(event.GetFederatedPartitionSession());
-            const auto partitionKeyStr = ToString(partitionKey);
-            SRC_LOG_D("SessionId: " << Self.GetSessionId() << " Key: " << partitionKeyStr << " PartitionSessionClosedEvent received");
+            SRC_LOG_D("SessionId: " << Self.GetSessionId() << " Key: " << partitionKey << " PartitionSessionClosedEvent received");
         }
 
         TReadyBatch& GetActiveBatch(const TPartitionKey& partitionKey, TInstant time) {
@@ -621,7 +614,7 @@ private:
     bool SubscribedOnEvent = false;
     std::vector<std::tuple<TString, TPqMetaExtractor::TPqMetaExtractorLambda>> MetadataFields;
     std::queue<TReadyBatch> ReadyBuffer;
-    TMaybe<TDqSourceWatermarkTracker<TPartitionKey>> WatermarkTracker;
+    TMaybe<TDqSourceWatermarkTracker<TPartitionKey, TPartitionKeyHash>> WatermarkTracker;
     TMaybe<TInstant> NextIdlenesCheckAt;
     IPqGateway::TPtr PqGateway;
     TMaybe<TInstant> WaitEventStartedAt;

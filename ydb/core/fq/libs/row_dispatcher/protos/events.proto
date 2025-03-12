@@ -28,6 +28,7 @@ message TEvGetAddressResponse {
 }
 
 message TPartitionOffset {
+    string Cluster = 3;
     uint32 PartitionId = 1;
     uint64 Offset = 2;
 }

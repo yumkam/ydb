@@ -43,7 +43,9 @@ public:
     void UpdateClusterConfigs(const TPqGatewayConfigPtr& config) override;
 
     ITopicClient::TPtr GetTopicClient(const NYdb::TDriver& driver, const NYdb::NTopic::TTopicClientSettings& settings) override;
+    IFederatedTopicClient::TPtr GetFederatedTopicClient(const NYdb::TDriver& driver, const NYdb::NFederatedTopic::TFederatedTopicClientSettings& settings) override;
     NYdb::NTopic::TTopicClientSettings GetTopicClientSettings() const override;
+    NYdb::NFederatedTopic::TFederatedTopicClientSettings GetFederatedTopicClientSettings() const override;
 
 private:
     TPqSession::TPtr GetExistingSession(const TString& sessionId) const;
@@ -54,7 +56,7 @@ private:
     TPqGatewayConfigPtr Config;
     IMetricsRegistryPtr Metrics;
     ISecuredServiceAccountCredentialsFactory::TPtr CredentialsFactory;
-    ::NPq::NConfigurationManager::IConnections::TPtr CmConnections;
+    NPq::NConfigurationManager::IConnections::TPtr CmConnections;
     NYdb::TDriver YdbDriver;
     TPqClusterConfigsMapPtr ClusterConfigs;
     THashMap<TString, TPqSession::TPtr> Sessions;
@@ -150,6 +152,23 @@ ITopicClient::TPtr TPqNativeGateway::GetTopicClient(const NYdb::TDriver& driver,
 
 NYdb::NTopic::TTopicClientSettings TPqNativeGateway::GetTopicClientSettings() const {
     return CommonTopicClientSettings ? *CommonTopicClientSettings : NYdb::NTopic::TTopicClientSettings();
+}
+
+IFederatedTopicClient::TPtr TPqNativeGateway::GetFederatedTopicClient(const NYdb::TDriver& driver, const NYdb::NFederatedTopic::TFederatedTopicClientSettings& settings = NYdb::NFederatedTopic::TFederatedTopicClientSettings()) {
+    return MakeIntrusive<TNativeFederatedTopicClient>(driver, settings);
+}
+
+NYdb::NFederatedTopic::TFederatedTopicClientSettings TPqNativeGateway::GetFederatedTopicClientSettings() const {
+    NYdb::NFederatedTopic::TFederatedTopicClientSettings settings;
+    if (CommonTopicClientSettings) {
+        settings.DefaultCompressionExecutor(CommonTopicClientSettings->DefaultCompressionExecutor_);
+        settings.DefaultHandlersExecutor(CommonTopicClientSettings->DefaultHandlersExecutor_);
+        if (CommonTopicClientSettings->CredentialsProviderFactory_) {
+            settings.CredentialsProviderFactory(*CommonTopicClientSettings->CredentialsProviderFactory_);
+        }
+        // TODO: complete
+    }
+    return settings;
 }
 
 TPqNativeGateway::~TPqNativeGateway() {

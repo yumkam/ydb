@@ -1,5 +1,6 @@
 #pragma once
 #include <ydb-cpp-sdk/client/topic/client.h>
+#include <ydb-cpp-sdk/client/federated_topic/federated_topic.h>
 
 namespace NYql {
 class ITopicClient : public TThrRefBase {
@@ -33,9 +34,9 @@ public:
 
 class IFederatedTopicClient : public TThrRefBase {
 public:
-    using TPtr = TIntrusivePtr<ITopicClient>;
+    using TPtr = TIntrusivePtr<IFederatedTopicClient>;
 
-    virtual NYdb::NTopic::TAsyncDescribeTopicResult DescribeTopic(const TString& path, 
+    virtual NThreading::TFuture<std::vector<NYdb::NTopic::TAsyncDescribeTopicResult>> DescribeTopic(const TString& path, 
         const NYdb::NTopic::TDescribeTopicSettings& settings = {}) = 0;
 };
 
@@ -93,5 +94,21 @@ public:
 private:
     NYdb::TDriver Driver_;
     NYdb::NTopic::TTopicClient Client_;
+};
+
+class TNativeFederatedTopicClient : public IFederatedTopicClient {
+public:
+    TNativeFederatedTopicClient(const NYdb::TDriver& driver, const NYdb::NTopic::TFederatedTopicClientSettings& settings = {}):
+        Driver_(driver), FederatedClient_(Driver_, settings) {}
+
+    NThreading::TFuture<std::vector<NYdb::NTopic::TAsyncDescribeTopicResult>> DescribeTopic(const TString& path, 
+        const NYdb::NTopic::TDescribeTopicSettings& settings = {}) override {
+        return FederatedClient_.DescribeTopic(path, settings);
+    }
+
+    ~TNativeFederatedTopicClient() {}
+private:
+    NYdb::TDriver Driver_;
+    NYdb::NFederatedTopic::TFederatedTopicClient FederatedClient_;
 };
 }

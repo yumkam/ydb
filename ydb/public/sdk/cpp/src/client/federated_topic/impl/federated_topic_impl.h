@@ -65,7 +65,7 @@ public:
     std::shared_ptr<NTopic::ISimpleBlockingWriteSession> CreateSimpleBlockingWriteSession(const TFederatedWriteSessionSettings& settings);
     std::shared_ptr<NTopic::IWriteSession> CreateWriteSession(const TFederatedWriteSessionSettings& settings);
 
-    TAsyncDescribeTopicResult DescribeTopic(const std::string& path, const TDescribeTopicSettings& settings);
+    NThreading::TFuture<std::vector<TAsyncDescribeTopicResult>> DescribeTopic(const std::string& path, const TDescribeTopicSettings& settings);
 
     std::shared_ptr<TFederatedDbObserver> GetObserver() {
         std::lock_guard guard(Lock);

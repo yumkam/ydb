@@ -86,7 +86,7 @@ void TFederatedTopicClient::OverrideCodec(NTopic::ECodec codecId, std::unique_pt
     return Impl_->OverrideCodec(codecId, std::move(codecImpl));
 }
 
-TAsyncDescribeTopicResult TFederatedTopicClient::DescribeTopic(const std::string& path, const TDescribeTopicSettings& settings) {
+NThreading::TFuture<std::vector<TAsyncDescribeTopicResult>> TFederatedTopicClient::DescribeTopic(const std::string& path, const TDescribeTopicSettings& settings) {
     return Impl_->DescribeTopic(path, settings);
 }
 

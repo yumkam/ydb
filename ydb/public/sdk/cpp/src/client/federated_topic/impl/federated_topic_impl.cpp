@@ -74,12 +74,13 @@ IOutputStream& operator<<(IOutputStream& out, NTopic::TDescribeTopicSettings con
     return out;
 }
 
-TAsyncDescribeTopicResult TFederatedTopicClient::TImpl::DescribeTopic(const std::string& path, const TDescribeTopicSettings& describeSettings) {
+NThreading::TFuture<std::vector<TAsyncDescribeTopicResult>> TFederatedTopicClient::TImpl::DescribeTopic(const std::string& path, const TDescribeTopicSettings& describeSettings) {
     InitObserver();
     return Observer->WaitForFirstState().Apply([path, describeSettings, self = this] (const auto &) {
             NTopic::TTopicClientSettings settings = FromFederated(self->ClientSettings);
 
             auto state = self->Observer->GetState();
+            std::vector<TAsyncDescribeTopicResult> result;
             for (const auto& db: state->DbInfos) {
                 if (db->status() != TDbInfo::Status::DatabaseInfo_Status_AVAILABLE &&
                     db->status() != TDbInfo::Status::DatabaseInfo_Status_READ_ONLY) {
@@ -88,11 +89,15 @@ TAsyncDescribeTopicResult TFederatedTopicClient::TImpl::DescribeTopic(const std:
                 settings
                     .Database(db->path())
                     .DiscoveryEndpoint(db->endpoint());
+
                 Cerr << "Describe " << settings << " / " << describeSettings << " / " << path << Endl;
                 auto subclient = make_shared<NTopic::TTopicClient::TImpl>(self->Connections, settings);
-                return subclient->DescribeTopic(!path.empty() && path[0] == '/' ? path : db->path() + "/" + path, describeSettings);
+                result.emplace_back(subclient->DescribeTopic(
+                            path.empty() ? db->path() :
+                            path[0] == '/' ? path : db->path() + "/" + path,
+                            describeSettings));
             }
-            throw yexception();
+            return std::move(result);
         });
 }
 

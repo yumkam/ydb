@@ -11,6 +11,7 @@ namespace NFq::NRowDispatcher {
 struct IActorFactory : public TThrRefBase {
     using TPtr = TIntrusivePtr<IActorFactory>;
 
+    [[deprecated]] // TO-BE-REMOVED
     NActors::TActorId RegisterTopicSession(
         const TString& readGroup,
         const TString& topicPath,

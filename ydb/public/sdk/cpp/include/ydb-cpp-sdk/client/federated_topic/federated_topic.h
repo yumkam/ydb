@@ -8,6 +8,8 @@
 
 #include <unordered_set>
 
+#include <util/string/ascii.h>
+
 namespace NYdb::inline V3::NFederatedTopic {
 
 using NTopic::TPrintable;
@@ -569,7 +571,7 @@ public:
     // std::shared_ptr<NTopic::ISimpleBlockingWriteSession> CreateSimpleBlockingWriteSession(const TFederatedWriteSessionSettings& settings);
     std::shared_ptr<NTopic::IWriteSession> CreateWriteSession(const TFederatedWriteSessionSettings& settings);
 
-    TAsyncDescribeTopicResult DescribeTopic(const std::string& path, const TDescribeTopicSettings& settings = {});
+    NThreading::TFuture<std::vector<TAsyncDescribeTopicResult>> DescribeTopic(const std::string& path, const TDescribeTopicSettings& settings = {});
 
 protected:
     void OverrideCodec(NTopic::ECodec codecId, std::unique_ptr<NTopic::ICodec>&& codecImpl);

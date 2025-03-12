@@ -68,6 +68,13 @@ ITopicClient::TPtr TDummyPqGateway::GetTopicClient(const NYdb::TDriver&, const N
     return MakeIntrusive<TFileTopicClient>(Topics);
 }
 
+IFederatedTopicClient::TPtr TDummyPqGateway::GetFederatedTopicClient(const NYdb::TDriver&, const NYdb::NFederatedTopic::TFederatedTopicClientSettings&) {
+    return {}; // MakeIntrusive<TFileTopicClient>(Topics); TODO
+}
+NYdb::NFederatedTopic::TFederatedTopicClientSettings TDummyPqGateway::GetFederatedTopicClientSettings() const {
+    return {};
+}
+
 void TDummyPqGateway::UpdateClusterConfigs(
     const TString& clusterName,
     const TString& endpoint,
