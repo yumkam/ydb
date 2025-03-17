@@ -178,6 +178,13 @@ TMaybe<TString> CreateSecretObjectQuery(const FederatedQuery::ConnectionSetting&
         result << MakeCreateSecretAccessObjectsSql(passwordSecretName, externalSourcesAccessSIDs);
     }
 
+    auto token = GetAuthSecret(GetAuth(setting));
+    if (token) {
+        const TString tokenSecretName = MakeSecretKeyName("f3", folderId, name);
+        result << MakeCreateSecretObjectSql(tokenSecretName, *token);
+        result << MakeCreateSecretAccessObjectsSql(tokenSecretName, externalSourcesAccessSIDs);
+    }
+
     return result ? result : TMaybe<TString>{};
 }
 

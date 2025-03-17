@@ -71,7 +71,11 @@ TMaybe<TString> GetLogin(const FederatedQuery::ConnectionSetting& setting);
 
 TMaybe<TString> GetPassword(const FederatedQuery::ConnectionSetting& setting);
 
+TMaybe<TString> GetAuthSecret(const FederatedQuery::IamAuth& auth);
+
 EYdbComputeAuth GetYdbComputeAuthMethod(const FederatedQuery::ConnectionSetting& setting);
+
+FederatedQuery::IamAuth GetAuth(const FederatedQuery::ConnectionSetting& setting);
 
 FederatedQuery::IamAuth GetAuth(const FederatedQuery::Connection& connection);
 

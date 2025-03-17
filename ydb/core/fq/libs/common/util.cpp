@@ -183,6 +183,13 @@ TMaybe<TString> GetLogin(const FederatedQuery::ConnectionSetting& setting) {
     }
 }
 
+TMaybe<TString> GetAuthSecret(const FederatedQuery::IamAuth& auth) {
+    if (auth.has_token()) {
+        return auth.token().token();
+    }
+    return {};
+}
+
 TMaybe<TString> GetPassword(const FederatedQuery::ConnectionSetting& setting) {
     switch (setting.connection_case()) {
         case FederatedQuery::ConnectionSetting::CONNECTION_NOT_SET:
@@ -233,29 +240,33 @@ EYdbComputeAuth GetYdbComputeAuthMethod(const FederatedQuery::ConnectionSetting&
     }
 }
 
-FederatedQuery::IamAuth GetAuth(const FederatedQuery::Connection& connection) {
-    switch (connection.content().setting().connection_case()) {
+FederatedQuery::IamAuth GetAuth(const FederatedQuery::ConnectionSetting& setting) {
+    switch (setting.connection_case()) {
     case FederatedQuery::ConnectionSetting::kObjectStorage:
-        return connection.content().setting().object_storage().auth();
+        return setting.object_storage().auth();
     case FederatedQuery::ConnectionSetting::kYdbDatabase:
-        return connection.content().setting().ydb_database().auth();
+        return setting.ydb_database().auth();
     case FederatedQuery::ConnectionSetting::kClickhouseCluster:
-        return connection.content().setting().clickhouse_cluster().auth();
+        return setting.clickhouse_cluster().auth();
     case FederatedQuery::ConnectionSetting::kDataStreams:
-        return connection.content().setting().data_streams().auth();
+        return setting.data_streams().auth();
     case FederatedQuery::ConnectionSetting::kMonitoring:
-        return connection.content().setting().monitoring().auth();
+        return setting.monitoring().auth();
     case FederatedQuery::ConnectionSetting::kPostgresqlCluster:
-        return connection.content().setting().postgresql_cluster().auth();
+        return setting.postgresql_cluster().auth();
     case FederatedQuery::ConnectionSetting::kGreenplumCluster:
-        return connection.content().setting().greenplum_cluster().auth();
+        return setting.greenplum_cluster().auth();
     case FederatedQuery::ConnectionSetting::kMysqlCluster:
-        return connection.content().setting().mysql_cluster().auth();
+        return setting.mysql_cluster().auth();
     case FederatedQuery::ConnectionSetting::kLogging:
-        return connection.content().setting().logging().auth();
+        return setting.logging().auth();
     case FederatedQuery::ConnectionSetting::CONNECTION_NOT_SET:
         return FederatedQuery::IamAuth{};
     }
+}
+
+FederatedQuery::IamAuth GetAuth(const FederatedQuery::Connection& connection) {
+    return GetAuth(connection.content().setting());
 }
 
 TString RemoveDatabaseFromStr(TString str, const TString& databasePath) {
