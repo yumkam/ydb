@@ -219,6 +219,14 @@ TString CreateAuthParamsQuery(const FederatedQuery::ConnectionSetting& setting,
                 "auth_method"_a = ToString(authMethod),
                 "login"_a = EncloseAndEscapeString(GetLogin(setting).GetOrElse({}), '"'),
                 "password_secret_name"_a = EncloseAndEscapeString(MakeSecretKeyName("f2", folderId, name), '"'));
+        case EYdbComputeAuth::TOKEN:
+            return fmt::format(
+                    R"(,
+                        AUTH_METHOD="{auth_method}",
+                        TOKEN_SECRET_NAME={password_secret_name}
+                    )",
+                "auth_method"_a = ToString(authMethod),
+                "token_secret_name"_a = EncloseAndEscapeString(MakeSecretKeyName("f3", folderId, name), '"'));
         case EYdbComputeAuth::MDB_BASIC:
             return fmt::format(
                 R"(,

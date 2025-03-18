@@ -20,7 +20,8 @@ enum class EYdbComputeAuth {
     NONE,
     SERVICE_ACCOUNT,
     BASIC,
-    MDB_BASIC
+    MDB_BASIC,
+    TOKEN,
 };
 
 template<std::size_t K, typename T, std::size_t N>
@@ -78,6 +79,8 @@ EYdbComputeAuth GetYdbComputeAuthMethod(const FederatedQuery::ConnectionSetting&
 FederatedQuery::IamAuth GetAuth(const FederatedQuery::ConnectionSetting& setting);
 
 FederatedQuery::IamAuth GetAuth(const FederatedQuery::Connection& connection);
+
+FederatedQuery::IamAuth* GetMutableAuth(FederatedQuery::ConnectionSetting* setting);
 
 TString RemoveDatabaseFromStr(TString str, const TString& substr);
 

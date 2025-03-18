@@ -23,8 +23,9 @@ EYdbComputeAuth GetIamAuthMethod(const FederatedQuery::IamAuth& auth) {
             return EYdbComputeAuth::NONE;
         case FederatedQuery::IamAuth::kServiceAccount:
             return EYdbComputeAuth::SERVICE_ACCOUNT;
-        case FederatedQuery::IamAuth::kCurrentIam:
         case FederatedQuery::IamAuth::kToken:
+            return EYdbComputeAuth::TOKEN;
+        case FederatedQuery::IamAuth::kCurrentIam:
         // Do not replace with default. Adding a new auth item should cause a compilation error
         case FederatedQuery::IamAuth::IDENTITY_NOT_SET:
             return EYdbComputeAuth::UNKNOWN;
