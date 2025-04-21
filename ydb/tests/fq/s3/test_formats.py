@@ -548,3 +548,43 @@ Pear,15,33'''
         describe_result = client.describe_query(query_id).result
         describe_string = "{}".format(describe_result)
         assert r"Only one column in schema supported in raw format" in describe_string
+
+    @yq_v2
+    @pytest.mark.parametrize("client", [{"folder_id": "my_folder"}], indirect=True)
+    def test_with_infer_and_unsupported_option(self, kikimr, s3, client, unique_prefix):
+        resource = boto3.resource(
+            "s3", endpoint_url=s3.s3_url, aws_access_key_id="key", aws_secret_access_key="secret_key"
+        )
+
+        bucket = resource.Bucket("fbucket")
+        bucket.create(ACL='public-read')
+
+        s3_client = boto3.client(
+            "s3", endpoint_url=s3.s3_url, aws_access_key_id="key", aws_secret_access_key="secret_key"
+        )
+
+        fruits = '''Fruit,Price,Weight
+Banana,3,100,2008-01-01T18-18
+Apple,2,22,2004-02-11T33-10
+Pear,15,33,2002-03-22T22-24'''
+        s3_client.put_object(Body=fruits, Bucket='fbucket', Key='fruits.csv', ContentType='text/plain')
+        kikimr.control_plane.wait_bootstrap(1)
+
+        storage_connection_name = unique_prefix + "fruitbucket"
+        client.create_storage_connection(storage_connection_name, "fbucket")
+
+        sql = f'''
+            SELECT *
+            FROM `{storage_connection_name}`.`fruits.csv`
+            WITH (format="csv_with_names", with_infer="true", `data.datetime.fromat`="%Y-%m-%dT%H-%M");
+            '''
+
+        query_id = client.create_query("simple", sql, type=fq.QueryContent.QueryType.ANALYTICS).result.query_id
+        client.wait_query_status(query_id, fq.QueryMeta.FAILED)
+        describe_result = client.describe_query(query_id).result
+        logging.debug("Describe result: {}".format(describe_result))
+        describe_string = "{}".format(describe_result)
+        assert (
+            "couldn\\'t load table metadata: parameter is not supported with type inference: data.datetime.fromat"
+            in describe_string
+        )
