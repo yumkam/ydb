@@ -1490,6 +1490,13 @@ private:
         return false;
     }
 
+    TString GetTraceId() {
+        if (Params.Automatic) {
+            return Params.QueryType == FederatedQuery::QueryContent::STREAMING ? "streaming" : "analytics";
+        }
+        return Params.QueryId;
+    }
+
     TEvaluationGraphInfo RunEvalDqGraph(NFq::NProto::TGraphParams& dqGraphParams) {
 
         LOG_D("RunEvalDqGraph");
@@ -1504,7 +1511,7 @@ private:
         TEvaluationGraphInfo info;
 
         info.Index = DqEvalIndex++;
-        info.ExecuterId = Register(NYql::NDq::MakeDqExecuter(MakeNodesManagerId(), SelfId(), Params.QueryId, "", dqConfiguration, QueryCounters.Counters, TInstant::Now(), false));
+        info.ExecuterId = Register(NYql::NDq::MakeDqExecuter(MakeNodesManagerId(), SelfId(), GetTraceId(), "", dqConfiguration, QueryCounters.Counters, TInstant::Now(), false));
 
         if (dqGraphParams.GetResultType()) {
             TVector<TString> columns;
@@ -1552,7 +1559,7 @@ private:
             Params.Config.GetCheckpointCoordinator().GetEnabled() &&
             !dqConfiguration->DisableCheckpoints.Get().GetOrElse(false);
 
-        ExecuterId = Register(NYql::NDq::MakeDqExecuter(MakeNodesManagerId(), SelfId(), Params.QueryId, "", dqConfiguration, QueryCounters.Counters, TInstant::Now(), enableCheckpointCoordinator));
+        ExecuterId = Register(NYql::NDq::MakeDqExecuter(MakeNodesManagerId(), SelfId(), GetTraceId(), "", dqConfiguration, QueryCounters.Counters, TInstant::Now(), enableCheckpointCoordinator));
 
         NActors::TActorId resultId;
         if (dqGraphParams.GetResultType()) {
