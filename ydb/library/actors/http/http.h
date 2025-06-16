@@ -154,6 +154,11 @@ public:
     TString AsString() const {
         return TString(Data(), Size());
     }
+
+    size_t Advance(size_t size) {
+        TBuffer::Advance(size);
+        return size;
+    }
 };
 
 class THttpRequest {
@@ -342,11 +347,33 @@ public:
         return result;
     }
 
-    void Advance(size_t len);
+    [[nodiscard]] size_t AdvancePartial(size_t len);
+
+    void Advance(size_t len) {
+        while (len > 0) {
+            len -= AdvancePartial(len);
+        }
+    }
+
+    void TruncateToHeaders() {
+        if (HasHeaders()) {
+            auto begin = Data();
+            auto end = Data() + Size();
+            auto desiredEnd = HeaderType::Headers.data() + HeaderType::Headers.size();
+            if (begin < desiredEnd && desiredEnd < end) {
+                Resize(desiredEnd - begin);
+            }
+        }
+    }
+
     void ConnectionClosed();
 
+    size_t GetHeadersSize() const { // including request line
+        return HeaderType::Headers.end() - TSocketBuffer::Data();
+    }
+
     size_t GetBodySizeFromTotalSize() const {
-        return TotalSize.value() - (HeaderType::Headers.end() - TSocketBuffer::Data());
+        return TotalSize.value() - GetHeadersSize();
     }
 
     void Clear() {
@@ -363,6 +390,14 @@ public:
 
     bool IsError() const {
         return Stage == EParseStage::Error;
+    }
+
+    bool IsStartOfChunk() const {
+        return Stage == EParseStage::ChunkLength;
+    }
+
+    bool HasNewDataChunk() const {
+        return IsStartOfChunk() && !Content.empty();
     }
 
     TStringBuf GetErrorText() const {
@@ -427,6 +462,10 @@ public:
 
     bool HaveBody() const { return HasBody(); } // deprecated, use HasBody() instead
 
+    bool IsChunkedEncoding() const {
+        return TEqNoCase()(HeaderType::TransferEncoding, "chunked");
+    }
+
     bool EnsureEnoughSpaceAvailable(size_t need = TSocketBuffer::BUFFER_MIN_STEP) {
         bool result = TSocketBuffer::EnsureEnoughSpaceAvailable(need);
         if (!result && !TSocketBuffer::Empty()) {
@@ -458,8 +497,12 @@ public:
         Advance(data.size());
     }
 
+    TString AsReadableString() const {
+        return TString(Data(), GetHeadersSize()) + HeaderType::Body;
+    }
+
     TString GetObfuscatedData() const {
-        return NHttp::GetObfuscatedData(AsString(), HeaderType::Headers);
+        return NHttp::GetObfuscatedData(AsReadableString(), HeaderType::Headers);
     }
 };
 
@@ -574,6 +617,10 @@ public:
         Stage = ERenderStage::Body;
     }
 
+    size_t GetHeadersSize() const { // including request line
+        return HeaderType::Headers.end() - TSocketBuffer::Data();
+    }
+
     void SetBody(TStringBuf body) {
         Y_DEBUG_ABORT_UNLESS(Stage == ERenderStage::Header);
         if (HeaderType::ContentLength.empty()) {
@@ -670,8 +717,12 @@ public:
         Y_ABORT_UNLESS(size == TSocketBuffer::Size());
     }
 
+    TString AsReadableString() const {
+        return TString(Data(), GetHeadersSize()) + HeaderType::Body;
+    }
+
     TString GetObfuscatedData() const {
-        return NHttp::GetObfuscatedData(AsString(), HeaderType::Headers);
+        return NHttp::GetObfuscatedData(AsReadableString(), HeaderType::Headers);
     }
 };
 
@@ -714,12 +765,9 @@ protected:
 class THttpDataChunk : public TSocketBuffer {
 public:
     bool EndOfData = false;
+    size_t DataSize = 0;
 
     THttpDataChunk() = default;
-
-    THttpDataChunk(TStringBuf data) {
-        SetData(data);
-    }
 
     bool EnsureEnoughSpaceAvailable(size_t need = TSocketBuffer::BUFFER_MIN_STEP) {
         return TSocketBuffer::EnsureEnoughSpaceAvailable(need);
@@ -730,9 +778,16 @@ public:
         TSocketBuffer::Append(text.data(), text.size());
     }
 
+    bool IsEndOfData() const {
+        return EndOfData;
+    }
+
     void SetData(TStringBuf data) {
-        EnsureEnoughSpaceAvailable(data.size() + 4/*crlfcrlf*/ + 16);
-        Append(ToHex(data.size()) + "\r\n");
+        TSocketBuffer::Clear();
+        EndOfData = false;
+        DataSize = data.size();
+        EnsureEnoughSpaceAvailable(DataSize + 4/*crlfcrlf*/ + 16);
+        Append(ToHex(DataSize) + "\r\n");
         Append(TStringBuf(data));
         Append("\r\n");
     }
@@ -742,10 +797,6 @@ public:
             Append("0\r\n\r\n");
             EndOfData = true;
         }
-    }
-
-    bool IsEndOfData() const {
-        return EndOfData;
     }
 };
 
@@ -902,7 +953,7 @@ public:
     }
 
     bool IsNeedBody() const {
-        return GetRequest()->Method != "HEAD" && Status != "204";
+        return GetRequest()->Method != "HEAD" && Status != "204" && Status != "202";
     }
 
     bool EnableCompression() {

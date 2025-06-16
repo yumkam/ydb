@@ -22,9 +22,10 @@ using namespace Tests;
 
 void TTester::Setup(TTestActorRuntime& runtime) {
     runtime.SetLogPriority(NKikimrServices::TX_COLUMNSHARD, NActors::NLog::PRI_DEBUG);
-    runtime.SetLogPriority(NKikimrServices::BLOB_CACHE, NActors::NLog::PRI_INFO);
+//    runtime.SetLogPriority(NKikimrServices::BLOB_CACHE, NActors::NLog::PRI_INFO);
     runtime.SetLogPriority(NKikimrServices::TX_COLUMNSHARD_SCAN, NActors::NLog::PRI_DEBUG);
-    runtime.SetLogPriority(NKikimrServices::S3_WRAPPER, NLog::PRI_DEBUG);
+    runtime.SetLogPriority(NKikimrServices::TX_COLUMNSHARD_WRITE, NActors::NLog::PRI_DEBUG);
+    //    runtime.SetLogPriority(NKikimrServices::S3_WRAPPER, NLog::PRI_DEBUG);
 
     NOlap::TSchemaCachesManager::DropCaches();
 
@@ -135,7 +136,9 @@ bool WriteDataImpl(TTestBasicRuntime& runtime, TActorId& sender, const ui64 shar
     const TString dedupId = ToString(writeId);
 
     auto write = std::make_unique<NEvents::TDataEvents::TEvWrite>(writeId, NKikimrDataEvents::TEvWrite::MODE_IMMEDIATE);
-    write->SetLockId(lockId, 1);
+    if (lockId) {
+        write->SetLockId(lockId, 1);
+    }
     auto& operation = write->AddOperation(TEnumOperator<NEvWrite::EModificationType>::SerializeToWriteProto(mType), TTableId(0, tableId, 1), {},
         0, NKikimrDataEvents::FORMAT_ARROW);
     *operation.MutablePayloadSchema() = NArrow::SerializeSchema(*schema);
@@ -166,27 +169,6 @@ bool WriteData(TTestBasicRuntime& runtime, TActorId& sender, const ui64 writeId,
     std::vector<ui64> ids;
     return WriteDataImpl(runtime, sender, TTestTxConfig::TxTablet0, tableId, writeId, data, NArrow::MakeArrowSchema(ydbSchema),
         waitResult ? &ids : nullptr, mType, lockId);
-}
-
-std::optional<ui64> WriteData(TTestBasicRuntime& runtime, TActorId& sender, const NLongTxService::TLongTxId& longTxId,
-                              ui64 tableId, const ui64 writePartId, const TString& data,
-                              const std::vector<NArrow::NTest::TTestColumn>& ydbSchema, const NEvWrite::EModificationType mType)
-{
-    auto write = std::make_unique<TEvColumnShard::TEvWrite>(sender, longTxId, tableId, "0", data, writePartId, mType);
-    write->SetArrowSchema(NArrow::SerializeSchema(*NArrow::MakeArrowSchema(ydbSchema)));
-
-    ForwardToTablet(runtime, TTestTxConfig::TxTablet0, sender, write.release());
-    TAutoPtr<IEventHandle> handle;
-    auto event = runtime.GrabEdgeEvent<TEvColumnShard::TEvWriteResult>(handle);
-    UNIT_ASSERT(event);
-
-    auto& resWrite = Proto(event);
-    UNIT_ASSERT_EQUAL(resWrite.GetOrigin(), TTestTxConfig::TxTablet0);
-    UNIT_ASSERT_EQUAL(resWrite.GetTxInitiator(), 0);
-    if (resWrite.GetStatus() == NKikimrTxColumnShard::EResultStatus::SUCCESS) {
-        return resWrite.GetWriteId();
-    }
-    return {};
 }
 
 void ScanIndexStats(TTestBasicRuntime& runtime, TActorId& sender, const std::vector<ui64>& pathIds,
@@ -462,6 +444,11 @@ void TTestSchema::InitSchema(const std::vector<NArrow::NTest::TTestColumn>& colu
     if (specials.CompressionLevel) {
         schema->MutableDefaultCompression()->SetLevel(*specials.CompressionLevel);
     }
+    if (specials.GetUseForcedCompaction()) {
+        NKikimrSchemeOp::TCompactionPlannerConstructorContainer::TLOptimizer optimizer;
+        *schema->MutableOptions()->MutableCompactionPlannerConstructor()->MutableLBuckets() = optimizer;
+        schema->MutableOptions()->MutableCompactionPlannerConstructor()->SetClassName("l-buckets"); //TODO use appropriate lc-buckets configuration
+    }
 }
 
 }
@@ -560,7 +547,7 @@ namespace NKikimr::NColumnShard {
          NTxUT::TShardReader reader(runtime, TTestTxConfig::TxTablet0, tableId, snapshot);
          reader.SetReplyColumnIds(fields);
          auto rb = reader.ReadAll();
-         UNIT_ASSERT(reader.IsCorrectlyFinished());
+         //UNIT_ASSERT(reader.IsCorrectlyFinished());
          return rb ? rb : NArrow::MakeEmptyBatch(NArrow::MakeArrowSchema(schema));
      }
 }

@@ -5,8 +5,10 @@ PY3TEST()
 
     TEST_SRCS(
         test_log_scenario.py
+        upgrade_to_internal_path_id.py
         zip_bomb.py
     )
+    FORK_SUBTESTS()
 
     IF (SANITIZER_TYPE OR WITH_VALGRIND)
         SIZE(LARGE)

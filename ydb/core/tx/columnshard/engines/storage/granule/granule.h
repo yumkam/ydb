@@ -91,14 +91,14 @@ public:
         }
 
         void AddPortion(const TPortionInfo& info) {
-            if (info.GetMeta().GetProduced() == NPortion::EProduced::INSERTED) {
+            if (info.GetPortionType() == EPortionType::Written) {
                 Owner.Inserted.AddPortion(info);
             } else {
                 Owner.Compacted.AddPortion(info);
             }
         }
         void RemovePortion(const TPortionInfo& info) {
-            if (info.GetMeta().GetProduced() == NPortion::EProduced::INSERTED) {
+            if (info.GetPortionType() == EPortionType::Written) {
                 Owner.Inserted.RemovePortion(info);
             } else {
                 Owner.Compacted.RemovePortion(info);
@@ -119,6 +119,7 @@ class TGranuleMeta: TNonCopyable {
 private:
     TMonotonic ModificationLastTime = TMonotonic::Now();
     THashMap<ui64, std::shared_ptr<TPortionInfo>> Portions;
+    TAtomic LastInsertWriteId = 1;
     THashMap<TInsertWriteId, std::shared_ptr<TWrittenPortionInfo>> InsertedPortions;
     THashMap<TInsertWriteId, TPortionDataAccessor> InsertedAccessors;
     mutable std::optional<TGranuleAdditiveSummary> AdditiveSummaryCache;
@@ -167,6 +168,10 @@ public:
         return ActualizationIndex->CollectMetadataRequests(Portions);
     }
 
+    TInsertWriteId BuildNextInsertWriteId() {
+        return (TInsertWriteId)AtomicIncrement(LastInsertWriteId);
+    }
+
     const NStorageOptimizer::IOptimizerPlanner& GetOptimizerPlanner() const {
         return *OptimizerPlanner;
     }
@@ -212,7 +217,8 @@ public:
         OnAfterChangePortion(innerPortion, nullptr);
     }
 
-    void InsertPortionOnExecute(NTabletFlatExecutor::TTransactionContext& txc, const TPortionDataAccessor& portion) const;
+    void InsertPortionOnExecute(
+        NTabletFlatExecutor::TTransactionContext& txc, const TPortionDataAccessor& portion, const ui64 firstPKColumnId) const;
     void InsertPortionOnComplete(const TPortionDataAccessor& portion, IColumnEngine& engine);
 
     void CommitPortionOnExecute(
@@ -233,8 +239,8 @@ public:
         CommitPortionOnComplete(insertWriteId, engine);
     }
 
-    void CommitImmediateOnExecute(
-        NTabletFlatExecutor::TTransactionContext& txc, const TSnapshot& snapshot, const TPortionDataAccessor& portion) const;
+    void CommitImmediateOnExecute(NTabletFlatExecutor::TTransactionContext& txc, const TSnapshot& snapshot, const TPortionDataAccessor& portion,
+        const ui64 firstPKColumnId) const;
     void CommitImmediateOnComplete(const std::shared_ptr<TPortionInfo> portion, IColumnEngine& engine);
 
     std::vector<NStorageOptimizer::TTaskDescription> GetOptimizerTasksDescription() const {

@@ -4,6 +4,8 @@ TEST_SRCS(
     test_config_with_metadata.py
     test_generate_dynamic_config.py
     test_distconf.py
+    test_config_migration.py
+    test_configuration_version.py
 )
 
 SPLIT_FACTOR(10)
