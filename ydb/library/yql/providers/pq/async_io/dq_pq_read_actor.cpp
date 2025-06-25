@@ -247,8 +247,10 @@ public:
     void CommitState(const NDqProto::TCheckpoint& checkpoint) override {
         const auto checkpointId = checkpoint.GetId();
         while (!DeferredCommits.empty() && DeferredCommits.front().first <= checkpointId) {
+#if 0
             auto& deferredCommit = DeferredCommits.front().second;
             deferredCommit.Commit();
+#endif
             DeferredCommits.pop();
         }
     }

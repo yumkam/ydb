@@ -391,6 +391,7 @@ public:
         resultFormatSettings.RowsLimit = settings->_RowsLimitPerWrite.Get();
 
         YQL_CLOG(TRACE, ProviderDq) << TPlanPrinter().Print(plan);
+        Cerr << TPlanPrinter().Print(plan) << Endl;
 
         {
             auto& secParams = *queryPB.MutableSecureParams();
@@ -698,6 +699,7 @@ public:
         const TDqProgressWriter& progressWriter, const THashMap<TString, TString>& modulesMapping,
         bool discard, ui64 executionTimeout)
     {
+        Cerr << __LINE__ << Endl << TPlanPrinter().Print(plan) << Endl;
         std::shared_ptr<TDqGatewaySession> session;
         with_lock(Mutex) {
             auto it = Sessions.find(sessionId);
@@ -770,6 +772,7 @@ public:
         const TDqProgressWriter& progressWriter, const THashMap<TString, TString>& modulesMapping,
         bool discard, ui64 executionTimeout) override
     {
+        Cerr << __LINE__ << Endl << TPlanPrinter().Print(plan) << Endl;
         return Impl->ExecutePlan(sessionId, std::move(plan), columns, secureParams, graphParams, settings, progressWriter, modulesMapping, discard, executionTimeout);
     }
 

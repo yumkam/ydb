@@ -5,6 +5,7 @@
 namespace NYdb::inline Dev::NTopic {
 
 ERetryErrorClass GetRetryErrorClass(EStatus status) {
+    Cerr << "Retrying status " << status << Endl;
     switch (status) {
     case EStatus::SUCCESS:          // NoRetry?
     case EStatus::INTERNAL_ERROR:   // NoRetry?

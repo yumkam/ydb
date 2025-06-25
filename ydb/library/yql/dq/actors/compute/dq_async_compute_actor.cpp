@@ -8,6 +8,7 @@
 #include <ydb/library/yql/dq/common/dq_common.h>
 
 #include <ydb/core/quoter/public/quoter.h>
+#include <yql/essentials/minikql/mkql_node_printer.h>
 
 namespace NYql {
 namespace NDq {
@@ -738,6 +739,11 @@ private:
             Stat->AddCounters2(ev->Get()->Sensors);
         }
         TypeEnv = const_cast<NKikimr::NMiniKQL::TTypeEnvironment*>(&typeEnv);
+        {
+            auto guard = BindAllocator();
+            auto runtimeNode = NKikimr::NMiniKQL::DeserializeNode(Task.GetProgram().GetRaw(), typeEnv);
+            Cerr << "DeserializeRuntimeNode [[[" << Endl << NKikimr::NMiniKQL::PrintNode(runtimeNode) << "]]] " << Endl;
+        }
         for (auto& [inputIndex, transform] : this->InputTransformsMap) {
             std::tie(transform.Input, transform.Buffer) = ev->Get()->InputTransforms.at(inputIndex);
         }
@@ -936,6 +942,7 @@ private:
                 channelData.Proto.SetChannelId(outputChannel.ChannelId);
                 // set finished only for last chunk
                 const bool lastChunk = i == asyncData.Data.size() - 1;
+                Cerr << i << '/' << asyncData.Data.size() << " aD.F = " << asyncData.Finished << " lc " << lastChunk << Endl;
                 channelData.Proto.SetFinished(asyncData.Finished && lastChunk);
                 channelData.Proto.MutableData()->Swap(&chunk.Proto);
                 channelData.Payload = std::move(chunk.Payload);
@@ -1270,6 +1277,7 @@ IActor* CreateDqAsyncComputeActor(const TActorId& executerId, const TTxId& txId,
     const TActorId& quoterServiceActorId,
     bool ownCounters)
 {
+    Cerr << "Task [[[" << Endl << *task << "]]]" << Endl;
     return new TDqAsyncComputeActor(executerId, txId, task, std::move(asyncIoFactory),
         functionRegistry, settings, memoryLimits, taskRunnerActorFactory, taskCounters, quoterServiceActorId, ownCounters);
 }

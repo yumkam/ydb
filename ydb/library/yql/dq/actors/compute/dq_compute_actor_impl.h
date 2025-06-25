@@ -870,6 +870,7 @@ protected:
         }
 
         void Pause(const NDqProto::TCheckpoint& checkpoint) {
+            if (PendingCheckpoint) { Cerr << LogPrefix <<" New checkpoint " << checkpoint << " PendingCheckpoint " << *PendingCheckpoint << Endl; }
             YQL_ENSURE(!PendingCheckpoint);
             YQL_ENSURE(CheckpointingMode != NDqProto::CHECKPOINTING_MODE_DISABLED);
             PendingCheckpoint = checkpoint;

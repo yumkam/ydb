@@ -61,10 +61,14 @@ TString BuildProgram(NNodes::TCoLambda program, const TStructExprType& paramsTyp
 
     TVector<TRuntimeNode> inputNodes;
     NCommon::TMkqlBuildContext::TArgumentsMap arguments;
+    Cerr << "program: " << program.Raw()->Dump() << Endl;
+    Cerr << "programType: " << *program.Raw()->GetTypeAnn() << Endl;
+    Cerr << "paramsType: " << paramsType.ToString() << Endl;
 
     auto paramsNode = pgmBuilder.Arg(NCommon::BuildType(program.Ref(), paramsType, pgmBuilder));
 
     for (const auto& arg : program.Args()) {
+        Cerr << "argType: " << *arg.Raw()->GetTypeAnn() << Endl;
         YQL_ENSURE(arg.Ref().GetTypeAnn()->GetKind() == ETypeAnnotationKind::Stream, "program: " << program.Ref().Dump());
         auto itemType = NCommon::BuildType(arg.Ref(), *arg.Ref().GetTypeAnn(), pgmBuilder);
         TRuntimeNode inputNode = pgmBuilder.Arg(itemType);

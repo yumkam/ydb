@@ -536,6 +536,29 @@ bool TDqComputeActorChannels::HasFreeMemoryInChannel(const ui64 channelId) const
 }
 
 bool TDqComputeActorChannels::CanSendChannelData(const ui64 channelId) const {
+    static ui32 ctr;
+    static ui32 threshold;
+    static ui32 seed;
+    static std::mt19937_64 rng;
+    if (!seed) {
+        if (auto s = getenv("SEED"); s)
+            seed = atol(s);
+        else {
+            seed = (std::random_device{})();
+            Cerr << "SEED=" << seed << Endl;
+        }
+        rng.seed(seed);
+    }
+    if (ctr % 1000 == 0) {
+        threshold = 1 + rng() % 500;
+    }
+    if (++ctr % 1000 > threshold) {
+        Cerr << "Stopping " << ctr << '\r' << Flush;
+#if 1
+        Cbs->ResumeExecution(EResumeSource::ChannelsHandleWork);
+        return false;
+#endif
+    }
     const TOutputChannelState& outputChannel = OutCh(channelId);
     return outputChannel.Peer && (!outputChannel.Finished || SupportCheckpoints) && !outputChannel.RetryState;
 }

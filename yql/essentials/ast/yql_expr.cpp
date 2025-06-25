@@ -60,9 +60,9 @@ namespace {
             out << " <" << node.Content() << ">";
         }
 
-        constexpr bool WithTypes = false;
-        constexpr bool WithConstraints = false;
-        constexpr bool WithScope = false;
+        constexpr bool WithTypes = true;
+        constexpr bool WithConstraints = true;
+        constexpr bool WithScope = true;
 
         if constexpr (WithTypes) {
             if (node.GetTypeAnn()) {

@@ -430,6 +430,8 @@ message TPredicate {
         repeated TExpression set = 2;
     }
 
+    // AsTuple(column1, column2, ...) IN 
+
     // "$column IS NULL"
     message TIsNull {
         TExpression value = 1;
