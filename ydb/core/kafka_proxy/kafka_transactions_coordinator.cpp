@@ -12,19 +12,19 @@ namespace NKafka {
 
         auto it = ProducersByTransactionalId.find(request->TransactionalId);
         if (it != ProducersByTransactionalId.end()) {
-            TProducerInstanceId& currentProducerState = it->second;
-            const TProducerInstanceId& newProducerState = request->ProducerState;
+            TProducerInstanceId& currentProducerId = it->second.Id;
+            const TProducerInstanceId& newProducerId = request->ProducerInstanceId;
 
-            if (NewProducerStateIsOutdated(currentProducerState, newProducerState)) {
-                TString message = GetProducerIsOutdatedError(request->TransactionalId, currentProducerState, newProducerState);
+            if (NewProducerStateIsOutdated(currentProducerId, newProducerId)) {
+                TString message = GetProducerIsOutdatedError(request->TransactionalId, currentProducerId, newProducerId);
                 ctx.Send(ev->Sender, new TEvKafka::TEvSaveTxnProducerResponse(TEvKafka::TEvSaveTxnProducerResponse::EStatus::PRODUCER_FENCED, message));
                 return;
             } 
 
-            currentProducerState = std::move(newProducerState);
+            it->second = {newProducerId, request->TxnTimeoutMs};
             DeleteTransactionActor(request->TransactionalId);
         } else {
-            ProducersByTransactionalId.emplace(request->TransactionalId, request->ProducerState);
+            ProducersByTransactionalId.emplace(request->TransactionalId, TProducerInstance{request->ProducerInstanceId, request->TxnTimeoutMs});
         }
         
         ctx.Send(ev->Sender, new TEvKafka::TEvSaveTxnProducerResponse(TEvKafka::TEvSaveTxnProducerResponse::EStatus::OK, ""));
@@ -50,7 +50,7 @@ namespace NKafka {
         auto it = ProducersByTransactionalId.find(ev->Get()->TransactionalId);
         const TProducerInstanceId& deadActorProducerState = ev->Get()->ProducerState;
 
-        if (it == ProducersByTransactionalId.end() || it->second != deadActorProducerState) {
+        if (it == ProducersByTransactionalId.end() || it->second.Id != deadActorProducerState) {
             // new actor was already registered, we can just ignore this event
             KAFKA_LOG_D("Received TEvTransactionActorDied for transactionalId " << ev->Get()->TransactionalId << " but producer has already been reinitialized with new epoch or deleted. Ignoring this event");
         } else {
@@ -83,11 +83,11 @@ namespace NKafka {
     template<class ErrorResponseType, class EventType>
     void TTransactionsCoordinator::HandleTransactionalRequest(TAutoPtr<TEventHandle<EventType>>& evHandle, const TActorContext& ctx) {
         EventType* ev = evHandle->Get();
-        KAFKA_LOG_D("Received message for transactionalId " << ev->Request->TransactionalId->c_str() << " and ApiKey " << ev->Request->ApiKey());
+        KAFKA_LOG_D("Received message for transactionalId " << *ev->Request->TransactionalId << " and ApiKey " << ev->Request->ApiKey());
         
         // create helper struct to simplify methods interaction
         auto txnRequest = TTransactionalRequest(
-            ev->Request->TransactionalId->c_str(),
+            *ev->Request->TransactionalId,
             TProducerInstanceId(ev->Request->ProducerId, ev->Request->ProducerEpoch),
             ev->CorrelationId,
             ev->ConnectionId
@@ -111,16 +111,17 @@ namespace NKafka {
         EventType* ev = evHandle->Get();
         
         TActorId txnActorId;
-        if (TxnActorByTransactionalId.contains(ev->Request->TransactionalId->c_str())) {
-            txnActorId = TxnActorByTransactionalId[ev->Request->TransactionalId->c_str()];
+        if (TxnActorByTransactionalId.contains(*ev->Request->TransactionalId)) {
+            txnActorId = TxnActorByTransactionalId.at(*ev->Request->TransactionalId);
         } else {
-            txnActorId = ctx.Register(new TTransactionActor(ev->Request->TransactionalId->c_str(), ev->Request->ProducerId, ev->Request->ProducerEpoch, ev->DatabasePath, NKikimr::NKqp::MakeKqpProxyID(ctx.SelfID.NodeId()), ctx.SelfID));
-            TxnActorByTransactionalId[ev->Request->TransactionalId->c_str()] = txnActorId;
-            KAFKA_LOG_D("Registered TTransactionActor with id " << txnActorId << " for transactionalId " << ev->Request->TransactionalId->c_str() << " and ApiKey " << ev->Request->ApiKey());
+            auto& producerInstance = ProducersByTransactionalId.at(*ev->Request->TransactionalId);
+            txnActorId = ctx.Register(new TTransactionActor(*ev->Request->TransactionalId, {ev->Request->ProducerId, ev->Request->ProducerEpoch}, ev->DatabasePath, producerInstance.TxnTimeoutMs));
+            TxnActorByTransactionalId[*ev->Request->TransactionalId] = txnActorId;
+            KAFKA_LOG_D("Registered TTransactionActor with id " << txnActorId << " for transactionalId " << *ev->Request->TransactionalId << " and ApiKey " << ev->Request->ApiKey());
         }
         TAutoPtr<IEventHandle> tmpPtr = evHandle.Release();
         ctx.Forward(tmpPtr, txnActorId);
-        KAFKA_LOG_D("Forwarded message to TTransactionActor with id " << txnActorId << " for transactionalId " << ev->Request->TransactionalId->c_str() << " and ApiKey " << ev->Request->ApiKey());
+        KAFKA_LOG_D("Forwarded message to TTransactionActor with id " << txnActorId << " for transactionalId " << *ev->Request->TransactionalId << " and ApiKey " << ev->Request->ApiKey());
     };
 
     void TTransactionsCoordinator::DeleteTransactionActor(const TString& transactionalId) {
@@ -141,8 +142,8 @@ namespace NKafka {
 
         if (it == ProducersByTransactionalId.end()) {
             return TStringBuilder() << "Producer with transactional id " << request.TransactionalId << " was not yet initailized.";
-        } else if (NewProducerStateIsOutdated(it->second, request.ProducerState)) {
-            return GetProducerIsOutdatedError(request.TransactionalId, it->second, request.ProducerState);
+        } else if (NewProducerStateIsOutdated(it->second.Id, request.ProducerState)) {
+            return GetProducerIsOutdatedError(request.TransactionalId, it->second.Id, request.ProducerState);
         } else {
             return {};
         }

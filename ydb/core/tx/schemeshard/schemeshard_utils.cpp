@@ -1,9 +1,9 @@
-#include <ydb/core/base/table_vector_index.h>
-#include <ydb/core/persqueue/utils.h>
+#include "schemeshard_utils.h"
 
 #include "schemeshard_info_types.h"
 
-#include "schemeshard_utils.h"
+#include <ydb/core/base/table_vector_index.h>
+#include <ydb/core/persqueue/utils.h>
 
 namespace NKikimr {
 namespace NSchemeShard {
@@ -317,7 +317,7 @@ auto CalcVectorKmeansTreePrefixImplTableDescImpl(
 }
 
 void FillIndexTableColumns(
-    const THashMap<ui32, NSchemeShard::TTableInfo::TColumn>& baseTableColumns,
+    const TMap<ui32, NSchemeShard::TTableInfo::TColumn>& baseTableColumns,
     std::span<const TString> keys,
     const THashSet<TString>& columns,
     NKikimrSchemeOp::TTableDescription& implTableDesc) {

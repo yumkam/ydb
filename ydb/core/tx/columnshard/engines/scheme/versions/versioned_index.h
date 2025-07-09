@@ -1,9 +1,9 @@
 #pragma once
 #include "abstract_scheme.h"
 
+#include <ydb/core/tx/columnshard/common/path_id.h>
 #include <ydb/core/tx/columnshard/engines/scheme/abstract/schema_version.h>
 #include <ydb/core/tx/columnshard/engines/scheme/common/cache.h>
-#include <ydb/core/tx/columnshard/common/path_id.h>
 #include <ydb/core/tx/sharding/sharding.h>
 
 namespace NKikimr::NOlap {
@@ -18,7 +18,8 @@ private:
     YDB_READONLY_DEF(TInternalPathId, PathId);
 
 public:
-    TGranuleShardingInfo(const NSharding::TGranuleShardingLogicContainer& shardingInfo, const TSnapshot& sinceSnapshot, const ui64 version, const TInternalPathId pathId)
+    TGranuleShardingInfo(const NSharding::TGranuleShardingLogicContainer& shardingInfo, const TSnapshot& sinceSnapshot, const ui64 version,
+        const TInternalPathId pathId)
         : ShardingInfo(shardingInfo)
         , SinceSnapshot(sinceSnapshot)
         , SnapshotVersion(version)
@@ -28,6 +29,7 @@ public:
 };
 
 class TVersionedIndex {
+private:
     THashMap<TInternalPathId, std::map<TSnapshot, TGranuleShardingInfo>> ShardingInfo;
     std::map<TSnapshot, ISnapshotSchema::TPtr> Snapshots;
     std::shared_ptr<arrow::Schema> PrimaryKey;
@@ -37,6 +39,19 @@ class TVersionedIndex {
     ISnapshotSchema::TPtr SchemeForActualization;
 
 public:
+    void EraseVersion(const ui64 version) {
+        auto it = SnapshotByVersion.find(version);
+        AFL_VERIFY(it != SnapshotByVersion.end());
+        auto itSnapshot = Snapshots.find(it->second->GetSnapshot());
+        AFL_VERIFY(itSnapshot != Snapshots.end());
+        Snapshots.erase(itSnapshot);
+        SnapshotByVersion.erase(it);
+    }
+
+    const std::map<ui64, ISnapshotSchema::TPtr>& GetSnapshotByVersions() const {
+        return SnapshotByVersion;
+    }
+
     bool IsEqualTo(const TVersionedIndex& vIndex) {
         return LastSchemaVersion == vIndex.LastSchemaVersion && SnapshotByVersion.size() == vIndex.SnapshotByVersion.size() &&
                ShardingInfo.size() == vIndex.ShardingInfo.size() && SchemeVersionForActualization == vIndex.SchemeVersionForActualization;
@@ -76,19 +91,19 @@ public:
 
     TString DebugString() const {
         TStringBuilder sb;
-        for (auto&& i : Snapshots) {
+        for (auto&& i : SnapshotByVersion) {
             sb << i.first << ":" << i.second->DebugString() << ";";
         }
         return sb;
     }
 
     ISnapshotSchema::TPtr GetSchemaOptional(const ui64 version) const {
-        auto it = SnapshotByVersion.find(version);
+        auto it = SnapshotByVersion.lower_bound(version);
         return it == SnapshotByVersion.end() ? nullptr : it->second;
     }
 
     ISnapshotSchema::TPtr GetSchemaVerified(const ui64 version) const {
-        auto it = SnapshotByVersion.find(version);
+        auto it = SnapshotByVersion.lower_bound(version);
         Y_ABORT_UNLESS(it != SnapshotByVersion.end(), "no schema for version %lu", version);
         return it->second;
     }
@@ -115,12 +130,12 @@ public:
     }
 
     ISnapshotSchema::TPtr GetLastSchema() const {
-        Y_ABORT_UNLESS(!Snapshots.empty());
-        return Snapshots.rbegin()->second;
+        Y_ABORT_UNLESS(!SnapshotByVersion.empty());
+        return SnapshotByVersion.rbegin()->second;
     }
 
     bool IsEmpty() const {
-        return Snapshots.empty();
+        return SnapshotByVersion.empty();
     }
 
     const std::shared_ptr<arrow::Schema>& GetPrimaryKey() const noexcept {

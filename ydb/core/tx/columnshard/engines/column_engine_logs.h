@@ -77,6 +77,10 @@ public:
         return VersionedIndexCopy;
     }
 
+    TVersionedIndex& MutableVersionedIndex() {
+        return VersionedIndex;
+    }
+
     const std::shared_ptr<NActualizer::TController>& GetActualizationController() const {
         return ActualizationController;
     }
@@ -107,7 +111,7 @@ public:
         const TSchemaInitializationData& schema, const std::shared_ptr<NColumnShard::TPortionIndexStats>& counters);
     TColumnEngineForLogs(const ui64 tabletId, const std::shared_ptr<TSchemaObjectsCache>& schemaCache,
         const std::shared_ptr<NDataAccessorControl::IDataAccessorsManager>& dataAccessorsManager,
-        const std::shared_ptr<IStoragesManager>& storagesManager, const TSnapshot& snapshot, const ui64 presetId, TIndexInfo&& schema,
+        const std::shared_ptr<IStoragesManager>& storagesManager, const TSnapshot& snapshot, TIndexInfo&& schema,
         const std::shared_ptr<NColumnShard::TPortionIndexStats>& counters);
 
     void OnTieringModified(const std::optional<NOlap::TTiering>& ttl, const TInternalPathId pathId) override;
@@ -145,7 +149,6 @@ public:
     virtual std::vector<TCSMetadataRequest> CollectMetadataRequests() const override {
         return GranulesStorage->CollectMetadataRequests();
     }
-    std::shared_ptr<TInsertColumnEngineChanges> StartInsert(std::vector<TCommittedData>&& dataToIndex) noexcept override;
     ui64 GetCompactionPriority(const std::shared_ptr<NDataLocks::TManager>& dataLocksManager, const std::set<TInternalPathId>& pathIds,
         const std::optional<ui64> waitingPriority) const noexcept override;
     std::shared_ptr<TColumnEngineChanges> StartCompaction(const std::shared_ptr<NDataLocks::TManager>& dataLocksManager) noexcept override;
@@ -162,7 +165,7 @@ public:
     virtual bool ApplyChangesOnExecute(
         IDbWrapper& db, std::shared_ptr<TColumnEngineChanges> indexChanges, const TSnapshot& snapshot) noexcept override;
 
-    void RegisterSchemaVersion(const TSnapshot& snapshot, const ui64 presetId, TIndexInfo&& info) override;
+    void RegisterSchemaVersion(const TSnapshot& snapshot, TIndexInfo&& info) override;
     void RegisterSchemaVersion(const TSnapshot& snapshot, const ui64 presetId, const TSchemaInitializationData& schema) override;
     void RegisterOldSchemaVersion(const TSnapshot& snapshot, const ui64 presetId, const TSchemaInitializationData& schema) override;
 
@@ -197,6 +200,10 @@ public:
         return *GetGranulePtrVerified(pathId);
     }
 
+    bool HasDataWithSchemaVersion(const ui64 fromVersion, const ui64 version) const {
+        return GranulesStorage->GetStats()->HasSchemaVersion(fromVersion, version);
+    }
+
     std::shared_ptr<TGranuleMeta> GetGranulePtrVerified(const TInternalPathId pathId) const {
         auto result = GetGranuleOptional(pathId);
         AFL_VERIFY(result)("path_id", pathId);
@@ -205,10 +212,6 @@ public:
 
     std::shared_ptr<TGranuleMeta> GetGranuleOptional(const TInternalPathId pathId) const {
         return GranulesStorage->GetGranuleOptional(pathId);
-    }
-
-    std::vector<std::shared_ptr<TGranuleMeta>> GetTables(const std::optional<TInternalPathId> pathIdFrom, const std::optional<TInternalPathId> pathIdTo) const {
-        return GranulesStorage->GetTables(pathIdFrom, pathIdTo);
     }
 
     ui64 GetTabletId() const {

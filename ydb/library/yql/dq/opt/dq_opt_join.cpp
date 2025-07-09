@@ -519,7 +519,7 @@ TExprBase DqRewriteEquiJoin(
     EHashJoinMode mode,
     bool useCBO,
     TExprContext& ctx,
-    const TTypeAnnotationContext& typeCtx,
+    TTypeAnnotationContext& typeCtx,
     const TOptimizerHints& hints
 ) {
     int dummyJoinCounter = 0;
@@ -536,7 +536,7 @@ TExprBase DqRewriteEquiJoin(
     EHashJoinMode mode,
     bool useCBO,
     TExprContext& ctx,
-    const TTypeAnnotationContext& typeCtx,
+    TTypeAnnotationContext& typeCtx,
     int& joinCounter,
     const TOptimizerHints& hints
 ) {
@@ -563,6 +563,9 @@ TExprBase DqRewriteEquiJoin(
     if (!result) {
         return node;
     }
+
+    auto equiJoinStats = typeCtx.GetStats(equiJoin.Raw());
+    typeCtx.SetStats(result->Input.Raw(), equiJoinStats);
 
     THashMap<TStringBuf, TVector<TStringBuf>> columnsToRename;
     THashSet<TStringBuf> columnsToDrop;
@@ -1345,7 +1348,9 @@ TExprBase DqBuildHashJoin(const TDqJoin& join, EHashJoinMode mode, TExprContext&
     const bool leftKind = joinType.starts_with("Left"sv);
     const bool rightKind = joinType.starts_with("Right"sv);
     TModifyKeysList remapLeft, remapRight;
-    if (!shuffleElimination /* for columnshardhashv1 it is important to save original types for join predicate */) {
+    bool shuffleLeftSide = !join.ShuffleLeftSideBy() || !join.ShuffleLeftSideBy().Cast().Empty() || !shuffleElimination;
+    bool shuffleRightSide = !join.ShuffleRightSideBy() || !join.ShuffleRightSideBy().Cast().Empty() || !shuffleElimination;
+    if (shuffleLeftSide && shuffleRightSide /* for columnshardhashv1 (shuffle elimination) it is important to save original types for join predicate */) {
         for (ui32 i = 0U; i < rightJoinKeys.size() && !badKey; ++i) {
             const auto keyType1 = leftStructType->FindItemType(leftJoinKeys[i]);
             const auto keyType2 = rightStructType->FindItemType(rightJoinKeys[i]);
@@ -1502,7 +1507,6 @@ TExprBase DqBuildHashJoin(const TDqJoin& join, EHashJoinMode mode, TExprContext&
     };
 
     TExprNode::TPtr leftConnection;
-    bool shuffleLeftSide = !join.ShuffleLeftSideBy() || !join.ShuffleLeftSideBy().Cast().Empty() || !shuffleElimination;
     if (!join.ShuffleLeftSideBy()) {
         YQL_CLOG(TRACE, CoreDq) << "ShuffleLeftSide isn't defined";
     }
@@ -1523,7 +1527,6 @@ TExprBase DqBuildHashJoin(const TDqJoin& join, EHashJoinMode mode, TExprContext&
     }
 
     TExprNode::TPtr rightConnection;
-    bool shuffleRightSide = !join.ShuffleRightSideBy() || !join.ShuffleRightSideBy().Cast().Empty() || !shuffleElimination;
     if (!join.ShuffleRightSideBy()) {
         YQL_CLOG(TRACE, CoreDq) << "ShuffleRightSide isn't defined";
     }
