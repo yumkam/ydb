@@ -606,6 +606,7 @@ struct TAsyncCATestFixture: public NUnitTest::TBaseFixture {
         ActorSystem.EnableScheduleForActor(asyncCA, true);
 
         ui32 val = 0;
+        TMaybe<TInstant> expectedWatermark;
         SendData([&](auto packet) {
             PushRow(CreateRow(++val, packet), dqOutputChannel);
             PushRow(CreateRow(++val, packet), dqOutputChannel);
@@ -614,6 +615,7 @@ struct TAsyncCATestFixture: public NUnitTest::TBaseFixture {
                 NDqProto::TWatermark watermark;
                 watermark.SetTimestampUs(TInstant::Seconds(packet).MicroSeconds());
                 dqOutputChannel->Push(std::move(watermark));
+                expectedWatermark = std::max(expectedWatermark, TMaybe<TInstant>(TInstant::Seconds(packet)));
             }
         },
         asyncCA, dqOutputChannel, packets, waitIntermediateAcks);
@@ -647,9 +649,8 @@ struct TAsyncCATestFixture: public NUnitTest::TBaseFixture {
         for (; val > 0; --val) {
             UNIT_ASSERT_EQUAL_C(receivedData[val * val], 1, "expected count for " << (val * val));
         }
-        if (watermarkPeriod) {
+        if (expectedWatermark) {
             WEAK_UNIT_ASSERT(!!watermark);
-            const auto expectedWatermark = TInstant::Seconds(packets - packets % watermarkPeriod);
             if (watermark) {
                 UNIT_ASSERT_LE_C(*watermark, expectedWatermark, "Expected " << (*watermark) << " <= " << expectedWatermark);
                 WEAK_UNIT_ASSERT_EQUAL_C(*watermark, expectedWatermark, "Expected " << (*watermark) << " == " << expectedWatermark);
@@ -694,6 +695,7 @@ struct TAsyncCATestFixture: public NUnitTest::TBaseFixture {
         auto asyncCA = CreateTestAsyncCA(task);
         ActorSystem.EnableScheduleForActor(asyncCA, true);
         ui32 val = 0;
+        TMaybe<TInstant> expectedWatermark;
         SendData([&](auto packet) {
             PushRow(CreateRow(++val, packet), dqOutputChannel);
             ++expectedData[val];
@@ -712,6 +714,7 @@ struct TAsyncCATestFixture: public NUnitTest::TBaseFixture {
                 NDqProto::TWatermark watermark;
                 watermark.SetTimestampUs(TInstant::Seconds(packet).MicroSeconds());
                 dqOutputChannel->Push(std::move(watermark));
+                expectedWatermark = std::max(expectedWatermark, TMaybe<TInstant>(TInstant::Seconds(packet)));
             }
         },
         asyncCA, dqOutputChannel, packets, waitIntermediateAcks);
@@ -776,9 +779,8 @@ struct TAsyncCATestFixture: public NUnitTest::TBaseFixture {
         for (auto [receivedVal, receivedCnt] : receivedData) {
             UNIT_ASSERT_EQUAL_C(receivedCnt, expectedData[receivedVal], "expected count for " << receivedVal << ": " << receivedCnt << " != " << expectedData[receivedVal]);
         }
-        if (watermarkPeriod) {
+        if (expectedWatermark) {
             WEAK_UNIT_ASSERT(!!watermark);
-            const auto expectedWatermark = TInstant::Seconds(packets - packets % watermarkPeriod);
             if (watermark) {
                 WEAK_UNIT_ASSERT_LE_C(*watermark, expectedWatermark, "Expected " << (*watermark) << " <= " << expectedWatermark);
                 WEAK_UNIT_ASSERT_EQUAL_C(*watermark, expectedWatermark, "Expected " << (*watermark) << " == " << expectedWatermark);
