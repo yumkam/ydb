@@ -515,6 +515,13 @@ struct TAsyncCATestFixture: public NUnitTest::TBaseFixture {
             auto watermark = TInstant::MicroSeconds(ev->Get()->Record.GetChannelData().GetWatermark().GetTimestampUs());
             cbWatermark(watermark);
         }
+        if (!ev->Get()->Record.GetNoAck()) {
+            auto ack = new TEvDqCompute::TEvChannelDataAck;
+            ack->Record.SetChannelId(ev->Get()->Record.GetChannelData().GetChannelId());
+            ack->Record.SetSeqNo(ev->Get()->Record.GetSeqNo());
+            ack->Record.SetFreeSpace(23); // XXX
+            ActorSystem.Send(ev->Sender, ev->Recipient, ack);
+        }
         return !dqInputChannel->IsFinished();
     }
 
@@ -527,6 +534,46 @@ struct TAsyncCATestFixture: public NUnitTest::TBaseFixture {
                 break;
             }
             LOG_D("...but waiting for " << seqNo);
+        }
+    }
+
+    void SendData(auto&& generator, const auto& asyncCA, auto& dqOutputChannel, ui32 packets, bool waitIntermediateAcks) {
+        ui32 seqNo = 0;
+        for (ui32 packet = 1; packet <= packets; ++packet) {
+            bool isFinal = packet == packets;
+            bool noAck = (packet % 2) == 0; // set noAck on even packets
+
+            generator(packet);
+            if (isFinal) {
+                dqOutputChannel->Finish();
+            }
+
+            auto evInputChannelData = MakeHolder<TEvDqCompute::TEvChannelData>();
+            evInputChannelData->Record.SetSeqNo(++seqNo);
+            auto& chData = *evInputChannelData->Record.MutableChannelData();
+            chData.SetChannelId(InputChannelId);
+            if (TDqSerializedBatch serializedBatch; dqOutputChannel->Pop(serializedBatch)) {
+                *chData.MutableData() = serializedBatch.Proto;
+                Y_ENSURE(serializedBatch.Payload.Empty()); // TODO
+            }
+            if (NDqProto::TWatermark watermark; dqOutputChannel->Pop(watermark)) {
+                *chData.MutableWatermark() = watermark;
+                noAck = false; // packet containing watermark must be acked
+            }
+            if (NDqProto::TCheckpoint checkpoint; dqOutputChannel->Pop(checkpoint)) {
+                *chData.MutableCheckpoint() = checkpoint;
+                noAck = false; // packet containing watermark must be acked
+            }
+            if (dqOutputChannel->IsFinished()) {
+                chData.SetFinished(true);
+                noAck = false; // final packet must be acked
+            }
+            evInputChannelData->Record.SetNoAck(noAck);
+            LOG_D("Sending " << packet << "/" << packets << " "  << chData);
+            ActorSystem.Send(asyncCA, SrcEdgeActor, evInputChannelData.Release());
+            if ((isFinal || waitIntermediateAcks) && !noAck) {
+                WaitForChannelDataAck(InputChannelId, seqNo);
+            }
         }
     }
 
@@ -545,12 +592,9 @@ struct TAsyncCATestFixture: public NUnitTest::TBaseFixture {
 
         auto asyncCA = CreateTestAsyncCA(task);
         ActorSystem.EnableScheduleForActor(asyncCA, true);
-        ui32 seqNo = 0;
-        ui32 val = 0;
-        for (ui32 packet = 1; packet <= packets; ++packet) {
-            bool isFinal = packet == packets;
-            bool noAck = (packet % 2) == 0; // set noAck on even packets
 
+        ui32 val = 0;
+        SendData([&](auto packet) {
             PushRow(CreateRow(++val, packet), dqOutputChannel);
             PushRow(CreateRow(++val, packet), dqOutputChannel);
             PushRow(CreateRow(++val, packet), dqOutputChannel);
@@ -559,32 +603,8 @@ struct TAsyncCATestFixture: public NUnitTest::TBaseFixture {
                 watermark.SetTimestampUs(TInstant::Seconds(packet).MicroSeconds());
                 dqOutputChannel->Push(std::move(watermark));
             }
-            if (isFinal) {
-                dqOutputChannel->Finish();
-            }
-
-            auto evInputChannelData = MakeHolder<TEvDqCompute::TEvChannelData>();
-            evInputChannelData->Record.SetSeqNo(++seqNo);
-            evInputChannelData->Record.SetNoAck(noAck);
-            auto& chData = *evInputChannelData->Record.MutableChannelData();
-            if (TDqSerializedBatch serializedBatch; dqOutputChannel->Pop(serializedBatch)) {
-                *chData.MutableData() = serializedBatch.Proto;
-                Y_ENSURE(serializedBatch.Payload.Empty()); // TODO
-            }
-            if (NDqProto::TWatermark watermark; dqOutputChannel->Pop(watermark)) {
-                *chData.MutableWatermark() = watermark;
-            }
-            if (NDqProto::TCheckpoint checkpoint; dqOutputChannel->Pop(checkpoint)) {
-                *chData.MutableCheckpoint() = checkpoint;
-            }
-            chData.SetChannelId(InputChannelId);
-            chData.SetFinished(dqOutputChannel->IsFinished());
-            LOG_D("Sending " << packet << "/" << packets << " "  << chData);
-            ActorSystem.Send(asyncCA, SrcEdgeActor, evInputChannelData.Release());
-            if ((isFinal || waitIntermediateAcks) && !noAck) {
-                WaitForChannelDataAck(InputChannelId, seqNo);
-            }
-        }
+        },
+        asyncCA, dqOutputChannel, packets, waitIntermediateAcks);
 
         TMap<ui32, ui32> receivedData;
         TMaybe<TInstant> watermark;
@@ -655,12 +675,8 @@ struct TAsyncCATestFixture: public NUnitTest::TBaseFixture {
 
         auto asyncCA = CreateTestAsyncCA(task);
         ActorSystem.EnableScheduleForActor(asyncCA, true);
-        ui32 seqNo = 0;
         ui32 val = 0;
-        for (ui32 packet = 1; packet <= packets; ++packet) {
-            bool isFinal = packet == packets;
-            bool noAck = (packet % 2) == 0; // set noAck on even packets
-
+        SendData([&](auto packet) {
             PushRow(CreateRow(++val, packet), dqOutputChannel);
             ++expectedData[val];
             PushRow(CreateRow(++val, packet), dqOutputChannel);
@@ -679,32 +695,8 @@ struct TAsyncCATestFixture: public NUnitTest::TBaseFixture {
                 watermark.SetTimestampUs(TInstant::Seconds(packet).MicroSeconds());
                 dqOutputChannel->Push(std::move(watermark));
             }
-            if (isFinal) {
-                dqOutputChannel->Finish();
-            }
-
-            auto evInputChannelData = MakeHolder<TEvDqCompute::TEvChannelData>();
-            evInputChannelData->Record.SetSeqNo(++seqNo);
-            evInputChannelData->Record.SetNoAck(noAck);
-            auto& chData = *evInputChannelData->Record.MutableChannelData();
-            if (TDqSerializedBatch serializedBatch; dqOutputChannel->Pop(serializedBatch)) {
-                *chData.MutableData() = serializedBatch.Proto;
-                Y_ENSURE(serializedBatch.Payload.Empty()); // TODO
-            }
-            if (NDqProto::TWatermark watermark; dqOutputChannel->Pop(watermark)) {
-                *chData.MutableWatermark() = watermark;
-            }
-            if (NDqProto::TCheckpoint checkpoint; dqOutputChannel->Pop(checkpoint)) {
-                *chData.MutableCheckpoint() = checkpoint;
-            }
-            chData.SetChannelId(InputChannelId);
-            chData.SetFinished(dqOutputChannel->IsFinished());
-            LOG_D("Sending " << packet << "/" << packets << " "  << chData);
-            ActorSystem.Send(asyncCA, SrcEdgeActor, evInputChannelData.Release());
-            if ((isFinal || waitIntermediateAcks) && !noAck) {
-                WaitForChannelDataAck(InputChannelId, seqNo);
-            }
-        }
+        },
+        asyncCA, dqOutputChannel, packets, waitIntermediateAcks);
 
         TMap<i32, ui32> receivedData;
 
