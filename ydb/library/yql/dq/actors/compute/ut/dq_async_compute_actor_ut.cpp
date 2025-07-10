@@ -58,6 +58,7 @@ struct TActorSystem: NActors::TTestActorRuntimeBase {
 
         if (TESTS_VERBOSE) {
             SetLogPriority(NKikimrServices::KQP_COMPUTE, NActors::NLog::EPriority::PRI_TRACE);
+            SetLogPriority(NKikimrServices::DQ_TASK_RUNNER, NActors::NLog::EPriority::PRI_TRACE);
         }
     }
 };
