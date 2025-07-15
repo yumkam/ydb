@@ -867,6 +867,9 @@ protected:
             YQL_ENSURE(WatermarksMode != NDqProto::WATERMARKS_MODE_DISABLED);
 
             PendingWatermarks.emplace(watermark);
+            if (Channel) {
+                Channel->AddWatermark(watermark);
+            }
         }
 
         void Pause(const NDqProto::TCheckpoint& checkpoint) {
@@ -874,7 +877,7 @@ protected:
             YQL_ENSURE(CheckpointingMode != NDqProto::CHECKPOINTING_MODE_DISABLED);
             PendingCheckpoint = checkpoint;
             if (Channel) {  // async actor doesn't hold channels, so channel is paused in task runner actor
-                Channel->Pause();
+                Channel->AddCheckpoint();
             }
         }
 
@@ -886,12 +889,15 @@ protected:
                 }
                 PendingWatermarks.pop();
             }
+            if (Channel) {
+                Channel->ResumeByWatermark(watermark);
+            }
         }
 
         void ResumeByCheckpoint() {
             PendingCheckpoint.reset();
             if (Channel) {  // async actor doesn't hold channels, so channel is resumed in task runner actor
-                Channel->Resume();
+                Channel->ResumeByCheckpoint();
             }
         }
 

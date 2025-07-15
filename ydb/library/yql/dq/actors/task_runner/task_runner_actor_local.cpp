@@ -138,7 +138,32 @@ private:
             }
 
             const auto input = TaskRunner->GetInputChannel(inputChannelId);
-            if (!input->IsPaused()) {
+            if (!input->IsPausedByCheckpoint()) {
+                return false;
+            }
+            if (!input->Empty()) {
+                return false;
+            }
+        }
+        for (const auto transformId: InputTransforms) {
+            const auto t = TaskRunner->GetInputTransform(transformId);
+            if (t) {
+                auto [_, transform] = *t;
+                if (!transform->Empty()) {
+                    return false;
+                }
+                if (transform->IsPending()) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    bool ReadyToWatermark() {
+        for (const auto inputChannelId: Inputs) {
+            const auto input = TaskRunner->GetInputChannel(inputChannelId);
+            if (!input->IsPausedByWatermark()) {
                 return false;
             }
             if (!input->Empty()) {
@@ -171,14 +196,33 @@ private:
         THashMap<ui32, i64> inputChannelFreeSpace;
         THashMap<ui32, i64> sourcesFreeSpace;
 
-        const bool shouldHandleWatermark = ev->Get()->WatermarkRequest.Defined()
-            && ev->Get()->WatermarkRequest->Watermark > TaskRunner->GetWatermark().WatermarkIn;
+#if 0
+        if (ev->Get()->WatermarkRequest.Defined() && ev->Get()->WatermarkRequest->Watermark > WatermarkRequest.Watermark) {
+            WatermarkRequest = std::move(*ev->Get()->WatermarkRequest);
+            LOG_T("Task runner. PauseByWatermark " << WatermarkRequest.Watermark);
+            PauseInputs(WatermarkRequest.Watermark);
+        }
+#else
+        if (ev->Get()->WatermarkRequest.Defined()) {
+            if (WatermarkRequest) {
+                if (ev->Get()->WatermarkRequest->Watermark > WatermarkRequest->Watermark) {
+                    NextWatermarkRequest = std::move(*ev->Get()->WatermarkRequest);
+                    LOG_T("Task runner. Delayed PauseByWatermark " << NextWatermarkRequest->Watermark);
+                }
+            } else {
+                WatermarkRequest = std::move(*ev->Get()->WatermarkRequest);
+                LOG_T("Task runner. PauseByWatermark " << WatermarkRequest->Watermark);
+                PauseInputs(WatermarkRequest->Watermark);
+            }
+        }
+#endif
+
+        const bool shouldHandleWatermark = WatermarkRequest && WatermarkRequest->Watermark > TaskRunner->GetWatermark().WatermarkIn && ReadyToWatermark();
 
         if (!ev->Get()->CheckpointOnly) {
             if (shouldHandleWatermark) {
-                const auto watermark = ev->Get()->WatermarkRequest->Watermark;
-                LOG_T("Task runner. Inject watermark " << watermark);
-                TaskRunner->SetWatermarkIn(watermark);
+                LOG_T("Task runner. Inject watermark " << WatermarkRequest->Watermark);
+                TaskRunner->SetWatermarkIn(WatermarkRequest->Watermark);
             }
 
             res = TaskRunner->Run();
@@ -196,14 +240,21 @@ private:
         THolder<TMiniKqlProgramState> mkqlProgramState;
         if (res == ERunStatus::PendingInput || res == ERunStatus::Finished) {
             if (shouldHandleWatermark) {
-                const auto watermarkRequested = ev->Get()->WatermarkRequest->Watermark;
+                const auto watermarkRequested = WatermarkRequest->Watermark;
                 LOG_T("Task runner. Watermarks. Injecting requested watermark " << watermarkRequested
-                    << " to " << ev->Get()->WatermarkRequest->ChannelIds.size() << " outputs ");
+                    << " to " << WatermarkRequest->ChannelIds.size() << " outputs ");
 
-                for (const auto& channelId : ev->Get()->WatermarkRequest->ChannelIds) {
+                for (const auto& channelId : WatermarkRequest->ChannelIds) {
                     NDqProto::TWatermark watermark;
                     watermark.SetTimestampUs(watermarkRequested.MicroSeconds());
                     TaskRunner->GetOutputChannel(channelId)->Push(std::move(watermark));
+                }
+                if (NextWatermarkRequest) {
+                    WatermarkRequest = std::move(NextWatermarkRequest);
+                    LOG_T("Task runner. Next PauseByWatermark " << WatermarkRequest->Watermark);
+                    PauseInputs(WatermarkRequest->Watermark);
+                } else {
+                    WatermarkRequest.Clear();
                 }
 
                 watermarkInjectedToOutputs = true;
@@ -282,7 +333,13 @@ private:
             inputChannel->Finish();
         }
         if (ev->Get()->PauseAfterPush) {
-            inputChannel->Pause();
+            inputChannel->AddCheckpoint();
+        }
+        if (ev->Get()->WatermarkAfterPush) {
+            Cerr << "Adding " << *ev->Get()->WatermarkAfterPush << Endl;
+            inputChannel->AddWatermark(*ev->Get()->WatermarkAfterPush);
+        } else {
+            Cerr << "No watermark " << Endl;
         }
 
         // run
@@ -315,6 +372,7 @@ private:
     void OnOutputChannelDataRequest(TEvOutputChannelDataRequest::TPtr& ev) {
         auto guard = TaskRunner->BindAllocator();
 
+        LOG_T("OnOutputChannelDataRequest");
         auto channelId = ev->Get()->ChannelId;
         auto channel = TaskRunner->GetOutputChannel(channelId);
         auto wasFinished = ev->Get()->WasFinished;
@@ -362,11 +420,14 @@ private:
             checkpoint = hasCheckpoint ? std::move(poppedCheckpoint) : TMaybe<NDqProto::TCheckpoint>();
 
             if (hasCheckpoint) {
-                ResumeInputs();
+                ResumeByCheckpoint();
                 break;
             }
 
             if (hasWatermark) {
+                if (!WatermarkRequest) {
+                    ResumeByWatermark(TInstant::MicroSeconds(watermark->GetTimestampUs()));
+                }
                 break;
             }
         }
@@ -386,9 +447,21 @@ private:
             ev->Cookie);
     }
 
-    void ResumeInputs() {
+    void ResumeByCheckpoint() {
         for (const auto& inputId : Inputs) {
-            TaskRunner->GetInputChannel(inputId)->Resume();
+            TaskRunner->GetInputChannel(inputId)->ResumeByCheckpoint();
+        }
+    }
+
+    void ResumeByWatermark(TInstant watermark) {
+        for (const auto& inputId : Inputs) {
+            TaskRunner->GetInputChannel(inputId)->ResumeByWatermark(watermark);
+        }
+    }
+
+    void PauseInputs(TInstant watermark) {
+        for (const auto& inputId : Inputs) {
+            TaskRunner->GetInputChannel(inputId)->PauseByWatermark(watermark);
         }
     }
 
@@ -409,7 +482,7 @@ private:
         if (hasCheckpoint) {
             checkpointSize = checkpoint.ByteSize();
             maybeCheckpoint.ConstructInPlace(std::move(checkpoint));
-            ResumeInputs();
+            ResumeByCheckpoint();
         }
         const bool finished = sink->IsFinished();
         const bool changed = finished || size > 0 || hasCheckpoint;
@@ -511,6 +584,8 @@ private:
     THashSet<ui32> InputChannelsWithDisabledCheckpoints;
     THolder<TDqMemoryQuota> MemoryQuota;
     ui64 ActorElapsedTicks = 0;
+    TMaybe<TWatermarkRequest> WatermarkRequest;
+    TMaybe<TWatermarkRequest> NextWatermarkRequest;
 };
 
 struct TLocalTaskRunnerActorFactory: public ITaskRunnerActorFactory {

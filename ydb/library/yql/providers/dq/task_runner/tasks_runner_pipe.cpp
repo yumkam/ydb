@@ -736,6 +736,7 @@ public:
         ythrow yexception() << "unimplemented";
     }
 
+#if 0
     void Pause() override {
         Y_ABORT("Checkpoints are not supported");
     }
@@ -744,9 +745,35 @@ public:
         Y_ABORT("Checkpoints are not supported");
     }
 
+    void PauseByWatermark(TInstant) override {
+        Y_ABORT("Watermarks are not supported");
+    }
+
+    void PushWatermark(TInstant) override {
+        Y_ABORT("Watermarks are not supported");
+    }
+
+    void ResumeByWatermark(TInstant) override {
+        Y_ABORT("Watermarks are not supported");
+    }
+
     bool IsPaused() const override {
         return false;
     }
+
+    bool IsPausedByWatermark() const override {
+        return false;
+    }
+#else
+    void AddCheckpoint() override { }
+    void ResumeByCheckpoint() override { }
+    bool IsPausedByCheckpoint() const override { return false; }
+    // Watermarks
+    void AddWatermark(TInstant) override { }
+    void PauseByWatermark(TInstant) override { }
+    void ResumeByWatermark(TInstant) override { }
+    bool IsPausedByWatermark() const override { return false; }
+#endif
 
     template<typename T>
     void FromProto(const T& f)
@@ -891,6 +918,7 @@ public:
         return InputType;
     }
 
+#if 0
     void Pause() override {
         Y_ABORT("Checkpoints are not supported");
     }
@@ -899,9 +927,35 @@ public:
         Y_ABORT("Checkpoints are not supported");
     }
 
+    void PushWatermark(TInstant) override {
+        Y_ABORT("Watermarks are not supported");
+    }
+
+    void PauseByWatermark(TInstant) override {
+        Y_ABORT("Watermarks are not supported");
+    }
+
+    void ResumeByWatermark(TInstant) override {
+        Y_ABORT("Watermarks are not supported");
+    }
+
     bool IsPaused() const override {
         return false;
     }
+
+    bool IsPausedByWatermark() const override {
+        return false;
+    }
+#else
+    void AddCheckpoint() override { }
+    void ResumeByCheckpoint() override { }
+    bool IsPausedByCheckpoint() const override { return false; }
+    // Watermarks
+    void AddWatermark(TInstant) override { }
+    void PauseByWatermark(TInstant) override { }
+    void ResumeByWatermark(TInstant) override { }
+    bool IsPausedByWatermark() const override { return false; }
+#endif
 
     template<typename T>
     void FromProto(const T& f)

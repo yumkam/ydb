@@ -38,7 +38,7 @@ public:
 
     [[nodiscard]]
     bool Empty() const override {
-        return Batches.empty() || (IsPaused() && GetBatchesBeforePause() == 0);
+        return BeforeBarrier.Batches == 0;
     }
 
     bool IsLegacySimpleBlock(NKikimr::NMiniKQL::TStructType* structType, ui32& blockLengthIndex) {
@@ -169,8 +169,107 @@ public:
         }
 
         Batches.emplace_back(std::move(batch));
+        auto& barrier = PendingBarriers.empty() ? BeforeBarrier : PendingBarriers.back();
+        barrier.Batches ++;
+        barrier.Bytes += space;
+        barrier.Rows += rows;
+        Cerr << "AddBatch " << Endl;
+        DumpBarrier();
 
         return rows;
+    }
+
+    void SquashWatermarks() {
+        while (!PendingBarriers.empty()) {
+            auto& barrier = PendingBarriers.front();
+            if (barrier.Barrier >= WatermarkBarrier) {
+                break;
+            }
+            Cerr << "Squash " << barrier.Barrier << " into " << WatermarkBarrier << Endl; // FIXME logging?
+            BeforeBarrier.Batches += barrier.Batches;
+            BeforeBarrier.Rows += barrier.Rows;
+            BeforeBarrier.Bytes += barrier.Bytes;
+            PendingBarriers.pop_front();
+        }
+    }
+
+    void PauseByWatermark(TInstant watermark) override {
+        Y_ENSURE(WatermarkBarrier <= watermark);
+        Cerr << "PauseByWatermark " << WatermarkBarrier << "->" << watermark << Endl;
+        WatermarkBarrier = watermark;
+        SquashWatermarks();
+        DumpBarrier();
+    }
+
+    void DumpBarrier() {
+        Cerr << "PendingBarriers";
+        auto dump = [](auto& b) {
+            Cerr << ' ' << b.Batches << 'B' << b.Rows << 'r' << b.Bytes << 'b';
+            if (b.Barrier != TInstant::Max()) Cerr << b.Barrier << 'w';
+        };
+        for (auto &b : PendingBarriers) {
+            dump(b);
+        }
+        Cerr << Endl;
+        Cerr << "WatermarkBarrier: " << WatermarkBarrier << Endl;
+        Cerr << "BeforeBarrier"; dump(BeforeBarrier);
+        Cerr << Endl;
+    }
+
+    void AddBarrier(TInstant watermark) {
+        Y_ENSURE (PendingBarriers.empty() || PendingBarriers.back().IsCheckpoint() || PendingBarriers.back().Barrier < watermark);
+        //if (PendingBarriers.empty() || PendingBarriers.back().Barrier != watermark) 
+        {
+            PendingBarriers.emplace_back(TBarrier { .Barrier = watermark });
+        }
+        Cerr << "AddBarrier " << watermark << Endl;
+        DumpBarrier();
+    }
+
+    void AddCheckpoint() override {
+        AddBarrier(TInstant::Max());
+    }
+
+    void AddWatermark(TInstant watermark) override {
+        if (watermark >= WatermarkBarrier) {
+            AddBarrier(watermark);
+        }
+    }
+
+    bool IsPausedByWatermark() const override {
+        return !PendingBarriers.empty() && !PendingBarriers.front().IsCheckpoint();
+    }
+
+    bool IsPausedByCheckpoint() const override {
+        return !PendingBarriers.empty() && PendingBarriers.front().IsCheckpoint();
+    }
+
+private:
+    void Resume() {
+        Cerr << "Resume" << Endl;
+        DumpBarrier();
+        Y_ENSURE(BeforeBarrier.Batches == 0);
+        Y_ENSURE(BeforeBarrier.Rows == 0);
+        Y_ENSURE(BeforeBarrier.Bytes == 0);
+        BeforeBarrier = PendingBarriers.front();
+        PendingBarriers.pop_front();
+    }
+
+public:
+    void ResumeByWatermark([[maybe_unused]] TInstant watermark) override {
+        Y_ENSURE(IsPausedByWatermark());
+        Resume();
+        //Y_ENSURE(WatermarkBarrier == watermark);
+        if (WatermarkBarrier != watermark) { Cerr << "ResumeByWatermark " << WatermarkBarrier << " != " << watermark << Endl; }
+        //if (WatermarkBarrier == watermark) {
+            WatermarkBarrier = {};
+        //}
+    }
+
+    void ResumeByCheckpoint() override {
+        Y_ENSURE(IsPausedByCheckpoint());
+        Resume();
+        SquashWatermarks();
     }
 
     [[nodiscard]]
@@ -189,7 +288,7 @@ public:
         ui64 popBytes = 0;
 
         if (IsPaused()) {
-            ui64 batchesCount = GetBatchesBeforePause();
+            ui64 batchesCount = BeforeBarrier.Batches;
             Y_ABORT_UNLESS(batchesCount > 0);
             Y_ABORT_UNLESS(batchesCount <= Batches.size());
 
@@ -211,14 +310,10 @@ public:
                 }
             }
 
-            popBytes = StoredBytesBeforePause;
+            popBytes = BeforeBarrier.Bytes;
 
-            BatchesBeforePause = PauseMask;
-            Y_ABORT_UNLESS(GetBatchesBeforePause() == 0);
-            StoredBytes -= StoredBytesBeforePause;
-            StoredRows -= StoredRowsBeforePause;
-            StoredBytesBeforePause = 0;
-            StoredRowsBeforePause = 0;
+            StoredBytes -= BeforeBarrier.Bytes;
+            StoredRows -= BeforeBarrier.Rows;
         } else {
             if (batch.IsWide()) {
                 for (auto&& part : Batches) {
@@ -240,6 +335,7 @@ public:
             StoredRows = 0;
             Batches.clear();
         }
+        BeforeBarrier = {};
 
         if (popStats.CollectBasic()) {
             popStats.Bytes += popBytes;
@@ -263,26 +359,11 @@ public:
         return InputType;
     }
 
-    void Pause() override {
-        Y_ABORT_UNLESS(!IsPaused());
-        BatchesBeforePause = Batches.size() | PauseMask;
-        StoredRowsBeforePause = StoredRows;
-        StoredBytesBeforePause = StoredBytes;
-    }
-
-    void Resume() override {
-        StoredBytesBeforePause = StoredRowsBeforePause = BatchesBeforePause = 0;
-        Y_ABORT_UNLESS(!IsPaused());
-    }
-
-    bool IsPaused() const override {
-        return BatchesBeforePause;
+    bool IsPaused() const {
+        return !PendingBarriers.empty();
     }
 
 protected:
-    ui64 GetBatchesBeforePause() const {
-        return BatchesBeforePause & ~PauseMask;
-    }
 
     TMaybe<ui32> GetWidth() const {
         return Width;
@@ -296,12 +377,21 @@ protected:
     ui64 StoredBytes = 0;
     ui64 StoredRows = 0;
     bool Finished = false;
-    ui64 BatchesBeforePause = 0;
-    ui64 StoredBytesBeforePause = 0;
-    ui64 StoredRowsBeforePause = 0;
-    static constexpr ui64 PauseMask = 1llu << 63llu;
     TInputChannelFormat Format = FORMAT_UNKNOWN;
     ui32 LegacyBlockLengthIndex = 0;
+    struct TBarrier {
+        ui64 Batches = 0;
+        ui64 Bytes = 0;
+        ui64 Rows = 0;
+        TInstant Barrier = TInstant::Max();
+        // watermark (!= TInstant::Max()) or checkpoint (TInstant::Max())
+        bool IsCheckpoint() const {
+            return Barrier == TInstant::Max();
+        }
+    };
+    std::deque<TBarrier> PendingBarriers;
+    TBarrier BeforeBarrier;
+    TInstant WatermarkBarrier;
 };
 
 } // namespace NYql::NDq

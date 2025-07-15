@@ -119,17 +119,19 @@ struct TEvOutputChannelDataRequest
 struct TEvInputChannelData
     : NActors::TEventLocal<TEvInputChannelData, TTaskRunnerEvents::EvInputChannelData>
 {
-    TEvInputChannelData(ui32 channelId, std::optional<TDqSerializedBatch>&& data, bool finish, bool pauseAfterPush)
+    TEvInputChannelData(ui32 channelId, std::optional<TDqSerializedBatch>&& data, bool finish, bool pauseAfterPush, TMaybe<TInstant>& watermarkAfterPush)
         : ChannelId(channelId)
         , Data(std::move(data))
         , Finish(finish)
         , PauseAfterPush(pauseAfterPush)
+        , WatermarkAfterPush(watermarkAfterPush)
     { }
 
     const ui32 ChannelId;
     std::optional<TDqSerializedBatch> Data; //not const, because we want to efficiently move data out of this event on a reciever side
     const bool Finish;
     const bool PauseAfterPush;
+    const TMaybe<TInstant> WatermarkAfterPush;
 };
 
 //Sent by TaskRunnerActor to ComputeActor to ackonowledge input data received in TEvInputChannelData

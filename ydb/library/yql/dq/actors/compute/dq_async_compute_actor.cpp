@@ -268,7 +268,7 @@ private:
             html << "PendingCheckpoint: " << info.PendingCheckpoint.has_value() << " " << (info.PendingCheckpoint ? TStringBuilder{} << info.PendingCheckpoint->GetId() << " " << info.PendingCheckpoint->GetGeneration() : TString{}) << "<br />";
             html << "CheckpointingMode: " << NDqProto::ECheckpointingMode_Name(info.CheckpointingMode) << "<br />";
             DUMP(info, FreeSpace);
-            html << "IsPaused: " << info.IsPaused() << "<br />";
+            //html << "IsPaused: " << info.IsPaused() << "<br />";
             auto channel = info.Channel;
             if (!channel) {
                 auto stats = GetTaskRunnerStats();
@@ -316,7 +316,7 @@ private:
                 html << "DqInputBuffer.InputType: " << (buffer->GetInputType() ? buffer->GetInputType()->GetKindAsStr() : TString{"unknown"})  << "<br />";
                 html << "DqInputBuffer.InputWidth: " << (buffer->GetInputWidth() ? ToString(*buffer->GetInputWidth()) : TString{"unknown"})  << "<br />";
                 html << "DqInputBuffer.IsFinished: " << buffer->IsFinished() << "<br />";
-                html << "DqInputBuffer.IsPaused: " << buffer->IsPaused() << "<br />";
+                //html << "DqInputBuffer.IsPaused: " << buffer->IsPaused() << "<br />";
                 html << "DqInputBuffer.IsPending: " << buffer->IsPending() << "<br />";
 
                 const auto& popStats = buffer->GetPopStats();
@@ -637,7 +637,8 @@ private:
             channelData.GetChannelId(),
             batch.RowCount() ? std::optional{std::move(batch)} : std::nullopt,
             finished,
-            channelData.HasCheckpoint()
+            channelData.HasCheckpoint(),
+            watermark
         );
 
         Send(TaskRunnerActorId, ev.Release(), 0, Cookie);
@@ -672,6 +673,7 @@ private:
     }
 
     TMaybe<TInstant> GetWatermarkRequest() {
+#if 0
         if (!WatermarksTracker.HasPendingWatermark()) {
             return Nothing();
         }
@@ -685,6 +687,9 @@ private:
         MetricsReporter.ReportInjectedToTaskRunnerWatermark(pendingWatermark);
 
         return pendingWatermark;
+#else
+        return WatermarksTracker.GetPendingWatermark();
+#endif
     }
 
     TMaybe<NDqProto::TCheckpoint> GetCheckpointRequest() {
@@ -857,6 +862,7 @@ private:
         if (Stat) {
             Stat->AddCounters2(ev->Get()->Sensors);
         }
+        CA_LOG_T("OnOutputChannelData");
         auto it = OutputChannelsMap.find(ev->Get()->ChannelId);
         Y_ABORT_UNLESS(it != OutputChannelsMap.end());
         TOutputChannelInfo& outputChannel = it->second;
@@ -897,6 +903,14 @@ private:
     }
 
     void SendAsyncChannelData(TOutputChannelInfo& outputChannel) {
+        CA_LOG_T("SendAsyncChannelData. Channel: " << outputChannel.ChannelId
+            << " Finished: " << outputChannel.Finished
+            << " Data: { DataSize: " << outputChannel.AsyncData->Data.size()
+            << ", Watermark: " << outputChannel.AsyncData->Watermark
+            << ", Checkpoint: " << outputChannel.AsyncData->Checkpoint
+            << ", Finished: " << outputChannel.AsyncData->Finished
+            << ", Changed: " << outputChannel.AsyncData->Changed << "}"
+            );
         Y_ABORT_UNLESS(outputChannel.AsyncData);
 
         // If the channel has finished, then the data received after drain is no longer needed
@@ -923,6 +937,7 @@ private:
             if (shouldResumeInputs) {
                 ResumeInputsByWatermark(watermark);
             }
+            CA_LOG_T("SendAsyncChannelData: " << watermark << " resume = " << shouldResumeInputs);
         }
 
         if (!shouldSkipData) {
@@ -968,6 +983,14 @@ private:
             FinishedSinks.size() == SinksMap.size();
 
         outputChannel.AsyncData = Nothing();
+        CA_LOG_T("POS:"
+               << " DWS=" << ProcessOutputsState.DataWasSent 
+               << " AOF=" << ProcessOutputsState.AllOutputsFinished
+               << " HDTS=" << ProcessOutputsState.HasDataToSend
+               << " LPRND=" << ProcessOutputsState.LastPopReturnedNoData
+               << " CR=" << ProcessOutputsState.ChannelsReady
+               << " I=" << ProcessOutputsState.Inflight
+               );
     }
 
     void OnInputChannelDataAck(NTaskRunnerActor::TEvInputChannelDataAck::TPtr& ev) {
