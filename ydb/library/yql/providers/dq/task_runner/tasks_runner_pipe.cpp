@@ -765,7 +765,7 @@ public:
         return false;
     }
 #else
-    void AddCheckpoint() override { }
+    void PauseByCheckpoint() override { }
     void ResumeByCheckpoint() override { }
     bool IsPausedByCheckpoint() const override { return false; }
     // Watermarks
@@ -947,7 +947,7 @@ public:
         return false;
     }
 #else
-    void AddCheckpoint() override { }
+    void PauseByCheckpoint() override { }
     void ResumeByCheckpoint() override { }
     bool IsPausedByCheckpoint() const override { return false; }
     // Watermarks

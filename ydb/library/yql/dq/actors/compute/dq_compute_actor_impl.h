@@ -877,7 +877,7 @@ protected:
             YQL_ENSURE(CheckpointingMode != NDqProto::CHECKPOINTING_MODE_DISABLED);
             PendingCheckpoint = checkpoint;
             if (Channel) {  // async actor doesn't hold channels, so channel is paused in task runner actor
-                Channel->AddCheckpoint();
+                Channel->PauseByCheckpoint();
             }
         }
 

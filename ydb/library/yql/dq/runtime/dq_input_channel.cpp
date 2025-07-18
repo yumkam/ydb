@@ -33,6 +33,10 @@ public:
         return PopStats;
     }
 
+    TString LogPrefix() const {
+        return TStringBuilder() << "SrcStageId: " << PushStats.SrcStageId << " ChannelId: " << PushStats.ChannelId << ". ";
+    }
+
 private:
     void Push(TDqSerializedBatch&&) override {
         Y_ABORT("Not implemented");
@@ -107,9 +111,13 @@ public:
         return (DataForDeserialize.empty() || Impl.IsPaused()) && Impl.Empty();
     }
 
-    void AddCheckpoint() override {
+    void PauseByCheckpoint() override {
         DeserializeAllData();
-        Impl.AddCheckpoint();
+        Impl.PauseByCheckpoint();
+    }
+
+    TMaybe<TInstant> GetWatermark() const override {
+        return Impl.GetWatermark();
     }
 
     void AddWatermark(TInstant watermark) override {
@@ -118,7 +126,6 @@ public:
     }
 
     void PauseByWatermark(TInstant watermark) override {
-        DeserializeAllData();
         Impl.PauseByWatermark(watermark);
     }
 

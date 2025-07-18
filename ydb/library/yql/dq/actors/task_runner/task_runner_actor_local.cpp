@@ -216,6 +216,14 @@ private:
             }
         }
 #endif
+        if (WatermarkRequest) {
+            LOG_T("WatermarkRequest " << WatermarkRequest->Watermark);
+            for (const auto inputChannelId: Inputs) {
+                const auto input = TaskRunner->GetInputChannel(inputChannelId);
+                LOG_T(inputChannelId << "=" << input->GetWatermark());
+            }
+        }
+            
 
         const bool shouldHandleWatermark = WatermarkRequest && WatermarkRequest->Watermark > TaskRunner->GetWatermark().WatermarkIn && ReadyToWatermark();
 
@@ -249,6 +257,7 @@ private:
                     watermark.SetTimestampUs(watermarkRequested.MicroSeconds());
                     TaskRunner->GetOutputChannel(channelId)->Push(std::move(watermark));
                 }
+                ResumeByWatermark(watermarkRequested);
                 if (NextWatermarkRequest) {
                     WatermarkRequest = std::move(NextWatermarkRequest);
                     LOG_T("Task runner. Next PauseByWatermark " << WatermarkRequest->Watermark);
@@ -333,13 +342,13 @@ private:
             inputChannel->Finish();
         }
         if (ev->Get()->PauseAfterPush) {
-            inputChannel->AddCheckpoint();
+            inputChannel->PauseByCheckpoint();
         }
         if (ev->Get()->WatermarkAfterPush) {
-            Cerr << "Adding " << *ev->Get()->WatermarkAfterPush << Endl;
+            LOG_T("Adding " << *ev->Get()->WatermarkAfterPush);
             inputChannel->AddWatermark(*ev->Get()->WatermarkAfterPush);
         } else {
-            Cerr << "No watermark " << Endl;
+            LOG_T("No watermark ");
         }
 
         // run
@@ -396,6 +405,7 @@ private:
         TVector<TDqSerializedBatch> chunks;
         TMaybe<NDqProto::TWatermark> watermark = Nothing();
         TMaybe<NDqProto::TCheckpoint> checkpoint = Nothing();
+        LOG_I("maxChunks " << maxChunks << " remain " << remain << " isFinished " << isFinished);
         for (;maxChunks && remain > 0 && !isFinished && hasData; maxChunks--, remain -= dataSize) {
             TDqSerializedBatch data;
             hasData = channel->Pop(data);
@@ -408,6 +418,7 @@ private:
 
             dataSize = data.Size();
             isFinished = channel->IsFinished();
+            LOG_I(" hasData " << hasData << " dataSize " << dataSize << " " << " hasWatermark " << hasWatermark << " hasCheckpoint " << hasCheckpoint << " isFinished " << isFinished);
             // IsFinished() won't return true until channel drained
 
             changed = changed || hasData || hasWatermark || hasCheckpoint || (isFinished != wasFinished);
@@ -426,7 +437,7 @@ private:
 
             if (hasWatermark) {
                 if (!WatermarkRequest) {
-                    ResumeByWatermark(TInstant::MicroSeconds(watermark->GetTimestampUs()));
+                    //ResumeByWatermark(TInstant::MicroSeconds(watermark->GetTimestampUs()));
                 }
                 break;
             }
