@@ -804,6 +804,7 @@ private:
         if (ev->Get()->WatermarkInjectedToOutputs && !WatermarksTracker.HasOutputChannels()) {
             ResumeInputsByWatermark(*WatermarksTracker.GetPendingWatermark());
             WatermarksTracker.PopPendingWatermark();
+            ResumeExecution(EResumeSource::CADataSent); // FIXME
         }
 
         ReadyToCheckpointFlag = (bool) ev->Get()->ProgramState;
@@ -903,6 +904,9 @@ private:
         outputChannel.AsyncData->Changed = ev->Get()->Changed;
 
         SendAsyncChannelData(outputChannel);
+        if (outputChannel.AsyncData->Watermark) {
+            ResumeExecution(EResumeSource::CADataSent); // FIXME
+        }
         CheckRunStatus();
     }
 
