@@ -187,9 +187,11 @@ private:
         DUMP(ProcessOutputsState, LastPopReturnedNoData);
 
         html << "<h3>Watermarks</h3>";
+#if 0
         for (const auto& [time, id]: WatermarkTakeInputChannelDataRequests) {
             html << "WatermarkTakeInputChannelDataRequests: " << time.ToString() << " " << id << "<br />";
         }
+#endif
 
         html << "<h3>CPU Quota</h3>";
         html << "QuoterServiceActorId: " << QuoterServiceActorId.ToString() << "<br />";
@@ -621,7 +623,9 @@ private:
                 inputChannel->Pause(*watermark);
             }
 
+#if 0
             WatermarkTakeInputChannelDataRequests[*watermark]++;
+#endif
         }
 
         TDqSerializedBatch batch;
@@ -1001,14 +1005,19 @@ private:
             << " Watermark: " << it->second.Watermark
             << " Ack: " << it->second.Ack
             << " TakeInputChannelDataRequests: " << TakeInputChannelDataRequests.size()
-            << " WatermarkTakeInputChannelDataRequests: " << WatermarkTakeInputChannelDataRequests.size());
+#if 0
+            << " WatermarkTakeInputChannelDataRequests: " << WatermarkTakeInputChannelDataRequests.size()
+#endif
+            );
 
+#if 0
         if (it->second.Watermark.Defined()) {
             auto& ct = WatermarkTakeInputChannelDataRequests.at(*it->second.Watermark);
             if (--ct == 0) {
                 WatermarkTakeInputChannelDataRequests.erase(*it->second.Watermark);
             }
         }
+#endif
 
         TInputChannelInfo* inputChannel = InputChannelsMap.FindPtr(it->second.ChannelId);
         Y_ABORT_UNLESS(inputChannel);
@@ -1257,9 +1266,11 @@ private:
         TMaybe<TInstant> Watermark;
     };
     THashMap<ui64, TTakeInputChannelData> TakeInputChannelDataRequests;
+#if 0
     // Watermark should be injected to task runner only after all precending data is injected
     // This hash map will help to track the right moment
     THashMap<TInstant, ui32> WatermarkTakeInputChannelDataRequests;
+#endif
     ui64 Cookie = 0;
     NDq::TDqTaskRunnerStatsView TaskRunnerStats;
     bool ReadyToCheckpointFlag;
