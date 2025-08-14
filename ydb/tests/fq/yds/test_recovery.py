@@ -18,6 +18,7 @@ from ydb.tests.tools.fq_runner.kikimr_runner import TenantConfig
 from ydb.tests.tools.fq_runner.kikimr_utils import yq_v1
 from ydb.tests.tools.datastreams_helpers.test_yds_base import TestYdsBase
 from ydb.tests.tools.datastreams_helpers.control_plane import create_stream
+import ydb.public.api.protos.ydb_value_pb2 as ydb
 
 import ydb.public.api.protos.draft.fq_pb2 as fq
 
@@ -188,6 +189,95 @@ class TestRecovery(TestYdsBase):
 
         client.abort_query(query_id)
         client.wait_query(query_id)
+
+        self.dump_workers(0, 0)
+
+    @yq_v1
+    def test_program_state_recovery_results(self, client, kikimr):
+        # 100  105   110   115   120   125   130   135   140   (ms)
+        #  [ Bucket1  )           |(emited)
+        #             [  Bucket2  )           |(emited)
+        #                   .<------------------------------------- restart
+        #                         [  Bucket3  )           |(emited)
+        kikimr.control_plane.wait_bootstrap()
+        kikimr.compute_plane.wait_bootstrap()
+        kikimr.compute_plane.wait_discovery()
+
+        self.kikimr = kikimr
+        self.init_topics("program_state_recovery", partitions_count=1)
+
+        #  Consumer and topics to create are written in ya.make file.
+        sql = f'''
+            PRAGMA dq.MaxTasksPerStage="1";
+                SELECT STREAM
+                    Sum(t) as sum
+                FROM (
+                    SELECT STREAM
+                        Yson::LookupUint64(ys, "time") as t
+                    FROM (
+                        SELECT STREAM
+                            Yson::Parse(Data) AS ys
+                        FROM myyds.`{self.input_topic}`))
+                GROUP BY
+                    HOP(DateTime::FromMilliseconds(CAST(Unwrap(t) as Uint32)),
+                        "PT0.01S", "PT0.01S", "PT0.01S")
+                LIMIT 3
+                '''
+        client.create_yds_connection("myyds", os.getenv("YDB_DATABASE"), os.getenv("YDB_ENDPOINT"))
+
+        query_id = client.create_query(
+            "test_program_state_recovery_result", sql, type=fq.QueryContent.QueryType.STREAMING
+        ).result.query_id
+        client.wait_query_status(query_id, fq.QueryMeta.RUNNING)
+        logging.debug("Uuid = {}".format(kikimr.uuid))
+        master_node_index = self.get_graph_master_node_id(query_id)
+        logging.debug("Master node {}".format(master_node_index))
+        kikimr.compute_plane.wait_zero_checkpoint(query_id)
+
+        self.write_stream([f'{{"time" = {i};}}' for i in range(100, 115, 2)])
+
+        kikimr.compute_plane.wait_completed_checkpoints(
+            query_id, self.kikimr.compute_plane.get_completed_checkpoints(query_id) + 1
+        )
+
+        # restart node with CA
+        node_to_restart = None
+        for node_index in kikimr.compute_plane.kikimr_cluster.nodes:
+            wc = kikimr.compute_plane.get_worker_count(node_index)
+            if wc is not None:
+                if wc > 0 and node_index != master_node_index and node_to_restart is None:
+                    node_to_restart = node_index
+        assert node_to_restart is not None, "Can't find any task on non master node"
+
+        logging.debug("Restart non-master node {}".format(node_to_restart))
+
+        kikimr.compute_plane.kikimr_cluster.nodes[node_to_restart].stop()
+        kikimr.compute_plane.kikimr_cluster.nodes[node_to_restart].start()
+        kikimr.compute_plane.wait_bootstrap(node_to_restart)
+
+        self.write_stream([f'{{"time" = {i};}}' for i in range(116, 144, 2)])
+
+        expected = [
+            520,
+            570,
+            620,
+        ]
+        client.wait_query_status(query_id, fq.QueryMeta.COMPLETED)
+        describe_result = client.describe_query(query_id).result
+
+        assert len(describe_result.query.plan.json) > 0, "plan must not be empty"
+        assert len(describe_result.query.ast.data) > 0, "ast must not be empty"
+
+        data = client.get_result_data(query_id)
+        result_set = data.result.result_set
+        logging.debug(str(result_set))
+        assert len(result_set.columns) == 1
+        assert result_set.columns[0].name == "sum"
+        assert result_set.columns[0].type.type_id == ydb.Type.UINT32
+        assert len(result_set.rows) == len(expected)
+        for i, expected_value in enumerate(expected):
+            assert result_set.rows[i].items[0].uint32_value == expected_value
+        assert sum(kikimr.control_plane.get_metering(1)) == 10
 
         self.dump_workers(0, 0)
 
