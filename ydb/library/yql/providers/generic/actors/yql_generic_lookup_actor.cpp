@@ -238,13 +238,12 @@ namespace NYql::NDq {
         }
 
         void Handle(TEvReadSplitsIterator::TPtr ev) {
-            ReadSplitsIterator = ev->Get()->Iterator;
-            ReadNextData();
+            ReadNextData(std::move(ev->Get()->Iterator));
         }
 
         void Handle(TEvReadSplitsPart::TPtr ev) {
             ProcessReceivedData(ev->Get()->Response);
-            ReadNextData();
+            ReadNextData(std::move(ev->Get()->Iterator));
         }
 
         void Handle(TEvReadSplitsFinished::TPtr) {
@@ -329,13 +328,15 @@ namespace NYql::NDq {
             }
         }
 
-        void ReadNextData() {
-            ReadSplitsIterator->ReadNext().Subscribe(
+        void ReadNextData(NConnector::IReadSplitsStreamIterator::TPtr readSplitsIterator) {
+            readSplitsIterator.Reset()
+            readSplitsIterator->ReadNext().Subscribe(
                 [
                    actorSystem = TActivationContext::ActorSystem(),
                    selfId = SelfId(),
+                   readSplitsIterator, // XXX beware of circular reference [to be replaced with weak_ptr]
                    retryState = RetryState
-                ](const NConnector::TAsyncResult<NConnector::NApi::TReadSplitsResponse>& asyncResult) {
+                ](const NConnector::TAsyncResult<NConnector::NApi::TReadSplitsResponse>& asyncResult) mutable {
                     auto result = ExtractFromConstFuture(asyncResult);
                     if (result.Status.Ok()) {
                         YQL_CLOG(DEBUG, ProviderGeneric) << "ActorId=" << selfId << " Got DataChunk";
@@ -343,7 +344,7 @@ namespace NYql::NDq {
                         auto& response = *result.Response;
                         // TODO: retry on some YDB errors
                         if (NConnector::IsSuccess(response)) {
-                            auto ev = new TEvReadSplitsPart(std::move(response));
+                            auto ev = new TEvReadSplitsPart(std::move(response), std::move(readSplitsIterator));
                             actorSystem->Send(new NActors::IEventHandle(selfId, selfId, ev));
                         } else {
                             SendError(actorSystem, selfId, response.Geterror());
@@ -355,6 +356,7 @@ namespace NYql::NDq {
                     } else {
                         SendRetryOrError(actorSystem, selfId, result.Status, retryState);
                     }
+                    readSplitsIterator.reset();
                 });
         }
 

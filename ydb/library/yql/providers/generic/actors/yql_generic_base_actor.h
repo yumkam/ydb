@@ -38,12 +38,14 @@ namespace NYql::NDq {
         };
 
         struct TEvListSplitsPart: NActors::TEventLocal<TEvListSplitsPart, EvListSplitsPart> {
-            explicit TEvListSplitsPart(NConnector::NApi::TListSplitsResponse&& response)
+            explicit TEvListSplitsPart(NConnector::NApi::TListSplitsResponse&& response, NConnector::IReadSplitsStreamIterator::TPtr&& iterator)
                 : Response(std::move(response))
+                , Iterator(std::move(iterator))
             {
             }
 
             NConnector::NApi::TListSplitsResponse Response;
+            NConnector::IReadSplitsStreamIterator::TPtr Iterator;
         };
 
         struct TEvListSplitsFinished: NActors::TEventLocal<TEvListSplitsFinished, EvListSplitsFinished> {
