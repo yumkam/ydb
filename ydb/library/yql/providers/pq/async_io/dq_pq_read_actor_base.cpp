@@ -89,7 +89,7 @@ void TDqPqReadActorBase::SaveState(const NDqProto::TCheckpoint& /*checkpoint*/, 
         partitionState->SetCluster(cluster);
         partitionState->SetPartition(partition);
         partitionState->SetOffset(offset);
-        str << "{" << partition << "," << offset << "},";
+        str << "{" << clusterAndPartition << "," << offset << "},";
     }
     SRC_LOG_D(str.Str());
 

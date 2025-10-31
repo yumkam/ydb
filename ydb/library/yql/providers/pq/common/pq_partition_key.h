@@ -25,5 +25,8 @@ struct THash<NPq::TPartitionKey> {
 
 template <>
 inline void Out<NPq::TPartitionKey>(IOutputStream& stream, TTypeTraits<NPq::TPartitionKey>::TFuncParam& t) {
-    stream << t.PartitionId << '@' << t.Cluster;
+    stream << t.PartitionId;
+    if (t.Cluster) {
+       stream << '@' << t.Cluster;
+    }
 }
