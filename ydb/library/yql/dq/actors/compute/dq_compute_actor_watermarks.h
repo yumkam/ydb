@@ -4,23 +4,6 @@
 #include <ydb/library/actors/core/log.h>
 #include <ydb/library/yql/dq/actors/compute/dq_watermark_tracker_impl.h>
 
-namespace NYql::NDq {
-namespace NImpl {
-    struct TInputKey {
-        ui64 InputId;
-        bool IsChannel;
-
-        constexpr auto operator<=> (const TInputKey&) const = default;
-    };
-}
-}
-
-template<>
-struct THash<NYql::NDq::NImpl::TInputKey> {
-    inline constexpr size_t operator() (const NYql::NDq::NImpl::TInputKey& x) const noexcept {
-        return (x.InputId << 1) ^ x.IsChannel;
-    }
-};
 
 namespace NYql::NDq {
 class TDqComputeActorWatermarks
@@ -66,13 +49,27 @@ public:
     bool NotifyInputWatermarkReceived(ui64 inputId, bool isChannel, TInstant watermark, TInstant systemTime = TInstant::Now());
 
 private:
+    struct TInputKey {
+        ui64 InputId;
+        bool IsChannel;
+
+        constexpr auto operator<=> (const TInputKey&) const = default;
+        void Out(IOutputStream& str) const;
+    };
+
     TString LogPrefix;
 
-    using TInputKey = NImpl::TInputKey;
-    TDqWatermarkTrackerImpl<TInputKey> Impl;
+    std::unique_ptr<TDqWatermarkTrackerImpl<TInputKey>> Impl; // unique_ptr to avoid "Explicit specialization of 'THash<...>' after instantiation"
 
     TMaybe<TInstant> PendingWatermark;
     TMaybe<TInstant> MaxWatermark;
 };
 
 } // namespace NYql::NDq
+
+template<>
+struct THash<NYql::NDq::TDqComputeActorWatermarks::TInputKey> {
+    constexpr size_t operator() (const auto& x) const noexcept {
+        return (x.InputId << 1) ^ x.IsChannel; // better than CombineHashes for this particular purpose
+    }
+};
