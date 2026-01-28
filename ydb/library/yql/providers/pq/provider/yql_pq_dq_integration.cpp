@@ -187,6 +187,24 @@ public:
         }
     }
 
+    TMaybe<TSourceWatermarksSettings> ExtractSourceWatermarksSettings(const TExprNode& /*node*/, const ::google::protobuf::Any& protoSettings, const TString& sourceType) override {
+        YQL_ENSURE(sourceType == "PqSource");
+        YQL_ENSURE(protoSettings.Is<NPq::NProto::TDqPqTopicSource>());
+        NYql::NPq::NProto::TDqPqTopicSource srcDesc;
+        if (!protoSettings.UnpackTo(&srcDesc)) {
+            return Nothing();
+        }
+        if (!srcDesc.HasWatermarks()) {
+            return Nothing();
+        }
+        TSourceWatermarksSettings watermarksSettings;
+        const auto& watermarks = srcDesc.GetWatermarks();
+        if (watermarks.HasIdleTimeoutUs()) {
+            watermarksSettings.IdleTimeoutUs = watermarks.GetIdleTimeoutUs();
+        }
+        return watermarksSettings;
+    }
+
     void FillSourceSettings(const TExprNode& node, ::google::protobuf::Any& protoSettings, TString& sourceType, size_t, TExprContext& ctx) override {
         if (auto maybeDqSource = TMaybeNode<TDqSource>(&node)) {
             auto settings = maybeDqSource.Cast().Settings();
