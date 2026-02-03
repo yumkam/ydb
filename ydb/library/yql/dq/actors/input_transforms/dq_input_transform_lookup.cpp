@@ -437,9 +437,18 @@ private:
                         // look ahead at most MaxDelayedRows after first missing
                         rowLimit = row + MaxDelayedRows;
                     }
-                    AwaitingQueue.emplace_back(
-                            KeysForLookup->emplace(std::move(key), NUdf::TUnboxedValue{}).first->first,
-                            std::move(other));
+                    auto it = KeysForLookup->find(key);
+                    if (it == KeysForLookup->end()) {
+#if 0
+                        for (size_t i = 0; i != LookupInputIndexes.size(); ++i) {
+                            if (keyItems[i].IsString()) {
+                                keyItems[i] = TypeEnv.NewStringValue(keyItems[i].AsStringRef());
+                            }
+                        }
+#endif
+                        it = KeysForLookup->emplace(std::move(key), NUdf::TUnboxedValue{}).first;
+                    }
+                    AwaitingQueue.emplace_back(it->first, std::move(other));
                 }
                 ++row;
             }
