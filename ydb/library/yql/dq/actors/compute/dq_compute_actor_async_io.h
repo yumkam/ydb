@@ -235,11 +235,37 @@ struct IDqAsyncLookupSource {
         std::weak_ptr<TUnboxedValueMap> Result;
     };
 
+    struct TEvFullscanRequest: NActors::TEventLocal<TEvFullscanRequest, TDqComputeEvents::EvLookupFullscanRequest> {
+        TEvFullscanRequest(std::weak_ptr<TUnboxedValueMap> request, size_t maxKeys)
+            : Request(std::move(request))
+            , MaxKeys(maxKeys)
+        {
+            Y_DEBUG_ABORT_UNLESS(request.lock()->empty());
+        }
+        std::weak_ptr<TUnboxedValueMap> Request;
+        size_t MaxKeys;
+    };
+
+    struct TEvFullscanResult: NActors::TEventLocal<TEvFullscanResult, TDqComputeEvents::EvLookupFullscanResult> {
+        TEvFullscanResult(std::weak_ptr<TUnboxedValueMap> result, bool incomplete)
+            : Result(std::move(result))
+            , Incomplete(incomplete)
+        {
+        }
+        std::weak_ptr<TUnboxedValueMap> Result;
+        bool Incomplete;
+    };
+
     virtual size_t GetMaxSupportedKeysInRequest() const = 0;
+
     //Initiate lookup for requested keys
     //Only one request at a time is allowed. Request must contain no more than GetMaxSupportedKeysInRequest() keys
     //Upon completion, TEvLookupResult event is sent to the preconfigured actor
     virtual void AsyncLookup(std::weak_ptr<TUnboxedValueMap> request) = 0;
+
+    virtual size_t GetMaxSupportedFullscanRequest() const {
+        return 0;
+    }
 protected:
     ~IDqAsyncLookupSource() {}
 };
