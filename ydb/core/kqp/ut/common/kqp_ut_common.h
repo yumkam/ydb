@@ -166,11 +166,41 @@ public:
     ~TKikimrRunner() {
         Server->GetRuntime()->SetObserverFunc(TTestActorRuntime::DefaultObserverFunc);
 
+<<<<<<< HEAD
         RunCall([&] { Driver->Stop(true); return false; });
+=======
+        // Stop the driver to close all client-side gRPC connections
+        RunCall([&] { Driver->Stop(true); Driver.Reset(); return false; });
+
+        // In single-threaded mode (UseRealThreads=false), actor system events
+        // need explicit dispatching. After Driver->Stop(), there may be pending
+        // server-side session cleanup events in the actor system mailbox.
+        // Dispatch them so gRPC server doesn't see stale in-progress requests
+        // during shutdown (which would cause it to wait and leak memory).
+        // In real-threads mode, the actor system threads handle this automatically.
+        if (!Server->GetRuntime()->IsRealThreads()) {
+            auto savedTimeout = Server->GetRuntime()->SetDispatchTimeout(TDuration::MilliSeconds(500));
+            try {
+                TDispatchOptions opts;
+                Server->GetRuntime()->DispatchEvents(opts, TDuration::MilliSeconds(500));
+            } catch (const TEmptyEventQueueException&) {
+                // Timeout is expected when there are no more events to dispatch
+            }
+            Server->GetRuntime()->SetDispatchTimeout(savedTimeout);
+        }
+
+>>>>>>> db59fb6bde3 (fix leak on kikimr runner shutdown (#34172))
         if (ThreadPoolStarted_) {
             ThreadPool.Stop();
         }
 
+<<<<<<< HEAD
+=======
+        // Shutdown gRPC servers to stop accepting new connections
+        // This prevents memory leaks from connections being established during shutdown
+        Server->ShutdownGRpc();
+
+>>>>>>> db59fb6bde3 (fix leak on kikimr runner shutdown (#34172))
         if (!WaitHttpGatewayFinalization(CountersRoot)) {
             Cerr << "Failed to finalize http gateway before destruction" << Endl;
         }
