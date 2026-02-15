@@ -166,9 +166,6 @@ public:
     ~TKikimrRunner() {
         Server->GetRuntime()->SetObserverFunc(TTestActorRuntime::DefaultObserverFunc);
 
-<<<<<<< HEAD
-        RunCall([&] { Driver->Stop(true); return false; });
-=======
         // Stop the driver to close all client-side gRPC connections
         RunCall([&] { Driver->Stop(true); Driver.Reset(); return false; });
 
@@ -189,18 +186,14 @@ public:
             Server->GetRuntime()->SetDispatchTimeout(savedTimeout);
         }
 
->>>>>>> db59fb6bde3 (fix leak on kikimr runner shutdown (#34172))
         if (ThreadPoolStarted_) {
             ThreadPool.Stop();
         }
 
-<<<<<<< HEAD
-=======
         // Shutdown gRPC servers to stop accepting new connections
         // This prevents memory leaks from connections being established during shutdown
         Server->ShutdownGRpc();
 
->>>>>>> db59fb6bde3 (fix leak on kikimr runner shutdown (#34172))
         if (!WaitHttpGatewayFinalization(CountersRoot)) {
             Cerr << "Failed to finalize http gateway before destruction" << Endl;
         }
