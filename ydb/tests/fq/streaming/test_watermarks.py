@@ -23,7 +23,7 @@ class TestWatermarksInYdb(StreamingTestBase):
         self.init_topics(source_name, partitions_count=tasks, endpoint=endpoint)
         self.create_source(kikimr, source_name, shared_reading)
 
-        ts = "CAST(ts AS Timestamp)" if shared_reading else "SystemMetadata('write_time')"
+        ts = "$event_time(`ts`)" if shared_reading else "SystemMetadata('write_time')"
         cluster = f"{source_name}." if not local_topics else ""
         idleness_clause = ', WATERMARK_IDLE_TIMEOUT = "PT5S"' if tasks > 1 else ''
 
@@ -32,6 +32,7 @@ class TestWatermarksInYdb(StreamingTestBase):
             DO BEGIN
                 PRAGMA ydb.MaxTasksPerStage="{tasks}";
 
+                $event_time = ($ts) -> (CAST(($ts*1000000ul) AS Timestamp));
                 $input = (
                     SELECT
                         {self.input_topic}.*,
@@ -40,7 +41,7 @@ class TestWatermarksInYdb(StreamingTestBase):
                     WITH (
                         FORMAT=json_each_row,
                         SCHEMA (
-                            ts String NOT NULL,
+                            ts Uint64?,
                             pass Uint64
                         )
                         , WATERMARK AS ({ts} - Interval('PT5S'))
@@ -80,19 +81,19 @@ class TestWatermarksInYdb(StreamingTestBase):
         kikimr.ydb_client.query(sql)
         self.wait_completed_checkpoints(kikimr, f"/Root/{query_name}")
 
-        self.write_stream(['{"ts": "1970-01-01T00:00:40Z", "pass": 1}'], endpoint=endpoint, partition_key=b'1')
+        self.write_stream(['{"ts": 40, "pass": 1}'], endpoint=endpoint, partition_key=b'1')
         if not shared_reading:
             time.sleep(10)
-        self.write_stream(['{"ts": "1970-01-01T00:00:50Z", "pass": 1}'], endpoint=endpoint, partition_key=b'1')
+        self.write_stream(['{"ts": 50, "pass": 1}'], endpoint=endpoint, partition_key=b'1')
         if not shared_reading:
             time.sleep(10)
-        self.write_stream(['{"ts": "1970-01-01T00:01:00Z", "pass": 0}'], endpoint=endpoint, partition_key=b'1')
+        self.write_stream(['{"ts": 60, "pass": 0}'], endpoint=endpoint, partition_key=b'1')
         if shared_reading and tasks > 1:
             time.sleep(10)  # leave a bit more time to fire up idle timeout
 
         expected = [
-            '[["1970-01-01T00:00:40Z"]]',
-            '[["1970-01-01T00:00:50Z"]]',
+            '[[40]]',
+            '[[50]]',
         ]
         actual = self.read_stream(len(expected), topic_path=self.output_topic, endpoint=endpoint)
         assert sorted(actual) == expected

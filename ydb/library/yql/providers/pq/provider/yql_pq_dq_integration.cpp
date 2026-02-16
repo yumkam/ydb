@@ -336,9 +336,15 @@ public:
 
                     TStringBuilder err;
                     NYql::NConnector::NApi::TExpression watermarkExprProto;
-                    YQL_ENSURE(NYql::SerializeWatermarkExpr(ctx, watermark, &watermarkExprProto, err));
+                    bool ok = NYql::SerializeWatermarkExpr(ctx, watermark, &watermarkExprProto, err);
+                    if (!ok) {
+                        ctx.AddError(TIssue(ctx.GetPosition(node.Pos()), "Watermark pushdown failed: " + err));
+                        YQL_ENSURE(false, "SerializeWatermarkExpr: " << err);
+                    }
+                    Cerr << "SerializeWatermarkExpr " << watermarkExprProto.DebugString() << Endl;
 
                     watermarkExprSql = NYql::FormatExpression(watermarkExprProto);
+                    Cerr << "out " << watermarkExprSql << Endl;
                 }
                 srcDesc.SetWatermarkExpr(watermarkExprSql);
 

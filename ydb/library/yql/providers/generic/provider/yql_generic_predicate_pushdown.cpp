@@ -92,8 +92,8 @@ namespace NYql {
         return true;                                                                      \
     }
 
-        bool SerializeCastExpression(const TCoSafeCast& safeCast, TExpression* proto, TSerializationContext& ctx, ui64 depth) {
-            const auto typeAnnotation = safeCast.Type().Ref().GetTypeAnn();
+        bool SerializeType(const TExprNode& typeExpr, ::Ydb::Type *dstType, TSerializationContext& ctx) {
+            const auto typeAnnotation = typeExpr.GetTypeAnn();
             if (!typeAnnotation) {
                 ctx.Err << "expected non empty type annotation for safe cast";
                 return false;
@@ -103,13 +103,7 @@ namespace NYql {
                 return false;
             }
 
-            auto* dstProto = proto->mutable_cast();
-            if (!SerializeExpression(safeCast.Value(), dstProto->mutable_value(), ctx, depth + 1)) {
-                return false;
-            }
-
             auto type = typeAnnotation->Cast<TTypeExprType>()->GetType();
-            auto* dstType = dstProto->mutable_type();
             if (type->GetKind() == ETypeAnnotationKind::Optional) {
                 type = type->Cast<TOptionalExprType>()->GetItemType();
                 dstType = dstType->mutable_optional_type()->mutable_item();
@@ -142,6 +136,14 @@ namespace NYql {
         }
 
 #undef MATCH_TYPE
+
+        bool SerializeCastExpression(const TCoSafeCast& safeCast, TExpression* proto, TSerializationContext& ctx, ui64 depth) {
+            auto* dstProto = proto->mutable_cast();
+            if (!SerializeExpression(safeCast.Value(), dstProto->mutable_value(), ctx, depth + 1)) {
+                return false;
+            }
+            return SerializeType(safeCast.Type().Ref(), dstProto->mutable_type(), ctx);
+        }
 
         bool SerializeToBytesExpression(const TExprBase& toBytes, TExpression* proto, TSerializationContext& ctx, ui64 depth) {
             if (toBytes.Ref().ChildrenSize() != 1) {
@@ -292,6 +294,7 @@ namespace NYql {
         bool SerializeSqlIfExpression(const TCoIf& sqlIf, TExpression* proto, TSerializationContext& ctx, ui64 depth);
 
         bool SerializeCoalesceExpression(const TCoCoalesce& coalesce, TExpression* proto, TSerializationContext& ctx, ui64 depth);
+        bool SerializeIfPresent(const TCoIfPresent& coalesce, TExpression* proto, TSerializationContext& ctx, ui64 depth);
 
         bool SerializeExpression(const TExprBase& expression, TExpression* proto, TSerializationContext& ctx, ui64 depth) {
             if (auto member = expression.Maybe<TCoMember>()) {
@@ -318,11 +321,21 @@ namespace NYql {
             if (auto flatMap = expression.Maybe<TCoFlatMap>()) {
                 return SerializeFlatMap(flatMap.Cast(), proto, ctx, depth);
             }
+            if (auto ifPresent = expression.Maybe<TCoIfPresent>()) {
+                return SerializeIfPresent(ifPresent.Cast(), proto, ctx, depth);
+            }
             if (auto dependsOn = expression.Maybe<TCoDependsOn>()) {
                 return SerializeExpression(dependsOn.Cast().Input(), proto, ctx, depth + 1);
             }
             if (auto decimal = expression.Maybe<TCoDecimal>()) {
                 return SerializeDecimal(decimal.Cast(), proto, ctx, depth);
+            }
+            if (auto nothing = expression.Maybe<TCoNothing>()) {
+                auto typed_value = proto->mutable_typed_value();
+                if (!SerializeType(nothing.Cast().OptionalType().Ref(), typed_value->mutable_type(), ctx)) {
+                    return false;
+                }
+                typed_value->mutable_value()->set_null_flag_value({});
             }
 
             // data
@@ -440,6 +453,31 @@ namespace NYql {
                 }
                 UnwrapNestedCoalesce(dstProto);
             }
+            return true;
+        }
+
+        bool SerializeIfPresent(const TCoIfPresent& ifPresent, TExpression* proto, TSerializationContext& ctx, ui64 depth) {
+            Cerr << "SerializeIfPresent" << Endl;
+            const auto lambda = ifPresent.PresentHandler();
+            const auto lambdaArgs = lambda.Args();
+            if (lambdaArgs.Size() != 1) {
+                ctx.Err << "expected only one argument for flat map lambda";
+                return false;
+            }
+
+            auto* dstProto = proto->mutable_if_();
+            auto* dstElse = dstProto->mutable_else_expression();
+            auto* dstInput = dstProto->mutable_predicate()->mutable_is_not_null()->mutable_value();
+            if (!SerializeExpression(ifPresent.Optional(), dstInput, ctx, depth + 1)) {
+                return false;
+            }
+            if (!SerializeExpression(ifPresent.MissingValue(), dstElse, ctx, depth + 1)) {
+                return false;
+            }
+
+            // Duplicated arguments is ok, maybe one lambda was used twice
+            ctx.LambdaArgs.insert({lambdaArgs.Ref().Child(0), *dstInput});
+            return SerializeExpression(lambda.Body(), dstProto->mutable_then_expression(), ctx, depth + 1);
             return true;
         }
 
@@ -648,6 +686,8 @@ namespace NYql {
                 return NFq::EncloseAndEscapeString(value.bytes_value(), '"');
             case Ydb::Value::kTextValue:
                 return NFq::EncloseAndEscapeString(value.text_value(), '"');
+            case Ydb::Value::kNullFlagValue:
+                return "NULL";
             default:
                 throw yexception() << "Failed to format ydb value, value case " << static_cast<ui64>(value.value_case()) << " is not supported";
         }

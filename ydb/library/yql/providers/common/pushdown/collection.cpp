@@ -236,12 +236,16 @@ private:
             return false;
         }
 
-        const auto targetType = DataSlotFromOptionalDataType(UnwrapExprType(cast.Type().Ref().GetTypeAnn()));
+        return IsSupportedType(cast.Type()) && CheckExpressionNodeForPushdown(cast.Value());
+    }
+
+    bool IsSupportedType(const TExprBase& typeExpr) {
+        auto targetType = DataSlotFromOptionalDataType(UnwrapExprType(typeExpr.Ref().GetTypeAnn()));
         if (targetType == EDataSlot::Bool ||
             IsNumericType(targetType) ||
             IsStringType(targetType) && Settings.IsEnabled(EFlag::StringTypes) ||
             IsDateTimeType(targetType) && Settings.IsEnabled(EFlag::DateTimeTypes)) {
-            return CheckExpressionNodeForPushdown(cast.Value());
+            return true;
         }
         return false;
     }
@@ -314,6 +318,28 @@ private:
 
         // Expected exactly one argument for flat map lambda
         return IsSupportedLambda(flatMap.Lambda(), 1);
+    }
+
+    bool IsSupportedIfPresent(const TCoIfPresent& ifPresent) {
+        if (!Settings.IsEnabled(EFlag::FlatMapOverOptionals)) { // XXX separate?
+            return false;
+        }
+
+        const auto input = ifPresent.Optional();
+        if (!DataSlotFromOptionalDataType(input.Ref().GetTypeAnn())) {
+            // Supported only simple flat map over one optional
+            return false;
+        }
+        if (!CheckExpressionNodeForPushdown(input)) {
+            return false;
+        }
+        const auto missingValue = ifPresent.MissingValue();
+        if (!CheckExpressionNodeForPushdown(missingValue)) {
+            return false;
+        }
+
+        // Expected exactly one argument for IfPresent lambda
+        return IsSupportedLambda(ifPresent.PresentHandler(), 1);
     }
 
     bool IsLambdaArgument(const TExprBase& expr) const {
@@ -399,6 +425,12 @@ public:
         }
         if (auto maybeNonDeterministic = node.Maybe<TCoNonDeterministicBase>()) {
             return NonDeterministicCanBePushed(maybeNonDeterministic.Cast());
+        }
+        if (auto maybeNothing = node.Maybe<TCoNothing>()) {
+            return Settings.IsEnabled(EFlag::JustPassthroughOperators) && IsSupportedType(maybeNothing.Cast().OptionalType()); // XXX separate EFlag?
+        }
+        if (auto ifPresent = node.Maybe<TCoIfPresent>()) {
+            return IsSupportedIfPresent(ifPresent.Cast());
         }
         return IsLambdaArgument(node);
     }

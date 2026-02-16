@@ -41,6 +41,7 @@ struct TWatermarkPushdownSettings: public NPushdown::TSettings {
             EFlag::CastExpression |
             EFlag::DivisionExpressions |
             EFlag::JustPassthroughOperators |
+            EFlag::ExpressionAsPredicate |
             EFlag::UnaryOperators |
             EFlag::MinMax |
             EFlag::IsDistinctOperator |
@@ -48,9 +49,11 @@ struct TWatermarkPushdownSettings: public NPushdown::TSettings {
             EFlag::ToStringFromStringExpressions |
             EFlag::JsonQueryOperators |
             EFlag::JsonExistsOperator |
+            EFlag::InOperator |
             EFlag::FlatMapOverOptionals |
             EFlag::NonDeterministic
         );
+        EnableFunction("Re2.Grep");  // For REGEXP pushdown
     }
 };
 
@@ -330,6 +333,7 @@ public:
                 return TStatus::Error;
             }
 
+#if 0
             const TCoLambda lambda(watermark);
             const auto lambdaArg = TExprBase(lambda.Args().Arg(0).Ptr());
             const auto lambdaBody = lambda.Body();
@@ -338,6 +342,7 @@ public:
                     << "Bad watermark expression " << watermark->Dump()));
                 //return TStatus::Error;
             }
+#endif
         }
 
         if (const auto maybeSkipJsonErrorsSetting = FindSetting(settings, SkipJsonErrors)) {
