@@ -605,7 +605,7 @@ Y_UNIT_TEST_SUITE(KqpBatchDelete) {
     }
 
     Y_UNIT_TEST(TableWithSyncIndex) {
-        TKikimrRunner kikimr(GetTestSettings().SetWithSampleTables(false));
+        TKikimrRunner kikimr(GetAppConfig());
 
         auto db = kikimr.GetQueryClient();
         auto session = db.GetSession().GetValueSync().GetSession();
@@ -658,7 +658,7 @@ Y_UNIT_TEST_SUITE(KqpBatchDelete) {
     }
 
     Y_UNIT_TEST(TableWithUniqueSyncIndex) {
-        TKikimrRunner kikimr(GetTestSettings().SetWithSampleTables(false));
+        TKikimrRunner kikimr(GetAppConfig());
 
         auto db = kikimr.GetQueryClient();
         auto session = db.GetSession().GetValueSync().GetSession();
@@ -701,7 +701,7 @@ Y_UNIT_TEST_SUITE(KqpBatchDelete) {
     }
 
     Y_UNIT_TEST(TableWithAsyncIndex) {
-        TKikimrRunner kikimr(GetTestSettings().SetWithSampleTables(false));
+        TKikimrRunner kikimr(GetAppConfig());
 
         auto db = kikimr.GetQueryClient();
         auto session = db.GetSession().GetValueSync().GetSession();
@@ -751,7 +751,7 @@ Y_UNIT_TEST_SUITE(KqpBatchDelete) {
     }
 
     Y_UNIT_TEST(TableWithVectorIndex) {
-        TKikimrRunner kikimr(GetTestSettings().SetWithSampleTables(false));
+        TKikimrRunner kikimr(GetAppConfig());
 
         auto db = kikimr.GetQueryClient();
         auto session = db.GetSession().GetValueSync().GetSession();
