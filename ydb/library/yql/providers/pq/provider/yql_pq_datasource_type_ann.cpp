@@ -32,6 +32,7 @@ struct TWatermarkPushdownSettings: public NPushdown::TSettings {
             EFlag::StringTypes |
             EFlag::TimestampCtor |
             EFlag::IntervalCtor |
+            EFlag::DateCtor |
             EFlag::ImplicitConversionToInt64 |
             EFlag::DoNotCheckCompareArgumentsTypes |
 
@@ -42,6 +43,12 @@ struct TWatermarkPushdownSettings: public NPushdown::TSettings {
             EFlag::JustPassthroughOperators |
             EFlag::UnaryOperators |
             EFlag::MinMax |
+            EFlag::IsDistinctOperator |
+            EFlag::ToBytesFromStringExpressions |
+            EFlag::ToStringFromStringExpressions |
+            EFlag::JsonQueryOperators |
+            EFlag::JsonExistsOperator |
+            EFlag::FlatMapOverOptionals |
             EFlag::NonDeterministic
         );
     }
