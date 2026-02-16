@@ -244,6 +244,15 @@ public:
             if (!EnsureSpecificDataType(*watermark, EDataSlot::Timestamp, ctx, true)) {
                 return TStatus::Error;
             }
+
+            const TCoLambda lambda(watermark);
+            const auto lambdaArg = TExprBase(lambda.Args().Arg(0).Ptr());
+            const auto lambdaBody = lambda.Body();
+            if (!TestExprForPushdown(ctx, lambdaArg, lambdaBody, TWatermarkPushdownSettings())) {
+                ctx.AddError(TIssue(ctx.GetPosition(watermark->Pos()), TStringBuilder()
+                    << "Bad watermark expression"));
+                return TStatus::Error;
+            }
         }
 
         input->SetTypeAnn(ctx.MakeType<TTupleExprType>(TTypeAnnotationNode::TListType{
@@ -310,15 +319,6 @@ public:
                 return TStatus::Repeat;
             }
             if (!EnsureSpecificDataType(*watermark, EDataSlot::Timestamp, ctx, true)) {
-                return TStatus::Error;
-            }
-
-            const TCoLambda lambda(watermark);
-            const auto lambdaArg = TExprBase(lambda.Args().Arg(0).Ptr());
-            const auto lambdaBody = lambda.Body();
-            if (!TestExprForPushdown(ctx, lambdaArg, lambdaBody, TWatermarkPushdownSettings())) {
-                ctx.AddError(TIssue(ctx.GetPosition(watermark->Pos()), TStringBuilder()
-                    << "Bad watermark expression"));
                 return TStatus::Error;
             }
         }
