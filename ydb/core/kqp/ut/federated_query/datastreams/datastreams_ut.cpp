@@ -3024,9 +3024,7 @@ Y_UNIT_TEST_SUITE(KqpStreamingQueriesDdl) {
                 .TableName = ydbTable,
                 .Columns = columns,
                 .DescribeCount = 2,
-                // Now List Split is done after type annotation, that is the
-                // reason why this value equal to 4 not 5
-                .ListSplitsCount = 4,
+                .ListSplitsCount = 7,
                 .ValidateListSplitsArgs = false
             });
 
@@ -3035,11 +3033,11 @@ Y_UNIT_TEST_SUITE(KqpStreamingQueriesDdl) {
             SetupMockConnectorTableData(connectorClient, {
                 .TableName = ydbTable,
                 .Columns = columns,
-                .NumberReadSplits = 3,
+                .NumberReadSplits = 6,
                 .ValidateReadSplitsArgs = false,
                 .ResultFactory = [&]() {
                     readSplitsCount += 1;
-                    const auto payloadColumn = readSplitsCount < 3
+                    const auto payloadColumn = readSplitsCount <= 4
                         ? std::vector<std::string>{"P1", "P2", "P3"}
                         : std::vector<std::string>{"P4", "P5", "P6"};
 
@@ -3954,7 +3952,7 @@ Y_UNIT_TEST_SUITE(KqpStreamingQueriesDdl) {
                 .TableName = ydbTable,
                 .Columns = columns,
                 .DescribeCount = 2,
-                .ListSplitsCount = 4,
+                .ListSplitsCount = 7,
                 .ValidateListSplitsArgs = false
             });
 
@@ -3963,7 +3961,7 @@ Y_UNIT_TEST_SUITE(KqpStreamingQueriesDdl) {
             SetupMockConnectorTableData(connectorClient, {
                 .TableName = ydbTable,
                 .Columns = columns,
-                .NumberReadSplits = 3,
+                .NumberReadSplits = 6,
                 .ValidateReadSplitsArgs = false,
                 .ResultFactory = [&]() {
                     return MakeRecordBatch(
