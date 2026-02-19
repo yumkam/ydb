@@ -355,7 +355,7 @@ int main(int argc, const char** argv) {
         << ", threads=" << config.ActorSystemThreadsCount
         << ", udf-files=" << config.UdfFiles.size()
         << ", side-by-side-compare=" << (config.EnableOltpSinkSideBySinkCompare ? "true" : "false")
-        << ", antlr4-ambiguity-error=" << (config.Antlr4ParserIsAmbiguityError ? "true" : "false")
+        << ", enable-antlr4-parser=" << (config.EnableAntlr4Parser ? "true" : "false")
         << Endl;
 
     if (config.QueryFile) {
