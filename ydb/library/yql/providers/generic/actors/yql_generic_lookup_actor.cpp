@@ -356,8 +356,8 @@ namespace NYql::NDq {
             auto state = std::make_shared<TLookupState>(TLookupState {
                 .Request = request,
                 .RetryState = RetryPolicy->CreateRetryState(),
-                .FullscanLimit = fullscanLimit
-                .SentTime = TInstant::Now();
+                .FullscanLimit = fullscanLimit,
+                .SentTime = TInstant::Now(),
             });
             SendRequest(state);
         }
