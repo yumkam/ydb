@@ -67,6 +67,7 @@ namespace NYql::NDq {
             ILookupRetryState::TPtr RetryState;
             size_t FullscanLimit = 0;
             size_t ResultRows = 0;
+            TInstant SentTime;
         };
     } // namespace
 
@@ -343,7 +344,6 @@ namespace NYql::NDq {
                 return;
             }
             Y_DEBUG_ABORT_UNLESS(request->empty() == (fullscanLimit > 0));
-            SentTime = TInstant::Now();
             YQL_CLOG(DEBUG, ProviderGeneric) << "ActorId=" << SelfId() << " Got LookupRequest for " << request->size() << " keys";
             Y_ABORT_IF((request->empty() == (fullscanLimit == 0)) || request->size() > MaxKeysInRequest);
             if (Count) {
@@ -356,7 +356,8 @@ namespace NYql::NDq {
             auto state = std::make_shared<TLookupState>(TLookupState {
                 .Request = request,
                 .RetryState = RetryPolicy->CreateRetryState(),
-                .FullscanLimit = fullscanLimit
+                .FullscanLimit = fullscanLimit,
+                .SentTime = TInstant::Now(),
             });
             SendRequest(state);
         }
@@ -501,7 +502,7 @@ namespace NYql::NDq {
             auto guard = Guard(*Alloc);
             YQL_CLOG(DEBUG, ProviderGeneric) << "Sending lookup results with " << state->ResultRows << " rows";
             if (AnswerTime) {
-                AnswerTime->Add((TInstant::Now() - SentTime).MilliSeconds());
+                AnswerTime->Add((TInstant::Now() - state->SentTime).MilliSeconds());
                 InFlight->Dec();
             }
             auto* ev = new IDqAsyncLookupSource::TEvLookupResult(std::move(state->Request), state->ResultRows, state->FullscanLimit);
@@ -645,7 +646,6 @@ namespace NYql::NDq {
         ::NMonitoring::TDynamicCounters::TCounterPtr AnswerTime;
         ::NMonitoring::TDynamicCounters::TCounterPtr CpuTime;
         ::NMonitoring::TDynamicCounters::TCounterPtr InFlight;
-        TInstant SentTime;
         static constexpr size_t MaxSupportedFullscanRequest = 1000; // todo: consider making tweakable
     };
 
