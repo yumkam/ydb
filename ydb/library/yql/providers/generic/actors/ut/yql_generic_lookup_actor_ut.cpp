@@ -8,6 +8,7 @@
 
 #include <ydb/core/kqp/ut/federated_query/common/common.h>
 #include <ydb/library/actors/testlib/test_runtime.h>
+#include <ydb/library/testlib/common/test_utils.h>
 #include <ydb/library/yql/providers/generic/connector/libcpp/ut_helpers/connector_client_mock.h>
 #include <ydb/library/yql/providers/generic/connector/libcpp/ut_helpers/test_creds.h>
 #include <ydb/library/yql/providers/generic/actors/yql_generic_lookup_actor.h>
@@ -37,15 +38,17 @@ Y_UNIT_TEST_SUITE(GenericProviderLookupActor) {
         TCallLookupActor(
             std::shared_ptr<NKikimr::NMiniKQL::TScopedAlloc> alloc,
             const NActors::TActorId& lookupActor,
-            std::shared_ptr<NYql::NDq::IDqAsyncLookupSource::TUnboxedValueMap> request)
+            std::shared_ptr<NYql::NDq::IDqAsyncLookupSource::TUnboxedValueMap> request,
+            size_t fullscanLimit = 0)
             : Alloc(alloc)
             , LookupActor(lookupActor)
             , Request(request)
+            , FullscanLimit(fullscanLimit)
         {
         }
 
         void Bootstrap() {
-            auto ev = new NYql::NDq::IDqAsyncLookupSource::TEvLookupRequest(Request);
+            auto ev = new NYql::NDq::IDqAsyncLookupSource::TEvLookupRequest(Request, FullscanLimit);
             TActivationContext::ActorSystem()->Send(new NActors::IEventHandle(LookupActor, SelfId(), ev));
         }
 
@@ -65,9 +68,10 @@ Y_UNIT_TEST_SUITE(GenericProviderLookupActor) {
         std::shared_ptr<NKikimr::NMiniKQL::TScopedAlloc> Alloc;
         const NActors::TActorId LookupActor;
         std::shared_ptr<NYql::NDq::IDqAsyncLookupSource::TUnboxedValueMap> Request;
+        size_t FullscanLimit;
     };
 
-    Y_UNIT_TEST(Lookup) {
+    Y_UNIT_TEST_QUAD(Lookup, multiMatches, fullScan) {
         auto alloc = std::make_shared<NKikimr::NMiniKQL::TScopedAlloc>(__LOCATION__, NKikimr::TAlignedPagePoolCounters(), true, false);
         NKikimr::NMiniKQL::TMemoryUsageInfo memUsage("TestMemUsage");
         NKikimr::NMiniKQL::THolderFactory holderFactory(alloc->Ref(), memUsage);
@@ -95,6 +99,7 @@ Y_UNIT_TEST_SUITE(GenericProviderLookupActor) {
 
         auto connectorMock = std::make_shared<NYql::NConnector::NTest::TConnectorClientMock>();
 
+        size_t fullscanLimit = fullScan ? 4 : 0;
         // clang-format off
         // step 1: ListSplits
         connectorMock->ExpectListSplits()
@@ -106,7 +111,7 @@ Y_UNIT_TEST_SUITE(GenericProviderLookupActor) {
                     .NullableColumn("string_value", Ydb::Type::STRING)
                     .Done()
                 .Table("lookup_test")
-                .Where()
+                .Where(/*skip=*/!fullScan)
                     .Filter()
                         .Disjunction()
                             .Operand()
@@ -136,154 +141,8 @@ Y_UNIT_TEST_SUITE(GenericProviderLookupActor) {
                             .Done()
                         .Done()
                     .Done()
-                .Done()
-            .MaxSplitCount(1)
-            .Result()
-                .AddResponse(NewSuccess())
-                    .Description("Actual split info is not important")
-        ;
-
-        connectorMock->ExpectReadSplits()
-            .DataSourceInstance(dsi)
-            .Filtering(NYql::NConnector::NApi::TReadSplitsRequest::FILTERING_MANDATORY)
-            .Split()
-                .Description("Actual split info is not important")
-                .Done()
-            .Result()
-                .AddResponse(
-                    MakeRecordBatch(
-                        MakeArray<arrow::UInt64Builder, uint64_t>("id", {0, 1, 2}, arrow::uint64()),
-                        MakeArray<arrow::UInt64Builder, uint64_t>("optional_id", {100, 101, 103}, arrow::uint64()), // the last value is intentionally wrong
-                        MakeArray<arrow::StringBuilder, std::string>("string_value", {"a", "b", "c"}, arrow::utf8())
-                    ),
-                    NewSuccess()
-                )
-        ;
-        // clang-format on
-
-        NYql::Generic::TLookupSource lookupSourceSettings;
-        *lookupSourceSettings.mutable_data_source_instance() = dsi;
-        lookupSourceSettings.Settable("lookup_test");
-        lookupSourceSettings.SetTokenName("test_token");
-
-        google::protobuf::Any packedLookupSource;
-        Y_ABORT_UNLESS(packedLookupSource.PackFrom(lookupSourceSettings));
-
-        NKikimr::NMiniKQL::TStructTypeBuilder keyTypeBuilder{typeEnv};
-        keyTypeBuilder.Add("id", typeBuilder.NewDataType(NYql::NUdf::EDataSlot::Uint64, false));
-        keyTypeBuilder.Add("optional_id", typeBuilder.NewDataType(NYql::NUdf::EDataSlot::Uint64, true));
-        NKikimr::NMiniKQL::TStructTypeBuilder outputypeBuilder{typeEnv};
-        outputypeBuilder.Add("string_value", typeBuilder.NewDataType(NYql::NUdf::EDataSlot::String, true));
-
-        auto guard = Guard(*alloc.get());
-        auto keyTypeHelper = std::make_shared<NYql::NDq::IDqAsyncLookupSource::TKeyTypeHelper>(keyTypeBuilder.Build());
-
-        auto [lookupSource, actor] = NYql::NDq::CreateGenericLookupActor(
-            connectorMock,
-            NKikimr::NKqp::NFederatedQueryTest::CreateCredentialsFactory("token_value"),
-            edge,
-            nullptr,
-            alloc,
-            keyTypeHelper,
-            std::move(lookupSourceSettings),
-            keyTypeBuilder.Build(),
-            outputypeBuilder.Build(),
-            typeEnv,
-            holderFactory,
-            1'000'000,
-            {{"test_token", "{\"token\": \"token_value\"}"}});
-        auto lookupActor = runtime.Register(actor);
-
-        auto request = std::make_shared<NYql::NDq::IDqAsyncLookupSource::TUnboxedValueMap>(3, keyTypeHelper->GetValueHash(), keyTypeHelper->GetValueEqual());
-        for (size_t i = 0; i != 3; ++i) {
-            NYql::NUdf::TUnboxedValue* keyItems;
-            auto key = holderFactory.CreateDirectArrayHolder(2, keyItems);
-            keyItems[0] = NYql::NUdf::TUnboxedValuePod(ui64(i));
-            keyItems[1] = NYql::NUdf::TUnboxedValuePod(ui64(100 + i));
-            request->emplace(std::move(key), NYql::NUdf::TUnboxedValue{});
-        }
-
-        guard.Release(); // let actors use alloc
-
-        auto callLookupActor = new TCallLookupActor(alloc, lookupActor, request);
-        runtime.Register(callLookupActor);
-
-        auto ev = runtime.GrabEdgeEventRethrow<NYql::NDq::IDqAsyncLookupSource::TEvLookupResult>(edge);
-        auto guard2 = Guard(*alloc.get());
-        auto lookupResult = ev->Get()->Result.lock();
-        UNIT_ASSERT(lookupResult);
-
-        UNIT_ASSERT_EQUAL(3, lookupResult->size());
-    }
-
-    Y_UNIT_TEST(LookupMultiMatches) {
-        auto alloc = std::make_shared<NKikimr::NMiniKQL::TScopedAlloc>(__LOCATION__, NKikimr::TAlignedPagePoolCounters(), true, false);
-        NKikimr::NMiniKQL::TMemoryUsageInfo memUsage("TestMemUsage");
-        NKikimr::NMiniKQL::THolderFactory holderFactory(alloc->Ref(), memUsage);
-        NKikimr::NMiniKQL::TTypeEnvironment typeEnv(*alloc);
-        NKikimr::NMiniKQL::TTypeBuilder typeBuilder(typeEnv);
-
-        auto loggerConfig = NYql::NProto::TLoggingConfig();
-        loggerConfig.set_allcomponentslevel(::NYql::NProto::TLoggingConfig_ELevel::TLoggingConfig_ELevel_TRACE);
-        NYql::NLog::InitLogger(loggerConfig, false);
-
-        TTestActorRuntimeBase runtime;
-        runtime.Initialize();
-        auto edge = runtime.AllocateEdgeActor();
-
-        NYql::TGenericDataSourceInstance dsi;
-        dsi.Setkind(NYql::EGenericDataSourceKind::YDB);
-        dsi.mutable_endpoint()->Sethost("some_host");
-        dsi.mutable_endpoint()->Setport(2135);
-        dsi.Setdatabase("some_db");
-        dsi.Setuse_tls(true);
-        dsi.set_protocol(::NYql::EGenericProtocol::NATIVE);
-        auto token = dsi.mutable_credentials()->mutable_token();
-        token->Settype("IAM");
-        token->Setvalue("token_value");
-
-        auto connectorMock = std::make_shared<NYql::NConnector::NTest::TConnectorClientMock>();
-
-        // clang-format off
-        // step 1: ListSplits
-        connectorMock->ExpectListSplits()
-            .Select()
-                .DataSourceInstance(dsi)
-                .What()
-                    .Column("id", Ydb::Type::UINT64)
-                    .NullableColumn("optional_id", Ydb::Type::UINT64)
-                    .NullableColumn("string_value", Ydb::Type::STRING)
-                    .Done()
-                .Table("lookup_test")
-                .Where()
-                    .Filter()
-                        .Disjunction()
-                            .Operand()
-                                .Conjunction()
-                                    .Operand().Equal().Column("id").Value<ui64>(2).Done().Done()
-                                    .Operand().Equal().Column("optional_id").OptionalValue<ui64>(102).Done().Done()
-                                    .Done()
-                                .Done()
-                            .Operand()
-                                .Conjunction()
-                                    .Operand().Equal().Column("id").Value<ui64>(1).Done().Done()
-                                    .Operand().Equal().Column("optional_id").OptionalValue<ui64>(101).Done().Done()
-                                    .Done()
-                                .Done()
-                            .Operand()
-                                .Conjunction()
-                                    .Operand().Equal().Column("id").Value<ui64>(0).Done().Done()
-                                    .Operand().Equal().Column("optional_id").OptionalValue<ui64>(100).Done().Done()
-                                    .Done()
-                                .Done()
-                            .Operand()
-                                .Conjunction()
-                                    .Operand().Equal().Column("id").Value<ui64>(2).Done().Done()
-                                    .Operand().Equal().Column("optional_id").OptionalValue<ui64>(102).Done().Done()
-                                    .Done()
-                                .Done()
-                            .Done()
-                        .Done()
+                .Limit(fullScan)
+                        .Limit(fullscanLimit)
                     .Done()
                 .Done()
             .MaxSplitCount(1)
@@ -341,21 +200,23 @@ Y_UNIT_TEST_SUITE(GenericProviderLookupActor) {
             holderFactory,
             1'000'000,
             {{"test_token", "{\"token\": \"token_value\"}"}},
-            true);
+            multiMatches);
         auto lookupActor = runtime.Register(actor);
 
         auto request = std::make_shared<NYql::NDq::IDqAsyncLookupSource::TUnboxedValueMap>(3, keyTypeHelper->GetValueHash(), keyTypeHelper->GetValueEqual());
-        for (size_t i = 0; i != 3; ++i) {
-            NYql::NUdf::TUnboxedValue* keyItems;
-            auto key = holderFactory.CreateDirectArrayHolder(2, keyItems);
-            keyItems[0] = NYql::NUdf::TUnboxedValuePod(ui64(i));
-            keyItems[1] = NYql::NUdf::TUnboxedValuePod(ui64(100 + i));
-            request->emplace(std::move(key), NYql::NUdf::TUnboxedValue{});
+        if (!fullScan) {
+            for (size_t i = 0; i != 3; ++i) {
+                NYql::NUdf::TUnboxedValue* keyItems;
+                auto key = holderFactory.CreateDirectArrayHolder(2, keyItems);
+                keyItems[0] = NYql::NUdf::TUnboxedValuePod(ui64(i));
+                keyItems[1] = NYql::NUdf::TUnboxedValuePod(ui64(100 + i));
+                request->emplace(std::move(key), NYql::NUdf::TUnboxedValue{});
+            }
         }
 
         guard.Release(); // let actors use alloc
 
-        auto callLookupActor = new TCallLookupActor(alloc, lookupActor, request);
+        auto callLookupActor = new TCallLookupActor(alloc, lookupActor, request, fullscanLimit);
         runtime.Register(callLookupActor);
 
         auto ev = runtime.GrabEdgeEventRethrow<NYql::NDq::IDqAsyncLookupSource::TEvLookupResult>(edge);
@@ -364,6 +225,12 @@ Y_UNIT_TEST_SUITE(GenericProviderLookupActor) {
         UNIT_ASSERT(lookupResult);
 
         UNIT_ASSERT_EQUAL(3, lookupResult->size());
+        UNIT_ASSERT_EQUAL(lookupResult, request);
+        UNIT_ASSERT_EQUAL(ev->Get()->FullscanLimit, fullscanLimit);
+        UNIT_ASSERT_EQUAL(ev->Get()->ResultRows, 4);
+        if (!multiMatches) {
+            return;
+        }
         {
             const auto* v = lookupResult->FindPtr(CreateStructValue(holderFactory, {0, 100}));
             UNIT_ASSERT(v);
