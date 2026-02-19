@@ -76,7 +76,6 @@ void CreateAllTypesColumnTable(TQueryClient& client) {
     auto createResult = client.ExecuteQuery(R"(
         CREATE TABLE `/Root/ColumnTable` (
             Key Uint64 NOT NULL,
-            BoolValue Bool,
             Int8Value Int8,
             Uint8Value Uint8,
             Int16Value Int16,
@@ -103,8 +102,8 @@ void CreateAllTypesColumnTable(TQueryClient& client) {
     UNIT_ASSERT_C(createResult.IsSuccess(), createResult.GetIssues().ToString());
 
     auto insertResult = client.ExecuteQuery(R"(
-        INSERT INTO `/Root/ColumnTable` (Key, BoolValue, Int8Value, Uint8Value, Int16Value, Uint16Value, Int32Value, Uint32Value, Int64Value, Uint64Value, FloatValue, DoubleValue, StringValue, Utf8Value, DateValue, DatetimeValue, TimestampValue, JsonValue, YsonValue, JsonDocumentValue) VALUES
-        (42, true, -1, 1, -2, 2, -3, 3, -4, 4, CAST(3.0 AS Float), 4.0, "five", Utf8("six"), Date("2007-07-07"), Datetime("2008-08-08T08:08:08Z"), Timestamp("2009-09-09T09:09:09.09Z"), "[12]", "[13]", JsonDocument("[14]"));
+        INSERT INTO `/Root/ColumnTable` (Key, Int8Value, Uint8Value, Int16Value, Uint16Value, Int32Value, Uint32Value, Int64Value, Uint64Value, FloatValue, DoubleValue, StringValue, Utf8Value, DateValue, DatetimeValue, TimestampValue, JsonValue, YsonValue, JsonDocumentValue) VALUES
+        (42, -1, 1, -2, 2, -3, 3, -4, 4, CAST(3.0 AS Float), 4.0, "five", Utf8("six"), Date("2007-07-07"), Datetime("2008-08-08T08:08:08Z"), Timestamp("2009-09-09T09:09:09.09Z"), "[12]", "[13]", JsonDocument("[14]"));
     )", TTxControl::BeginTx().CommitTx()).GetValueSync();
     UNIT_ASSERT_C(insertResult.IsSuccess(), insertResult.GetIssues().ToString());
 }
@@ -648,10 +647,10 @@ Y_UNIT_TEST_SUITE(KqpResultSetFormats) {
         if (isOlap) {
             CreateAllTypesColumnTable(client);
             query = R"(
-                UPSERT INTO `/Root/ColumnTable` (Key, BoolValue, Int8Value, Uint8Value, Int16Value, Uint16Value, Int32Value, Uint32Value, Int64Value, Uint64Value, FloatValue, DoubleValue, StringValue, Utf8Value, DateValue, DatetimeValue, TimestampValue, JsonValue, YsonValue, JsonDocumentValue) VALUES
-                (43, false, -1, 1, -2, 2, -3, 3, -4, 4, CAST(3.0 AS Float), 4.0, "five", Utf8("six"), Date("2007-07-07"), Datetime("2008-08-08T08:08:08Z"), Timestamp("2009-09-09T09:09:09.09Z"), "[12]", "[13]", JsonDocument("[14]")),
-                (44, true, -1, 1, -2, 2, -3, 3, -4, 4, CAST(3.0 AS Float), 4.0, "five", Utf8("six"), Date("2007-07-07"), Datetime("2008-08-08T08:08:08Z"), Timestamp("2009-09-09T09:09:09.09Z"), "[12]", "[13]", JsonDocument("[14]")),
-                (45, false, -1, 1, -2, 2, -3, 3, -4, 4, CAST(3.0 AS Float), 4.0, "five", Utf8("six"), Date("2007-07-07"), Datetime("2008-08-08T08:08:08Z"), Timestamp("2009-09-09T09:09:09.09Z"), "[12]", "[13]", JsonDocument("[14]"))
+                UPSERT INTO `/Root/ColumnTable` (Key, Int8Value, Uint8Value, Int16Value, Uint16Value, Int32Value, Uint32Value, Int64Value, Uint64Value, FloatValue, DoubleValue, StringValue, Utf8Value, DateValue, DatetimeValue, TimestampValue, JsonValue, YsonValue, JsonDocumentValue) VALUES
+                (43, -1, 1, -2, 2, -3, 3, -4, 4, CAST(3.0 AS Float), 4.0, "five", Utf8("six"), Date("2007-07-07"), Datetime("2008-08-08T08:08:08Z"), Timestamp("2009-09-09T09:09:09.09Z"), "[12]", "[13]", JsonDocument("[14]")),
+                (44, -1, 1, -2, 2, -3, 3, -4, 4, CAST(3.0 AS Float), 4.0, "five", Utf8("six"), Date("2007-07-07"), Datetime("2008-08-08T08:08:08Z"), Timestamp("2009-09-09T09:09:09.09Z"), "[12]", "[13]", JsonDocument("[14]")),
+                (45, -1, 1, -2, 2, -3, 3, -4, 4, CAST(3.0 AS Float), 4.0, "five", Utf8("six"), Date("2007-07-07"), Datetime("2008-08-08T08:08:08Z"), Timestamp("2009-09-09T09:09:09.09Z"), "[12]", "[13]", JsonDocument("[14]"))
                 RETURNING *;
             )";
         } else {
@@ -2015,7 +2014,6 @@ R"(column0:   -- is_valid: all not null
         auto tableClient = kikimr.GetTableClient();
 
         std::vector<std::pair<std::string, std::string>> types = {
-            {"Bool", "Bool"},
             {"Uint8", "Uint8"},
             {"Int8", "Int8"},
             {"Uint16", "Uint16"},
@@ -2045,6 +2043,7 @@ R"(column0:   -- is_valid: all not null
             types.push_back({"Interval", "Interval"});
             types.push_back({"DyNumber", "DyNumber"});
             types.push_back({"Uuid", "Uuid"});
+            types.push_back({"Bool", "Bool"});
         }
 
         {
@@ -2070,24 +2069,24 @@ R"(column0:   -- is_valid: all not null
                 query += std::format(", {}Value", name);
             }
             query += ") VALUES ";
-            query += "(1, true, 1, -1, 1, -1, 1, -1, 1, -1, 1.0f, 1.0, Date('2025-01-01'), Datetime('2025-01-01T00:00:00Z'), Timestamp('2025-01-01T00:00:00Z'), '1', '1'u, Date32('2025-01-01'), Datetime64('2025-01-01T00:00:00Z'), Timestamp64('2025-01-01T00:00:00Z'), Interval64('P1D'), Json(@@[1]@@), JsonDocument('[1]'), Yson('[1]'), Decimal('1', 22, 9)";
+            query += "(1, 1, -1, 1, -1, 1, -1, 1, -1, 1.0f, 1.0, Date('2025-01-01'), Datetime('2025-01-01T00:00:00Z'), Timestamp('2025-01-01T00:00:00Z'), '1', '1'u, Date32('2025-01-01'), Datetime64('2025-01-01T00:00:00Z'), Timestamp64('2025-01-01T00:00:00Z'), Interval64('P1D'), Json(@@[1]@@), JsonDocument('[1]'), Yson('[1]'), Decimal('1', 22, 9)";
 
             if (!IsOlap) {
-                query += ", Interval('P1D'), DyNumber('1'), Uuid('f9d5cc3f-f1dc-4d9c-b97e-766e57ca4cc1')";
+                query += ", Interval('P1D'), DyNumber('1'), Uuid('f9d5cc3f-f1dc-4d9c-b97e-766e57ca4cc1'), true";
             }
             query += "),";
 
-            query += "(2, false, 2, -2, 2, -2, 2, -2, 2, -2, 2.0f, 2.0, Date('2025-02-02'), Datetime('2025-02-02T00:00:00Z'), Timestamp('2025-02-02T00:00:00Z'), '2', '2'u, Date32('2025-02-02'), Datetime64('2025-02-02T00:00:00Z'), Timestamp64('2025-02-02T00:00:00Z'), Interval64('P2D'), Json(@@[2]@@), JsonDocument('[2]'), Yson('[2]'), Decimal('2', 22, 9)";
+            query += "(2, 2, -2, 2, -2, 2, -2, 2, -2, 2.0f, 2.0, Date('2025-02-02'), Datetime('2025-02-02T00:00:00Z'), Timestamp('2025-02-02T00:00:00Z'), '2', '2'u, Date32('2025-02-02'), Datetime64('2025-02-02T00:00:00Z'), Timestamp64('2025-02-02T00:00:00Z'), Interval64('P2D'), Json(@@[2]@@), JsonDocument('[2]'), Yson('[2]'), Decimal('2', 22, 9)";
 
             if (!IsOlap) {
-                query += ", Interval('P2D'), DyNumber('2'), Uuid('f9d5cc3f-f1dc-4d9c-b97e-766e57ca4cc2')";
+                query += ", Interval('P2D'), DyNumber('2'), Uuid('f9d5cc3f-f1dc-4d9c-b97e-766e57ca4cc2'), false";
             }
             query += "),";
 
-            query += "(3, true, 3, -3, 3, -3, 3, -3, 3, -3, 3.0f, 3.0, Date('2025-03-03'), Datetime('2025-03-03T00:00:00Z'), Timestamp('2025-03-03T00:00:00Z'), '3', '3'u, Date32('2025-03-03'), Datetime64('2025-03-03T00:00:00Z'), Timestamp64('2025-03-03T00:00:00Z'), Interval64('P3D'), Json(@@[3]@@), JsonDocument('[3]'), Yson('[3]'), Decimal('3', 22, 9)";
+            query += "(3, 3, -3, 3, -3, 3, -3, 3, -3, 3.0f, 3.0, Date('2025-03-03'), Datetime('2025-03-03T00:00:00Z'), Timestamp('2025-03-03T00:00:00Z'), '3', '3'u, Date32('2025-03-03'), Datetime64('2025-03-03T00:00:00Z'), Timestamp64('2025-03-03T00:00:00Z'), Interval64('P3D'), Json(@@[3]@@), JsonDocument('[3]'), Yson('[3]'), Decimal('3', 22, 9)";
 
             if (!IsOlap) {
-                query += ", Interval('P3D'), DyNumber('3'), Uuid('f9d5cc3f-f1dc-4d9c-b97e-766e57ca4cc3')";
+                query += ", Interval('P3D'), DyNumber('3'), Uuid('f9d5cc3f-f1dc-4d9c-b97e-766e57ca4cc3'), true";
             }
             query += ")";
 
@@ -2133,39 +2132,39 @@ R"(column0:   -- is_valid: all not null
 
             TString expected = "[";
 
-            expected += R"([1u;[%true];[1u];[-1];[1u];[-1];[1u];[-1];[1u];[-1];[1.];[1.];[20089u];[1735689600u];[1735689600000000u];["1"];["1"];[20089];[1735689600];[1735689600000000];[86400000000];["[1]"];["[1]"];["[1]"];["1"])";
+            expected += R"([1u;[1u];[-1];[1u];[-1];[1u];[-1];[1u];[-1];[1.];[1.];[20089u];[1735689600u];[1735689600000000u];["1"];["1"];[20089];[1735689600];[1735689600000000];[86400000000];["[1]"];["[1]"];["[1]"];["1"])";
             if (!IsOlap) {
-                expected += R"(;[86400000000];[".1e1"];["f9d5cc3f-f1dc-4d9c-b97e-766e57ca4cc1"])";
+                expected += R"(;[86400000000];[".1e1"];["f9d5cc3f-f1dc-4d9c-b97e-766e57ca4cc1"];[%true])";
             }
             expected += "];";
 
-            expected += R"([2u;[%false];[2u];[-2];[2u];[-2];[2u];[-2];[2u];[-2];[2.];[2.];[20121u];[1738454400u];[1738454400000000u];["2"];["2"];[20121];[1738454400];[1738454400000000];[172800000000];["[2]"];["[2]"];["[2]"];["2"])";
+            expected += R"([2u;[2u];[-2];[2u];[-2];[2u];[-2];[2u];[-2];[2.];[2.];[20121u];[1738454400u];[1738454400000000u];["2"];["2"];[20121];[1738454400];[1738454400000000];[172800000000];["[2]"];["[2]"];["[2]"];["2"])";
             if (!IsOlap) {
-                expected += R"(;[172800000000];[".2e1"];["f9d5cc3f-f1dc-4d9c-b97e-766e57ca4cc2"])";
+                expected += R"(;[172800000000];[".2e1"];["f9d5cc3f-f1dc-4d9c-b97e-766e57ca4cc2"];[%false])";
             }
             expected += "];";
 
-            expected += R"([3u;[%true];[3u];[-3];[3u];[-3];[3u];[-3];[3u];[-3];[3.];[3.];[20150u];[1740960000u];[1740960000000000u];["3"];["3"];[20150];[1740960000];[1740960000000000];[259200000000];["[3]"];["[3]"];["[3]"];["3"])";
+            expected += R"([3u;[3u];[-3];[3u];[-3];[3u];[-3];[3u];[-3];[3.];[3.];[20150u];[1740960000u];[1740960000000000u];["3"];["3"];[20150];[1740960000];[1740960000000000];[259200000000];["[3]"];["[3]"];["[3]"];["3"])";
             if (!IsOlap) {
-                expected += R"(;[259200000000];[".3e1"];["f9d5cc3f-f1dc-4d9c-b97e-766e57ca4cc3"])";
+                expected += R"(;[259200000000];[".3e1"];["f9d5cc3f-f1dc-4d9c-b97e-766e57ca4cc3"];[%true])";
             }
             expected += "];";
 
-            expected += R"([4u;[%true];[1u];[-1];[1u];[-1];[1u];[-1];[1u];[-1];[1.];[1.];[20089u];[1735689600u];[1735689600000000u];["1"];["1"];[20089];[1735689600];[1735689600000000];[86400000000];["[1]"];["[1]"];["[1]"];["1"])";
+            expected += R"([4u;[1u];[-1];[1u];[-1];[1u];[-1];[1u];[-1];[1.];[1.];[20089u];[1735689600u];[1735689600000000u];["1"];["1"];[20089];[1735689600];[1735689600000000];[86400000000];["[1]"];["[1]"];["[1]"];["1"])";
             if (!IsOlap) {
-                expected += R"(;[86400000000];[".1e1"];["f9d5cc3f-f1dc-4d9c-b97e-766e57ca4cc1"])";
+                expected += R"(;[86400000000];[".1e1"];["f9d5cc3f-f1dc-4d9c-b97e-766e57ca4cc1"];[%true])";
             }
             expected += "];";
 
-            expected += R"([5u;[%false];[2u];[-2];[2u];[-2];[2u];[-2];[2u];[-2];[2.];[2.];[20121u];[1738454400u];[1738454400000000u];["2"];["2"];[20121];[1738454400];[1738454400000000];[172800000000];["[2]"];["[2]"];["[2]"];["2"])";
+            expected += R"([5u;[2u];[-2];[2u];[-2];[2u];[-2];[2u];[-2];[2.];[2.];[20121u];[1738454400u];[1738454400000000u];["2"];["2"];[20121];[1738454400];[1738454400000000];[172800000000];["[2]"];["[2]"];["[2]"];["2"])";
             if (!IsOlap) {
-                expected += R"(;[172800000000];[".2e1"];["f9d5cc3f-f1dc-4d9c-b97e-766e57ca4cc2"])";
+                expected += R"(;[172800000000];[".2e1"];["f9d5cc3f-f1dc-4d9c-b97e-766e57ca4cc2"];[%false])";
             }
             expected += "];";
 
-            expected += R"([6u;[%true];[3u];[-3];[3u];[-3];[3u];[-3];[3u];[-3];[3.];[3.];[20150u];[1740960000u];[1740960000000000u];["3"];["3"];[20150];[1740960000];[1740960000000000];[259200000000];["[3]"];["[3]"];["[3]"];["3"])";
+            expected += R"([6u;[3u];[-3];[3u];[-3];[3u];[-3];[3u];[-3];[3.];[3.];[20150u];[1740960000u];[1740960000000000u];["3"];["3"];[20150];[1740960000];[1740960000000000];[259200000000];["[3]"];["[3]"];["[3]"];["3"])";
             if (!IsOlap) {
-                expected += R"(;[259200000000];[".3e1"];["f9d5cc3f-f1dc-4d9c-b97e-766e57ca4cc3"])";
+                expected += R"(;[259200000000];[".3e1"];["f9d5cc3f-f1dc-4d9c-b97e-766e57ca4cc3"];[%true])";
             }
             expected += "]]";
 
