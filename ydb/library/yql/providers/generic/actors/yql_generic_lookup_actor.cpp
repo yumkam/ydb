@@ -459,7 +459,7 @@ namespace NYql::NDq {
 #if 1 // Temporary workaround for not-yet-deployed YQ-5124
             Y_DEBUG_ABORT_UNLESS(state->FullscanLimit == 0 || state->FullscanLimit > state->ResultRows);
             if (state->FullscanLimit > 0 && height > state->FullscanLimit - state->ResultRows) {
-                Cerr << "YQ-5124 Overshoot " << height << " > " << state->FullscanLimit << " - " << state->ResultRows << Endl;
+                YQL_CLOG(WARN, ProviderGeneric) << "ActorId=" << SelfId() <<<< " YQ-5124 Overshoot " << height << " > " << state->FullscanLimit << " - " << state->ResultRows;
                 height = state->FullscanLimit - state->ResultRows;
             }
 #endif
