@@ -1,4 +1,5 @@
 #pragma once
+#include <variant>
 #include <ydb/library/actors/core/events.h>
 #include <ydb/library/actors/core/event_local.h>
 #include <ydb/library/yql/providers/generic/connector/api/service/protos/connector.pb.h>
