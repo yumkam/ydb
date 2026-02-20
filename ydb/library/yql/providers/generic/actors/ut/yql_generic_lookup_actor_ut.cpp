@@ -99,7 +99,7 @@ Y_UNIT_TEST_SUITE(GenericProviderLookupActor) {
 
         auto connectorMock = std::make_shared<NYql::NConnector::NTest::TConnectorClientMock>();
 
-        size_t fullscanLimit = fullScan ? 4 : 0;
+        size_t fullscanLimit = fullScan ? 3 : 0;
         // clang-format off
         // step 1: ListSplits
         connectorMock->ExpectListSplits()
@@ -224,10 +224,10 @@ Y_UNIT_TEST_SUITE(GenericProviderLookupActor) {
         auto lookupResult = ev->Get()->Result.lock();
         UNIT_ASSERT(lookupResult);
 
-        UNIT_ASSERT_EQUAL(3, lookupResult->size());
+        UNIT_ASSERT_EQUAL(fullScan ? 2 : 3, lookupResult->size());
         UNIT_ASSERT_EQUAL(lookupResult, request);
         UNIT_ASSERT_EQUAL(ev->Get()->FullscanLimit, fullscanLimit);
-        UNIT_ASSERT_EQUAL(ev->Get()->ResultRows, 4);
+        UNIT_ASSERT_EQUAL(ev->Get()->ResultRows, fullScan ? 3 : 4);
         if (!multiMatches) {
             return;
         }
@@ -260,7 +260,7 @@ Y_UNIT_TEST_SUITE(GenericProviderLookupActor) {
                 ++ptr;
             }
         }
-        {
+        if (!fullScan) {
             const auto* v = lookupResult->FindPtr(CreateStructValue(holderFactory, {2, 102}));
             UNIT_ASSERT(v);
             UNIT_ASSERT(!*v);
