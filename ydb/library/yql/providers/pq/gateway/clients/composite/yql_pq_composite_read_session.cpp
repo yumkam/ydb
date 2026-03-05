@@ -772,9 +772,9 @@ public:
 
         const auto update = [&](TPartitionSet& p) -> ui64 {
             if (const auto it = p.find(key); it != p.end()) {
-                p.erase(it);
+                auto rec = p.extract(it);
                 key->SetReadTime(lastEventTime);
-                Y_VALIDATE(p.emplace(key).second, "Unexpected partitions set");
+                Y_VALIDATE(p.insert(std::move(rec)).second, "Unexpected partitions set");
                 return 1;
             }
             return 0;
@@ -846,9 +846,8 @@ private:
         {
             const auto update = [&](TPartitionSet& p) {
                 while (!p.empty() && (*p.begin())->IsIdle()) {
-                    auto key = *p.begin();
-                    p.erase(p.begin());
-                    Y_VALIDATE(IdlePartitions.emplace(key).second, "Unexpected IdlePartitions");
+                    auto rec = p.extract(p.begin());
+                    Y_VALIDATE(IdlePartitions.insert(std::move(rec)).inserted, "Unexpected IdlePartitions");
                 }
             };
             update(SuspendedPartitions);
@@ -859,9 +858,8 @@ private:
         const auto timeLowerBound = std::min(ExternalReadTime, GetMinimalLocalReadTime());
         while (!SuspendedPartitions.empty() && (*SuspendedPartitions.begin())->GetReadTime() <= timeLowerBound + MaxPartitionReadSkew / 3) {
             unsuspendedPartitionsCount++;
-            auto key = *SuspendedPartitions.begin();
-            SuspendedPartitions.erase(SuspendedPartitions.begin());
-            DistributePartitionSession(key);
+            auto rec = SuspendedPartitions.extract(SuspendedPartitions.begin());
+            DistributePartitionSession(std::move(rec));
         }
 
         SRC_LOG_AS_T("Unsuspended partitions count: " << unsuspendedPartitionsCount);
@@ -869,14 +867,17 @@ private:
         // Suspend some partitions
         {
             const auto update = [&](TPartitionSet& p) {
-                while (!p.empty() && (*p.rbegin())->IsSuspended(timeLowerBound)) {
-                    const auto key = *p.rbegin();
-                    p.erase(std::prev(p.end()));
+                while (!p.empty()) {
+                    auto it = std::prev(p.end());
+                    if (!(*it)->IsSuspended(timeLowerBound)) {
+                        break;
+                    }
+                    auto rec = p.extract(it);
 
-                    if (key->IsIdle()) {
-                        Y_VALIDATE(IdlePartitions.emplace(key).second, "Unexpected IdlePartitions");
+                    if (rec.value()->IsIdle()) {
+                        Y_VALIDATE(IdlePartitions.insert(std::move(rec)).inserted, "Unexpected IdlePartitions");
                     } else {
-                        Y_VALIDATE(SuspendedPartitions.emplace(key).second, "Unexpected SuspendedPartitions");
+                        Y_VALIDATE(SuspendedPartitions.insert(std::move(rec)).inserted, "Unexpected SuspendedPartitions");
                     }
                 }
             };
@@ -896,13 +897,14 @@ private:
         UpdateMetrics();
     }
 
-    void DistributePartitionSession(const TPartitionKey& key) {
+    void DistributePartitionSession(TPartitionSet::node_type&& rec) {
+        auto& key = rec.value();
         if (key->IsIdle()) {
-            Y_VALIDATE(IdlePartitions.emplace(key).second, "Unexpected IdlePartitions");
+            Y_VALIDATE(IdlePartitions.insert(std::move(rec)).inserted, "Unexpected IdlePartitions");
         } else if (key->WaitEvent().IsReady()) {
-            Y_VALIDATE(ReadyPartitions.emplace(key).second, "Unexpected ReadyPartitions");
+            Y_VALIDATE(ReadyPartitions.insert(std::move(rec)).inserted, "Unexpected ReadyPartitions");
         } else {
-            Y_VALIDATE(PendingPartitions.emplace(key).second, "Unexpected PendingPartitions");
+            Y_VALIDATE(PendingPartitions.insert(std::move(rec)).inserted, "Unexpected PendingPartitions");
         }
     }
 
@@ -930,14 +932,14 @@ private:
             NextReadyPartition = ReadyPartitions.begin();
         }
 
-        const auto key = *NextReadyPartition;
+        const auto& key = *NextReadyPartition;
         auto event = key->GetEvent(settings);
         Y_VALIDATE(event, "Unexpected empty event for ready partition");
 
         if (!key->WaitEvent().IsReady()) {
             // There are no ready events in this partition, so move it to pending / idle
-            NextReadyPartition = ReadyPartitions.erase(NextReadyPartition);
-            DistributePartitionSession(key);
+            auto rec = ReadyParitions.extract(NextReadyParition++);
+            DistributePartitionSession(std::move(rec));
         } else {
             // Move to next partition
             NextReadyPartition++;
@@ -966,13 +968,11 @@ private:
                     continue;
                 }
 
-                auto key = *it;
-                it = p.erase(it);
-
-                if (key->IsSuspended(timeLowerBound)) {
-                    Y_VALIDATE(SuspendedPartitions.emplace(key).second, "Unexpected SuspendedPartitions");
+                auto rec = p.extract(it++);
+                if (rec.value()->IsSuspended(timeLowerBound)) {
+                    Y_VALIDATE(SuspendedPartitions.insert(std::move(rec)).inserted, "Unexpected SuspendedPartitions");
                 } else {
-                    Y_VALIDATE(ReadyPartitions.emplace(key).second, "Unexpected ReadyPartitions");
+                    Y_VALIDATE(ReadyPartitions.insert(std::move(rec)).inserted, "Unexpected ReadyPartitions");
                 }
             }
         };
