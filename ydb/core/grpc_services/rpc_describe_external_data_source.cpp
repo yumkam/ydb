@@ -53,6 +53,12 @@ void Convert(const TToken& in, TProperties& out) {
     SetSecretSettingName(in.GetTokenSecretName(), "TOKEN_SECRET", out);
 }
 
+void Convert(const TIamAuth& in, TProperties& out) {
+    out["SERVICE_ACCOUNT_ID"] = in.GetServiceAccountId();
+    SetSecretSettingName(in.GetInitialTokenSecretName(), "INITIAL_TOKEN_SECRET", out);
+    out["RESOURCE_ID"] = in.GetResourceId();
+}
+
 void Convert(const TAuth& in, TProperties& out) {
     auto& authMethod = out["AUTH_METHOD"];
 
@@ -79,6 +85,10 @@ void Convert(const TAuth& in, TProperties& out) {
     case TAuth::kToken:
         authMethod = "TOKEN";
         Convert(in.GetToken(), out);
+        return;
+    case TAuth::kIam:
+        authMethod = "IAM";
+        Convert(in.GetIam(), out);
         return;
     case TAuth::IDENTITY_NOT_SET:
         return;
