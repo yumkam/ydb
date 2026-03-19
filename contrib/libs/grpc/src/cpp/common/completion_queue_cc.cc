@@ -128,11 +128,18 @@ struct CallbackAlternativeCQ {
     refs--;
     if (refs == 0) {
       cq->Shutdown();
-      for (auto& th : *nexting_threads) {
-        th.Join();
-      }
-      delete nexting_threads;
-      delete cq;
+      grpc_core::Thread th(
+        "destroy_cq",
+        [nexting_threads=std::exchange(nexting_threads, nullptr), cq=std::exchange(cq, nullptr)]() {
+          for (auto& th : *nexting_threads) {
+            th.Join();
+          }
+          delete nexting_threads;
+          delete cq;
+        },
+        nullptr,
+        grpc_core::Thread::Options().set_joinable(false)
+      );
     }
   }
 };
