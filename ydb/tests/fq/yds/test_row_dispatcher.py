@@ -678,7 +678,7 @@ class TestPqRowDispatcher(TestYdsBase):
 
     @yq_v1
     def test_stop_start2(self, kikimr, client):
-        self.init(client, "test_stop_start")
+        self.init(client, "test_stop_start2")
         sql1 = Rf'''INSERT INTO {YDS_CONNECTION}.`{self.output_topic}`
                     SELECT Cast(time as String) FROM {YDS_CONNECTION}.`{self.input_topic}`
                         WITH (format=json_each_row, SCHEMA (time Int32 NOT NULL));'''
@@ -698,7 +698,10 @@ class TestPqRowDispatcher(TestYdsBase):
         wait_actor_count(kikimr, "FQ_ROW_DISPATCHER_SESSION", 1)
 
         time.sleep(10)
-        kikimr.compute_plane.wait_completed_checkpoints(query_id1, kikimr.compute_plane.get_completed_checkpoints(query_id1) + 2)
+        checkpoints1 = kikimr.compute_plane.get_completed_checkpoints(query_id1)
+        checkpoints2 = kikimr.compute_plane.get_completed_checkpoints(query_id2)
+        kikimr.compute_plane.wait_completed_checkpoints(query_id1, checkpoints1 + 2)
+        kikimr.compute_plane.wait_completed_checkpoints(query_id2, checkpoints2 + 2)
         stop_yds_query(client, query_id1)
         stop_yds_query(client, query_id2)
 
