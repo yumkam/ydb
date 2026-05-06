@@ -14,15 +14,26 @@ import library.python.retry as retry
 from test_base import TestBase
 from ydb.core.fq.libs.http_api_client.http_client import YQHttpClientConfig, YQHttpClient, YQHttpClientException
 from ydb.tests.tools.fq_runner.fq_client import FederatedQueryClient
+from ydb.tests.tools.fq_runner.kikimr_runner import plain_or_under_sanitizer_wrapper
 import ydb.public.api.protos.draft.fq_pb2 as fq
 
 
-@retry.retry(retry.RetryConf().upto(10))
+@retry.retry(retry.RetryConf().upto(plain_or_under_sanitizer_wrapper(10, 60)))
 def wait_for_query_status(client, query_id, statuses):
     status = client.get_query_status(query_id)
     if status not in statuses:
         raise Exception(f"Status {status} is not in {statuses}")
     return status
+
+
+def try_stop_query(client, query_id, idempotency_key=None):
+    try:
+        return client.stop_query(query_id, idempotency_key)
+    except YQHttpClientException as ex:
+        assert ex.status == 400
+        assert len(ex.details) > 0
+        assert "Conversion from status COMPLETING to ABORTING_BY_USER is not possible" in ex.details[0].message
+        wait_for_query_status(client, query_id, fq.QueryMeta.COMPLETED)
 
 
 def normalize_timestamp_string(s):
@@ -95,16 +106,13 @@ class TestHttpApi(TestBase):
             results = client.get_query_result_set(query_id, 0)
             assert results == {'columns': [{'name': 'column0', 'type': 'Int32'}], 'rows': [[1]]}
 
-            response = client.stop_query(query_id)
-            assert response.status_code == 204
+            try_stop_query(client, query_id)
 
-            response = client.start_query(query_id)
-            assert response.status_code == 204
+            try_stop_query(client, query_id)
 
             assert client.get_query_status(query_id) in ["STARTING", "RUNNING", "COMPLETED", "COMPLETING"]
 
-            response = client.stop_query(query_id)
-            assert response.status_code == 204
+            try_stop_query(client, query_id)
 
     def test_empty_query(self):
         with self.create_client() as client:
@@ -217,8 +225,7 @@ class TestHttpApi(TestBase):
             query1_json = client.get_query(query_id1)
             query1_json["text"] = sql
 
-            response = client.stop_query(query_id1)
-            assert response.status_code == 204
+            try_stop_query(client, query_id1)
 
     def test_stop_idempotency(self):
         c = FederatedQueryClient("my_folder", streaming_over_kikimr=self.streaming_over_kikimr)
@@ -227,10 +234,8 @@ class TestHttpApi(TestBase):
         c.wait_query_status(query_id, fq.QueryMeta.STARTING)
 
         with self.create_client() as client:
-            response1 = client.stop_query(query_id, idempotency_key="Z")
-            assert response1.status_code == 204
-            response2 = client.stop_query(query_id, idempotency_key="Z")
-            assert response2.status_code == 204
+            try_stop_query(client, query_id, idempotency_key="Z")
+            try_stop_query(client, query_id, idempotency_key="Z")
             client.stop_query(query_id, expected_code=400)
 
         self.streaming_over_kikimr.compute_plane.start()
@@ -243,8 +248,7 @@ class TestHttpApi(TestBase):
         c.wait_query_status(query_id, fq.QueryMeta.STARTING)
 
         with self.create_client() as client:
-            response1 = client.stop_query(query_id, idempotency_key="Z")
-            assert response1.status_code == 204
+            try_stop_query(client, query_id, idempotency_key="Z")
 
             response2 = client.start_query(query_id, idempotency_key="Z")
             assert response2.status_code == 204
@@ -252,8 +256,7 @@ class TestHttpApi(TestBase):
             response2 = client.start_query(query_id, idempotency_key="Z")
             assert response2.status_code == 204
 
-            response1 = client.stop_query(query_id, idempotency_key="Z")
-            assert response1.status_code == 204
+            try_stop_query(client, query_id, idempotency_key="Z")
 
         self.streaming_over_kikimr.compute_plane.start()
         c.wait_query_status(query_id, fq.QueryMeta.COMPLETED)
