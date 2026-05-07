@@ -14,7 +14,7 @@ TEST_SRCS(
     test_secrets_monitoring.py
 )
 
-SPLIT_FACTOR(20)
+SPLIT_FACTOR(60)
 
 INCLUDE(${ARCADIA_ROOT}/ydb/tests/library/flavours/flavours_deps.inc)
 INCLUDE(${ARCADIA_ROOT}/ydb/tests/tools/s3_recipe/recipe.inc)
