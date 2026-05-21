@@ -1135,6 +1135,7 @@ void TKqpTasksGraph::BuildDqSourceStreamLookupChannels(const TStageInfo& stageIn
     } else if (dqSourceStreamLookup.HasFullscanLimit()) {
         settings->SetFullscanLimit(dqSourceStreamLookup.GetFullscanLimit());
     }
+    /* ShuffleMode intentionally omitted */
 
     const auto& leftJointKeys = dqSourceStreamLookup.GetLeftJoinKeyNames();
     settings->MutableLeftJoinKeyNames()->Assign(leftJointKeys.begin(), leftJointKeys.end());
@@ -1169,8 +1170,26 @@ void TKqpTasksGraph::BuildDqSourceStreamLookupChannels(const TStageInfo& stageIn
             task.Meta.SecureParams.emplace(sourceName, structuredToken);
         }
     }
-
-    BuildUnionAllChannels(*this, stageInfo, inputIndex, inputStageInfo, outputIndex, /* enableSpilling */ false, logFunc);
+    switch (dqSourceStreamLookup.GetShuffleMode()) {
+        case NKqpProto::TKqpPhyCnDqSourceStreamLookup_EShuffleMode_OFF:
+	    BuildUnionAllChannels(*this, stageInfo, inputIndex, inputStageInfo, outputIndex, /* enableSpilling */ false, logFunc);
+            break;
+        case NKqpProto::TKqpPhyCnDqSourceStreamLookup_EShuffleMode_MAP:
+	    BuildMapChannels(*this, stageInfo, inputIndex, inputStageInfo, outputIndex, /* enableSpilling */ false, logFunc);
+            break;
+        case NKqpProto::TKqpPhyCnDqSourceStreamLookup_EShuffleMode_HASH:
+#if 0
+            BuildHashShuffleChannels(*this, stageInfo, inputIndex, inputStageInfo, outputIndex,
+                dqSourceStreamLookup.GetLeftJoinKeyColumnsNames(),
+                /* enableSpilling */false, logFunc, hashKind.value(), /* forceSpilling */false);
+#endif
+	    YQL_ENSURE(false, "Unimplemented");
+            break;
+        case NKqpProto::TKqpPhyCnDqSourceStreamLookup_EShuffleMode_TKqpPhyCnDqSourceStreamLookup_EShuffleMode_INT_MIN_SENTINEL_DO_NOT_USE_:
+        case NKqpProto::TKqpPhyCnDqSourceStreamLookup_EShuffleMode_TKqpPhyCnDqSourceStreamLookup_EShuffleMode_INT_MAX_SENTINEL_DO_NOT_USE_:
+            YQL_ENSURE(false, "Impossible");
+            break;
+    }
 }
 
 void TKqpTasksGraph::BuildKqpStageChannels(TStageInfo& stageInfo, ui64 txId, bool enableSpilling, bool enableShuffleElimination) {
@@ -2225,6 +2244,32 @@ bool TKqpTasksGraph::BuildComputeTasks(TStageInfo& stageInfo, const ui32 nodesCo
                 partitionsCount = originStageInfo.Tasks.size();
                 forceMapTasks = true;
                 ++mapConnectionCount;
+                break;
+            }
+            case NKqpProto::TKqpPhyConnection::kDqSourceStreamLookup: {
+                auto& dqSourceStreamLookup = input.GetDqSourceStreamLookup();
+                switch (dqSourceStreamLookup.GetShuffleMode()) {
+                    case NKqpProto::TKqpPhyCnDqSourceStreamLookup_EShuffleMode_OFF:
+                        /* Same as UnionAll */
+                        break;
+                    case NKqpProto::TKqpPhyCnDqSourceStreamLookup_EShuffleMode_MAP:
+                        /* Same as Map */
+                        tasksReason = TTaskType::PREV_STAGE_COMPUTE;
+                        partitionsCount = originStageInfo.Tasks.size();
+                        forceMapTasks = true;
+                        ++mapConnectionCount;
+                        break;
+                    case NKqpProto::TKqpPhyCnDqSourceStreamLookup_EShuffleMode_HASH:
+                        /* Same as HashShuffle */
+                        inputTasks += originStageInfo.Tasks.size();
+                        isShuffle = true;
+                        YQL_ENSURE(false, "Unimplemented");
+                        break;
+                    case NKqpProto::TKqpPhyCnDqSourceStreamLookup_EShuffleMode_TKqpPhyCnDqSourceStreamLookup_EShuffleMode_INT_MIN_SENTINEL_DO_NOT_USE_:
+                    case NKqpProto::TKqpPhyCnDqSourceStreamLookup_EShuffleMode_TKqpPhyCnDqSourceStreamLookup_EShuffleMode_INT_MAX_SENTINEL_DO_NOT_USE_:
+                        YQL_ENSURE(false, "Impossible");
+                        break;
+                }
                 break;
             }
             case NKqpProto::TKqpPhyConnection::kParallelUnionAll: {

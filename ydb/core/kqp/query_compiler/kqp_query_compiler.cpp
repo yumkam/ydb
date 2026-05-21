@@ -2585,6 +2585,19 @@ private:
                 dqSourceLookupCn.SetFullscanLimit(FromString<ui64>(maybeFullscanLimit.Cast().StringValue()));
             }
 
+            if (const auto maybeShuffleMode = streamLookup.ShuffleMode().Maybe<TCoAtom>()) {
+                switch (FromString<NDq::EShuffleMode>(maybeShuffleMode.Cast().StringValue())) {
+#define TRANSLATE(Id, PROTO) \
+                    case NDq::EShuffleMode::Id: \
+                        dqSourceLookupCn.SetShuffleMode(NKqpProto::TKqpPhyCnDqSourceStreamLookup_EShuffleMode_##PROTO); \
+                        break
+                    TRANSLATE(Off, OFF);
+                    TRANSLATE(Map, MAP);
+                    TRANSLATE(Hash, HASH);
+#undef TRANSLATE
+                }
+            }
+
             for (const auto& key : streamLookup.LeftJoinKeyNames()) {
                 *dqSourceLookupCn.AddLeftJoinKeyNames() = leftLabel ? RemoveJoinAliases(key) : key;
             }
