@@ -1172,10 +1172,10 @@ void TKqpTasksGraph::BuildDqSourceStreamLookupChannels(const TStageInfo& stageIn
     }
     switch (dqSourceStreamLookup.GetShuffleMode()) {
         case NKqpProto::TKqpPhyCnDqSourceStreamLookup_EShuffleMode_OFF:
-	    BuildUnionAllChannels(*this, stageInfo, inputIndex, inputStageInfo, outputIndex, /* enableSpilling */ false, logFunc);
+            BuildUnionAllChannels(*this, stageInfo, inputIndex, inputStageInfo, outputIndex, /* enableSpilling */ false, logFunc);
             break;
         case NKqpProto::TKqpPhyCnDqSourceStreamLookup_EShuffleMode_MAP:
-	    BuildMapChannels(*this, stageInfo, inputIndex, inputStageInfo, outputIndex, /* enableSpilling */ false, logFunc);
+            BuildMapChannels(*this, stageInfo, inputIndex, inputStageInfo, outputIndex, /* enableSpilling */ false, logFunc);
             break;
         case NKqpProto::TKqpPhyCnDqSourceStreamLookup_EShuffleMode_HASH:
 #if 0
@@ -1183,7 +1183,7 @@ void TKqpTasksGraph::BuildDqSourceStreamLookupChannels(const TStageInfo& stageIn
                 dqSourceStreamLookup.GetLeftJoinKeyColumnsNames(),
                 /* enableSpilling */false, logFunc, hashKind.value(), /* forceSpilling */false);
 #endif
-	    YQL_ENSURE(false, "Unimplemented");
+            YQL_ENSURE(false, "Unimplemented");
             break;
         case NKqpProto::TKqpPhyCnDqSourceStreamLookup_EShuffleMode_TKqpPhyCnDqSourceStreamLookup_EShuffleMode_INT_MIN_SENTINEL_DO_NOT_USE_:
         case NKqpProto::TKqpPhyCnDqSourceStreamLookup_EShuffleMode_TKqpPhyCnDqSourceStreamLookup_EShuffleMode_INT_MAX_SENTINEL_DO_NOT_USE_:

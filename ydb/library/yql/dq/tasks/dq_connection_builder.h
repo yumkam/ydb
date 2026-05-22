@@ -50,10 +50,10 @@ void CommonBuildTasks(double aggrTasksRatio, ui32 maxHashShuffleTasks, TDqTasksG
             auto cnMap = maybeCnMap.Cast();
             const auto& originStageInfo = graph.GetStageInfo(cnMap.Output().Stage());
             maxHashShuffleTasks = partitionsCount = originStageInfo.Tasks.size();
-        } else if (auto maybeCnMap = input.Maybe<NNodes::TDqCnStreamLookup>()) {
-            auto cnSteamLookup = maybeCnMap.Cast();
-            const auto& originStageInfo = graph.GetStageInfo(cnSteamLookup.Output().Stage());
-            if (auto maybeShuffleMode = cnSteamLookup.ShuffleMode().Maybe<NNodes::TCoAtom>()) {
+        } else if (auto maybeCnStreamLookup = input.Maybe<NNodes::TDqCnStreamLookup>()) {
+            auto cnStreamLookup = maybeCnStreamLookup.Cast();
+            const auto& originStageInfo = graph.GetStageInfo(cnStreamLookup.Output().Stage());
+            if (auto maybeShuffleMode = cnStreamLookup.ShuffleMode().Maybe<NNodes::TCoAtom>()) {
                 switch (FromString<NDq::EShuffleMode>(maybeShuffleMode.Cast().StringValue())) {
                     case NDq::EShuffleMode::Off:
                         break;
