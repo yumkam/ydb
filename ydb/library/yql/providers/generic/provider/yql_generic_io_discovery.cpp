@@ -16,6 +16,13 @@ namespace NYql {
         using namespace NNodes;
 
         class TGenericIODiscoveryTransformer: public TGraphTransformerBase {
+            struct TResolveState {
+                using TPtr = std::shared_ptr<TResolveState>;
+                IDatabaseAsyncResolver::TDatabaseAuthMap UnresolvedClusters;
+                IDatabaseAsyncResolver::TDatabaseAuthMap::const_iterator Iter;
+                TDatabaseResolverResponse Response;
+                TDatabaseResolverResponse::TDatabaseDescriptionMap DatabaseDescriptions_;
+            };
         public:
             TGenericIODiscoveryTransformer(TGenericState::TPtr state)
                 : State_(std::move(state))
@@ -75,16 +82,25 @@ namespace NYql {
                 }
 
                 YQL_CLOG(DEBUG, ProviderGeneric) << "total database ids to be resolved: " << unresolvedClusters.size();
-                // Resolve MDB clusters
-                TDatabaseResolverResponse::TDatabaseDescriptionMap descriptions;
-
-                for (const auto& [databaseIdWithType, databaseAuth] : unresolvedClusters) {
-                    // Now it's only possible to emit a single request with a single cluster ID simultaneously.
-                    // FIXME: use batch async handling after YQ-2536 is fixed.
-                    IDatabaseAsyncResolver::TDatabaseAuthMap request;
-                    request[databaseIdWithType] = databaseAuth;
-                    auto response = State_->DatabaseResolver->ResolveIds(request).GetValueSync();
-
+                State_ = std::make_shared<TResolveState>();
+                State_->UnresolvedClusters = std::move(unresolvedClusters);
+                State_->Iter = State_->UnresolvedClusters.cbegin();
+                auto callback = [state=std::weak_ptr(State_)](auto& future) {
+                    auto locked = state.lock();
+                    if (!locked) {
+                        return NThreading::TFuture<void>();
+                    }
+                    auto& response = locked->Response = future.GetValue();
+                    if (!response.Success) {
+                        return NThreading::TFuture<void>();
+                    }
+                    locked->DatabaseDescriptionMap.merge(response.DatabaseDescriptionMap);
+                    if (locked->Iter != locked->UnresolvedClusters.cend()) {
+                        IDatabaseAsyncResolver::TDatabaseAuthMap request;
+                        request[State_->Iter->first] = State_->Iter->second;
+                        ++State_->Iter;
+                        AsyncFuture_ = State_->DatabaseResolver->ResolveIds(request).Apply([state=State_](auto& future) {
+                    auto& response = State_->Response;
                     if (!response.Success) {
                         ctx.IssueManager.AddIssues(response.Issues);
                         return TStatus::Error;
@@ -97,17 +113,12 @@ namespace NYql {
                                                         << ", host=" << databaseDescription.Host
                                                         << ", port=" << databaseDescription.Port;
                     }
-
-                    // save ids for the further use
-                    DatabaseDescriptions_.insert(response.DatabaseDescriptionMap.cbegin(),
-                                                 response.DatabaseDescriptionMap.cend());
-                }
-
-                auto promise = NThreading::NewPromise<void>();
-                promise.SetValue();
-                AsyncFuture_ = promise.GetFuture();
-
+                    DatabaseDescriptions_.merge(response);
+                    }
+                    }
                 return TStatus::Async;
+                // Resolve MDB clusters
+                return ResolveStep();
             }
 
             NThreading::TFuture<void> DoGetAsyncFuture(const TExprNode&) final {
@@ -117,6 +128,14 @@ namespace NYql {
             TStatus DoApplyAsyncChanges(TExprNode::TPtr input, TExprNode::TPtr& output, TExprContext& ctx) final {
                 output = input;
                 AsyncFuture_.GetValue();
+
+                {
+                }
+
+                if (auto status = ResolveStep(); status == TStatus::Async) {
+                    return status;
+                }
+                State_.reset();
 
                 // Modify cluster configs with resolved ids
                 auto status = ModifyClusterConfigs(DatabaseDescriptions_, ctx);
@@ -136,6 +155,19 @@ namespace NYql {
             }
 
         private:
+            TStatus ResolveStep() {
+                if (State_->Iter == State_->UnresolvedClusters.cend()) {
+                    return TStatus::Ok;
+                }
+                IDatabaseAsyncResolver::TDatabaseAuthMap request;
+                request[State_->Iter->first] = State_->Iter->second;
+                ++State_->Iter;
+                AsyncFuture_ = State_->DatabaseResolver->ResolveIds(request).Apply([state=State_](auto& future) {
+                    state->Response = future.GetValue();
+                });
+                return TStatus::Async;
+            }
+
             TStatus ModifyClusterConfigs(const TDatabaseResolverResponse::TDatabaseDescriptionMap& databaseDescriptions, TExprContext& ctx) {
                 const auto& databaseIdsToClusterNames = State_->Configuration->DatabaseIdsToClusterNames;
                 auto& clusterNamesToClusterConfigs = State_->Configuration->ClusterNamesToClusterConfigs;
@@ -187,8 +219,8 @@ namespace NYql {
             }
 
             const TGenericState::TPtr State_;
-            TDatabaseResolverResponse::TDatabaseDescriptionMap DatabaseDescriptions_;
             NThreading::TFuture<void> AsyncFuture_;
+            TResolveState::TPtr State_;
         };
     } // namespace
 
