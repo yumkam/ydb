@@ -1113,8 +1113,6 @@ void TKqpTasksGraph::BuildVectorResolveChannels(const TStageInfo& stageInfo, ui3
 
 void TKqpTasksGraph::BuildDqSourceStreamLookupChannels(const TStageInfo& stageInfo, ui32 inputIndex, const TStageInfo& inputStageInfo,
     ui32 outputIndex, const NKqpProto::TKqpPhyCnDqSourceStreamLookup& dqSourceStreamLookup, const TChannelLogFunc& logFunc) {
-    YQL_ENSURE(stageInfo.Tasks.size() == 1);
-
     auto* settings = GetMeta().Allocate<NDqProto::TDqInputTransformLookupSettings>();
     settings->SetLeftLabel(dqSourceStreamLookup.GetLeftLabel());
     settings->SetRightLabel(dqSourceStreamLookup.GetRightLabel());
@@ -1180,10 +1178,11 @@ void TKqpTasksGraph::BuildDqSourceStreamLookupChannels(const TStageInfo& stageIn
         case NKqpProto::TKqpPhyCnDqSourceStreamLookup_EShuffleMode_HASH:
 #if 0
             BuildHashShuffleChannels(*this, stageInfo, inputIndex, inputStageInfo, outputIndex,
-                dqSourceStreamLookup.GetLeftJoinKeyColumnsNames(),
+                dqSourceStreamLookup.GetLeftJoinKeyNames(),
                 /* enableSpilling */false, logFunc, hashKind.value(), /* forceSpilling */false);
-#endif
+#else
             YQL_ENSURE(false, "Unimplemented");
+#endif
             break;
         case NKqpProto::TKqpPhyCnDqSourceStreamLookup_EShuffleMode_TKqpPhyCnDqSourceStreamLookup_EShuffleMode_INT_MIN_SENTINEL_DO_NOT_USE_:
         case NKqpProto::TKqpPhyCnDqSourceStreamLookup_EShuffleMode_TKqpPhyCnDqSourceStreamLookup_EShuffleMode_INT_MAX_SENTINEL_DO_NOT_USE_:
@@ -2261,9 +2260,12 @@ bool TKqpTasksGraph::BuildComputeTasks(TStageInfo& stageInfo, const ui32 nodesCo
                         break;
                     case NKqpProto::TKqpPhyCnDqSourceStreamLookup_EShuffleMode_HASH:
                         /* Same as HashShuffle */
+#if 0
                         inputTasks += originStageInfo.Tasks.size();
                         isShuffle = true;
+#else
                         YQL_ENSURE(false, "Unimplemented");
+#endif
                         break;
                     case NKqpProto::TKqpPhyCnDqSourceStreamLookup_EShuffleMode_TKqpPhyCnDqSourceStreamLookup_EShuffleMode_INT_MIN_SENTINEL_DO_NOT_USE_:
                     case NKqpProto::TKqpPhyCnDqSourceStreamLookup_EShuffleMode_TKqpPhyCnDqSourceStreamLookup_EShuffleMode_INT_MAX_SENTINEL_DO_NOT_USE_:
