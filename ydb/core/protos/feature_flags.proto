@@ -354,4 +354,5 @@ message TFeatureFlags {
     // the counter can be re-enabled, which requires restarting the SchemeShard tablet.
     optional bool DisableFileStoreSSDSystemSpaceAccounting = 302 [default = false, (RequireRestart) = true];
     optional bool EnableDqSourceStreamLookupJoinLocalLookups = 303 [default = false];
+    optional bool EnableDqSourceStreamLookupJoinShuffleMode = 304 [default = false];
 }
