@@ -79,9 +79,44 @@ namespace NYql::NDq {
 
     using namespace NActors;
 
-    template <typename TDerived, typename TEvState = std::monostate>
-    class TKikimrBaseActor: public NActors::TActorBootstrapped<TDerived> {
-    protected: // Events
+    namespace {
+        constexpr ui32 RetriesLimit = 15; // TODO lookup parameters or PRAGMA?
+        constexpr TDuration MinRetryDelay = TDuration::MilliSeconds(10);
+        constexpr TDuration MaxRetryDelay = TDuration::Seconds(30); // TODO lookup parameters or PRAGMA?
+                                                                    // = at most 6 minutes
+        constexpr ui64 TableServiceResultLimit = 1000;
+
+        const NKikimr::NMiniKQL::TStructType* MergeStructTypes(const NKikimr::NMiniKQL::TTypeEnvironment& env, const NKikimr::NMiniKQL::TStructType* t1, const NKikimr::NMiniKQL::TStructType* t2) {
+            Y_ABORT_UNLESS(t1);
+            Y_ABORT_UNLESS(t2);
+            NKikimr::NMiniKQL::TStructTypeBuilder resultTypeBuilder{env};
+            for (ui32 i = 0; i != t1->GetMembersCount(); ++i) {
+                resultTypeBuilder.Add(t1->GetMemberName(i), t1->GetMemberType(i));
+            }
+            for (ui32 i = 0; i != t2->GetMembersCount(); ++i) {
+                resultTypeBuilder.Add(t2->GetMemberName(i), t2->GetMemberType(i));
+            }
+            return resultTypeBuilder.Build();
+        }
+
+    } // namespace
+
+    class TKikimrLookupActor
+        : public NYql::NDq::IDqAsyncLookupSource,
+          public NActors::TActorBootstrapped<TKikimrLookupActor> {
+        using TBase = NActors::TActorBootstrapped<TKikimrLookupActor>;
+        struct TLookupState {
+            using TPtr = std::shared_ptr<TLookupState>;
+            std::weak_ptr<NYql::NDq::IDqAsyncLookupSource::TUnboxedValueMap> Request;
+            // ^^^ must not be lock()ed without bound mkql allocator (e.g. in future handlers)
+            TBackoff Backoff;
+            TInstant SentTime;
+            size_t FullscanLimit = 0;
+            size_t ResultRows = 0;
+            TString SessionId;
+        };
+        using TEvState = TLookupState;
+
         // Event ids
         enum EEventIds: ui32 {
             EvBegin = EventSpaceBegin(NActors::TEvents::ES_PRIVATE),
@@ -120,45 +155,8 @@ namespace NYql::NDq {
         using TEvYdbExecuteDataQueryResponse = TEvYdbResponse<Ydb::Table::ExecuteDataQueryResponse, Ydb::Table::ExecuteQueryResult, EvYdbExecuteDataQueryResponse>;
         using TEvYdbCreateSessionResponse = TEvYdbResponse<Ydb::Table::CreateSessionResponse, Ydb::Table::CreateSessionResult, EvYdbCreateSessionResponse>;
 
-    protected: // TODO move common logic here
+    private:
         TString LogPrefix;
-    };
-    namespace {
-        constexpr ui32 RetriesLimit = 20; // TODO lookup parameters or PRAGMA?
-        constexpr TDuration MinRetryDelay = TDuration::MilliSeconds(10);
-        constexpr TDuration RetriesTimeout = TDuration::Minutes(3); // TODO lookup parameters or PRAGMA?
-        constexpr ui64 TableServiceResultLimit = 1000;
-
-        const NKikimr::NMiniKQL::TStructType* MergeStructTypes(const NKikimr::NMiniKQL::TTypeEnvironment& env, const NKikimr::NMiniKQL::TStructType* t1, const NKikimr::NMiniKQL::TStructType* t2) {
-            Y_ABORT_UNLESS(t1);
-            Y_ABORT_UNLESS(t2);
-            NKikimr::NMiniKQL::TStructTypeBuilder resultTypeBuilder{env};
-            for (ui32 i = 0; i != t1->GetMembersCount(); ++i) {
-                resultTypeBuilder.Add(t1->GetMemberName(i), t1->GetMemberType(i));
-            }
-            for (ui32 i = 0; i != t2->GetMembersCount(); ++i) {
-                resultTypeBuilder.Add(t2->GetMemberName(i), t2->GetMemberType(i));
-            }
-            return resultTypeBuilder.Build();
-        }
-
-        struct TLookupState {
-            using TPtr = std::shared_ptr<TLookupState>;
-            std::weak_ptr<NYql::NDq::IDqAsyncLookupSource::TUnboxedValueMap> Request;
-            // ^^^ must not be lock()ed without bound mkql allocator (e.g. in future handlers)
-            TBackoff Backoff;
-            TInstant SentTime;
-            size_t FullscanLimit = 0;
-            size_t ResultRows = 0;
-            TString SessionId;
-        };
-    } // namespace
-
-    class TKikimrLookupActor
-        : public NYql::NDq::IDqAsyncLookupSource,
-          public TKikimrBaseActor<TKikimrLookupActor, TLookupState::TPtr> {
-        using TBase = TKikimrBaseActor<TKikimrLookupActor, TLookupState::TPtr>;
-        typedef TLookupState TEvState;
 
         struct TEvLookupRetry : NActors::TEventLocal<TEvLookupRetry, EvRetry> {
             explicit TEvLookupRetry(TLookupState::TPtr state)
@@ -235,7 +233,7 @@ namespace NYql::NDq {
         void Bootstrap() {
             auto path = LookupSource.GetPath();
             LogPrefix += TStringBuilder() << "ActorId=" << SelfId() << " Path=" << path << " ";
-            LOG_I("New kikimr provider lookup source actor");
+            LOG_I("New kikimr provider lookup actor, ParentId=" << ParentId);
             Become(&TKikimrLookupActor::StateFunc);
         }
 
@@ -375,7 +373,7 @@ namespace NYql::NDq {
 
             auto state = std::make_shared<TLookupState>(TLookupState {
                 .Request = request,
-                .Backoff = TBackoff(RetriesLimit, MinRetryDelay, RetriesTimeout),
+                .Backoff = TBackoff(RetriesLimit, MinRetryDelay, MaxRetryDelay),
                 .SentTime = TInstant::Now(),
                 .FullscanLimit = fullscanLimit
             });
