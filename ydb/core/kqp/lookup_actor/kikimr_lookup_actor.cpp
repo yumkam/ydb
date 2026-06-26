@@ -179,7 +179,8 @@ namespace NYql::NDq {
             const NKikimr::NMiniKQL::TTypeEnvironment& typeEnv,
             const NKikimr::NMiniKQL::THolderFactory& holderFactory,
             const size_t maxKeysInRequest,
-            bool isMultiMatches = false)
+            bool isMultiMatches,
+            TCollectStatsLevel statsLevel)
             : ParentId(std::move(parentId))
             , Alloc(alloc)
             , KeyTypeHelper(keyTypeHelper)
@@ -191,7 +192,19 @@ namespace NYql::NDq {
             , ColumnDestinations(CreateColumnDestination())
             , MaxKeysInRequest(std::min(maxKeysInRequest, size_t{100}))
             , IsMultiMatches(isMultiMatches)
+            , StatsLevel(statsLevel)
         {
+            switch(StatsLevel) {
+#define TRANSLATE(DQ, PROTO) \
+                case TCollectStatsLevel::DQ: \
+                    QueryStatsLevel = Ydb::Table::QueryStatsCollection::STATS_COLLECTION_##PROTO; \
+                    break
+                TRANSLATE(None, NONE);
+                TRANSLATE(Basic, BASIC);
+                TRANSLATE(Full, FULL);
+                TRANSLATE(Profile, PROFILE);
+#undef TRANSLATE
+            }
             InitMonCounters(taskCounters);
             {
                 TStringBuilder out;
@@ -559,7 +572,9 @@ namespace NYql::NDq {
             Y_ENSURE(result.result_setsSize() == 1);
             ProcessReceivedData(result.result_sets()[0], state);
             LOG_T("tx meta: " << result.tx_meta().DebugString() << " query meta: " << result.query_meta().DebugString());
-            LOG_D("query stats: " << result.query_stats().DebugString());
+            if (StatsLevel != TCollectStatsLevel::None) {
+                LOG_D("query stats: " << result.query_stats().DebugString());
+            }
             Y_ENSURE(state->ResultRows < TableServiceResultLimit || state->FullscanLimit == TableServiceResultLimit, "Result size " << state->ResultRows << " exceed safe TableService size " << (TableServiceResultLimit - 1) << ", terminate to avoid data loss");
         }
 
@@ -756,8 +771,7 @@ namespace NYql::NDq {
                 tx_control.set_commit_tx(true);
             }
             request.mutable_query_cache_policy()->set_keep_in_cache(true);
-            LOG_D("QueryStatsCollection : " << (request.set_collect_stats(Ydb::Table::QueryStatsCollection::STATS_COLLECTION_BASIC), "BASIC")); // intentional side effects
-            LOG_T("QueryStatsCollection : " << (request.set_collect_stats(Ydb::Table::QueryStatsCollection::STATS_COLLECTION_FULL), "FULL")); // intentional side effects
+            LOG_D("QueryStatsCollection : " << (request.set_collect_stats(QueryStatsLevel), Ydb::Table::QueryStatsCollection_descriptor()->FindValueByNumber(QueryStatsLevel)->name())); // intentional side effects
             LOG_T("Query: <<<" << request.DebugString() << ">>>");
             return request;
         }
@@ -774,6 +788,9 @@ namespace NYql::NDq {
         const std::vector<std::pair<EColumnDestination, size_t>> ColumnDestinations;
         const size_t MaxKeysInRequest;
         const bool IsMultiMatches;
+        TCollectStatsLevel StatsLevel;
+        Ydb::Table::QueryStatsCollection QueryStatsLevel;
+
         ui32 LocalInFlight = 0;
         static inline constexpr std::string_view KeyTupleListName = "$keyTupleList"sv;
         NYql::NUdf::ITypeInfoHelper::TPtr TypeInfoHelper = new NKikimr::NMiniKQL::TTypeInfoHelper();
@@ -803,7 +820,8 @@ namespace NYql::NDq {
         const NKikimr::NMiniKQL::TTypeEnvironment& typeEnv,
         const NKikimr::NMiniKQL::THolderFactory& holderFactory,
         const size_t maxKeysInRequest,
-        const bool isMultiMatches
+        const bool isMultiMatches,
+        TCollectStatsLevel statsLevel
     )
     {
         auto guard = Guard(*alloc);
@@ -818,7 +836,9 @@ namespace NYql::NDq {
             typeEnv,
             holderFactory,
             maxKeysInRequest,
-            isMultiMatches);
+            isMultiMatches,
+            statsLevel
+        );
         return {actor, actor};
     }
 
