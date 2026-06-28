@@ -1250,6 +1250,7 @@ Y_UNIT_TEST_SUITE(KqpStreamingQueriesDdl) {
             setupAppConfig.MutableTableServiceConfig()->SetEnableDqSourceStreamLookupJoin(WithFeatureFlag);
 #endif
             setupAppConfig.MutableFeatureFlags()->SetEnableDqSourceStreamLookupJoinFullscan(WithFullscanFlag);
+            setupAppConfig.MutableFeatureFlags()->SetEnableNodeShutdownHints(true);
         }
 
         const auto pqGateway = SetupMockPqGateway();
@@ -1349,6 +1350,27 @@ Y_UNIT_TEST_SUITE(KqpStreamingQueriesDdl) {
         ));
         readSession->AddDataReceivedEvent(sampleMessages);
         writeSession->ExpectMessages({"A-P4", "B-P6", "A-P4", "C-P5"});
+
+        {
+            TMockMonHttpRequest monReq("force_shutdown=1");
+            auto edgeActor = GetRuntime().AllocateEdgeActor();
+            auto kqpProxy = NKikimr::NKqp::MakeKqpProxyID(GetRuntime().GetNodeId(0));
+            GetRuntime().Send(kqpProxy, edgeActor, new NActors::NMon::TEvHttpInfo(monReq));
+            GetRuntime().GrabEdgeEvent<NActors::NMon::TEvHttpInfoRes>(edgeActor, TDuration::Seconds(5));
+        }
+
+        Sleep(TDuration::Seconds(2));
+        ExecQuery(fmt::format(R"(UPSERT INTO `{table}` (fqdn, payload) VALUES ("host1.example.com", "P7"))",
+            "table"_a = ydbTable
+        ));
+        ExecQuery(fmt::format(R"(UPSERT INTO `{table}` (fqdn, payload) VALUES ("host2.example.com", "P8"))",
+            "table"_a = ydbTable
+        ));
+        ExecQuery(fmt::format(R"(UPSERT INTO `{table}` (fqdn, payload) VALUES ("host3.example.com", "P9"))",
+            "table"_a = ydbTable
+        ));
+        readSession->AddDataReceivedEvent(sampleMessages);
+        writeSession->ExpectMessages({"A-P7", "B-P9", "A-P7", "C-P8"});
 
         CheckScriptExecutionsCount(1, 1);
         const auto results = ExecQuery(
