@@ -514,6 +514,24 @@ public:
         return Provider;
     }
 
+    std::string GetClientIdentity() const override {
+        return TStringBuilder() << JoinSeq('\t', std::initializer_list<std::string_view> {
+                "TOauth2TokenExchangeFactory",
+                Params_.TokenEndpoint_,
+                Params_.GrantType_
+                Params_.RequestedTokenType_
+            })
+            << '\t' << SocketTimeout_
+            << '\t' << ConnectTimeout_
+            << '\t' << SyncUpdateTimeout_
+            << '\t' << JoinSeq('\n', Params_.Resource_)
+            << '\t' << JoinSeq('\n', Params_.Audience_)
+            << '\t' << JoinSeq('\n', Params_.Scope_)
+            << '\t' << ui64(SubjectTokenSource_.get())
+            << '\t' << ui64(ActorTokenSource_.get())
+        ;
+    }
+
 private:
     std::shared_ptr<TOauth2TokenExchangeProvider> Provider;
 };

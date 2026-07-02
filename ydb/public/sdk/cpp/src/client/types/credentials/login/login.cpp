@@ -226,6 +226,7 @@ public:
     TLoginCredentialsProviderFactory(TLoginCredentialsParams params);
     virtual std::shared_ptr<ICredentialsProvider> CreateProvider() const override;
     virtual std::shared_ptr<ICredentialsProvider> CreateProvider(std::weak_ptr<ICoreFacility> facility) const override;
+    virtual std::string GetClientIdentity() const override;
 
 private:
     TLoginCredentialsParams Params_;
@@ -242,6 +243,14 @@ std::shared_ptr<ICredentialsProvider> TLoginCredentialsProviderFactory::CreatePr
 
 std::shared_ptr<ICredentialsProvider> TLoginCredentialsProviderFactory::CreateProvider(std::weak_ptr<ICoreFacility> facility) const {
     return std::make_shared<TLoginCredentialsProvider>(std::move(facility), Params_);
+}
+
+std::string TLoginCredentialsProviderFactory::GetClientIdentity() const override {
+    return TStringBuilder() << JoinSeq('\t', std::initializer_list<std::string_view> {
+            "TLoginCredentialsProviderFactory",
+            Params_.Login,
+            Params_.Password,
+    });
 }
 
 std::shared_ptr<ICredentialsProviderFactory> CreateLoginCredentialsProviderFactory(TLoginCredentialsParams params) {
