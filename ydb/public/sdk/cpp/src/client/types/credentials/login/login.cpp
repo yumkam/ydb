@@ -237,8 +237,16 @@ TLoginCredentialsProviderFactory::TLoginCredentialsProviderFactory(TLoginCredent
 {
 }
 
+// Deprecated. Kept for backward compatibility — see comment on TIamJwtCredentialsProviderFactory.
+// The nested auth provider gets its own facility (via a recursive no-arg CreateProvider() that
+// returns a TOwningFacilityCredentialsProvider). Sharing a TSimpleCoreFacility between two gRPC
+// IAM providers would abort: each one registers a periodic task and the facility allows only one.
 std::shared_ptr<ICredentialsProvider> TLoginCredentialsProviderFactory::CreateProvider() const {
-    ythrow yexception() << "Not supported";
+    auto outerFacility = CreateSimpleCoreFacility();
+    auto serviceProvider = std::make_shared<TLoginCredentialsProvider>(
+        std::weak_ptr<ICoreFacility>(outerFacility), Params_);
+    return std::make_shared<TOwningFacilityCredentialsProvider>(
+        std::move(outerFacility), std::move(serviceProvider));
 }
 
 std::shared_ptr<ICredentialsProvider> TLoginCredentialsProviderFactory::CreateProvider(std::weak_ptr<ICoreFacility> facility) const {
