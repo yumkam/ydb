@@ -75,7 +75,7 @@ public:
         , TypeEnv(args.TypeEnv)
         , Alloc(args.Alloc)
         , Snapshot(settings.GetSnapshot().GetStep(), settings.GetSnapshot().GetTxId())
-        , AllowInconsistentReads(settings.GetAllowInconsistentReads())
+        , AllowInconsistentReads(settings.GetAllowInconsistentReads() || true)
         , UseFollowers(settings.GetAllowUseFollowers())
         , IsTableImmutable(settings.GetIsTableImmutable())
         , HasVectorTopK(settings.HasVectorTopK())
@@ -87,7 +87,7 @@ public:
         , WatermarksTracker(args.WatermarksTracker)
         , SchemeCacheRequestTimeout(SCHEME_CACHE_REQUEST_TIMEOUT)
         , LookupStrategy(settings.GetLookupStrategy())
-        , IsolationLevel(settings.GetIsolationLevel())
+        , IsolationLevel(false ? settings.GetIsolationLevel() : NKqpProto::EIsolationLevel::ISOLATION_LEVEL_ONLINE_RO)
         , Database(settings.GetDatabase())
         , StreamLockWorker(
             LookupStrategy == NKqpProto::EStreamLookupStrategy::LOCK_AND_LOOKUP
@@ -111,6 +111,7 @@ public:
         , LookupActorSpan(TWilsonKqp::LookupActor, std::move(args.TraceId), "LookupActor")
     {
         IngressStats.Level = args.StatsLevel;
+        Cout << LogPrefix << " " << (const void *)WatermarksTracker << ' ' << settings.DebugString() << Endl;
     }
 
     virtual ~TKqpStreamLookupActor() {
@@ -518,13 +519,21 @@ private:
         const bool hasPendingResults = StreamLookupWorker->HasPendingResults();
         bool inputUnpaused = false;
 
-        if (batch.empty() && !(allReadsFinished && allRowsProcessed && !hasPendingResults)) {
+#define DU(X) << " " #X "=" << X
+        if (batch.empty()) {
+            //Cerr << __LINE__ DU(LogPrefix) DU((const void *)this) DU((int)LastFetchStatus) DU(allReadsFinished) DU(allRowsProcessed) DU(hasPendingResults) << Endl;
+            if (!(allReadsFinished && allRowsProcessed && !hasPendingResults)) {
             // Checkpointing special case: nothing to return yet, but in-flight requests exists
             // Return 1 to indicate that
             replyResultStats.ResultBytesCount++;
+            //Cerr << "Pending!" << Endl;
+            }
         }
-
+        //Cerr << __LINE__ DU(LogPrefix) DU((const void *)this) DU((int)LastFetchStatus) DU(allReadsFinished) DU(allRowsProcessed) DU(hasPendingResults) << Endl;
         if (LastFetchStatus == NUdf::EFetchStatus::Yield && allReadsFinished && allRowsProcessed && !hasPendingResults) {
+            //Cerr << __LINE__ DU((const void *)WatermarksTracker);
+            //if (WatermarksTracker) Cerr DU(WatermarksTracker->GetPendingWatermark());
+            //Cerr << Endl;
             if (WatermarksTracker && WatermarksTracker->HasPendingWatermark()) {
                 // No unprocessed data: pop and send watermark
                 maybeWatermark = WatermarksTracker->GetPendingWatermark();
