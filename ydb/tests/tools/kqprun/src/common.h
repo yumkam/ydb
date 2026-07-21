@@ -72,6 +72,7 @@ struct TRunnerOptions {
     std::vector<IOutputStream*> ScriptQueryPlanOutputs;
     std::vector<TString> ScriptQueryTimelineFiles;
     std::vector<TString> InProgressStatisticsOutputFiles;
+    std::vector<Ydb::Table::TransactionSettings> TxSettings;
 
     NKikimrRun::EResultOutputFormat ResultOutputFormat = NKikimrRun::EResultOutputFormat::RowsJson;
     NYdb::NConsoleClient::EDataFormat PlanOutputFormat = NYdb::NConsoleClient::EDataFormat::Default;

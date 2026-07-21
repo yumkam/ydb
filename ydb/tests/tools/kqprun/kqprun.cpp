@@ -68,6 +68,7 @@ struct TExecutionOptions {
     std::vector<TDuration> Timeouts;
     std::vector<std::optional<TVector<NACLib::TSID>>> GroupSIDs;
     std::vector<TString> StreamingQueriesNames;
+    std::vector<std::optional<Ydb::Table::TransactionSettings>> TxSettings;
     ui64 ResultsRowsLimit = 0;
 
     const TString DefaultTraceId = "kqprun";
@@ -136,7 +137,8 @@ struct TExecutionOptions {
             .Timeout = GetValue(index, Timeouts, TDuration::Zero()),
             .QueryId = queryId,
             .Params = Params,
-            .GroupSIDs = GetValue<std::optional<TVector<NACLib::TSID>>>(index, GroupSIDs, std::nullopt)
+            .GroupSIDs = GetValue<std::optional<TVector<NACLib::TSID>>>(index, GroupSIDs, std::nullopt),
+            .TxSettings = GetValue<std::optional<Ydb::Table::TransactionSettings>>(index, TxSettings, {}),
         };
     }
 
@@ -180,6 +182,7 @@ private:
         checker(runnerOptions.ScriptQueryPlanOutputs.size(), "plan output files");
         checker(runnerOptions.ScriptQueryTimelineFiles.size(), "timeline files");
         checker(runnerOptions.InProgressStatisticsOutputFiles.size(), "statistics files");
+        checker(runnerOptions.TxSettings.size(), "transaction settings");
     }
 
     void ValidateSchemeQueryOptions(const TRunnerOptions& runnerOptions) const {
@@ -696,6 +699,35 @@ protected:
             .RequiredArgument("file")
             .Handler1([this](const NLastGetopt::TOptsParser* option) {
                 RunnerOptions.ScriptQueryAstOutputs.emplace_back(GetDefaultOutput(TString(option->CurValOrDef())));
+            });
+
+        options.AddLongOption("tx-mode", "Transaction mode (serializable-rw, online-ro, online-ro-stale, stale-ro, snapshot-ro, shanshot-rw, read-committed-rw, strict-serializable-rw")
+            .AddLongName("transaction-mode")
+            .RequiredArgument("mode")
+            .Handler1([this](const NLastGetopt::TOptsParser* option) {
+                const auto& value = option->CurValOrDef();
+                auto &tx_mode = RunnerOptions.TxSettings.emplace_back();
+                if (value == "serializable-rw") {
+                    tx_mode.mutable_serializable_read_write();
+                } else if (value == "online-ro") {
+                    tx_mode.mutable_online_read_only();
+                } else if (value == "online-ro-stale") {
+                    tx_mode.mutable_online_read_only()->set_allow_inconsistent_reads(true);
+                } else if (value == "stale-ro") {
+                    tx_mode.mutable_stale_read_only();
+                } else if (value == "snapshot-ro") {
+                    tx_mode.mutable_snapshot_read_only();
+                } else if (value == "snapshot-rw") {
+                    tx_mode.mutable_snapshot_read_write ();
+                } else if (value == "read-committed-rw") {
+                    tx_mode.mutable_read_committed_read_write();
+                } else if (value == "strict-serializable-rw") {
+                    tx_mode.mutable_strict_serializable_read_write();
+                } else {
+                    throw yexception() << "Unkwnow transaction settings: " << value;
+                }
+
+                RunnerOptions.TxSettings.emplace_back(std::move(tx_mode));
             });
 
         options.AddLongOption("script-plan-file", "File with script query plan (use '-' to write in stdout)")
