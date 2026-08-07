@@ -539,6 +539,7 @@ public:
         //! Usable for at least read operations
         bool IsAvailableForRead() const;
         bool IsAvailableForWrite() const;
+        auto operator <=> (const TClusterInfo&) const = default;
     };
 
     //! Discover all clusters for federated topic.
