@@ -17,6 +17,7 @@ RECURSE_FOR_TESTS(
     restarts
     s3
     streaming
+    streaming_common
     yds
     streaming/streaming_large
 )
