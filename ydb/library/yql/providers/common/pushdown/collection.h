@@ -24,4 +24,14 @@ void CollectPredicates(
     const TSettings& settings
 );
 
+struct TLikeSettings {
+    bool IsUtf8 = false;
+    bool IsCaseless = false;
+    TExprNodePtr Haystack;
+    TExprNodePtr Pattern;
+    TExprNodePtr Escape;
+};
+
+std::optional<TLikeSettings> ExtractLikeSettings(const NNodes::TExprBase& node);
+
 } // namespace NYql::NPushdown

@@ -793,6 +793,47 @@ private:
 
 } // anonymous namespace end
 
+std::optional<TLikeSettings> ExtractLikeSettings(TExprNodePtr node)
+{
+    if (node->IsCallable("AssumeStrict")) {
+        if (node->ChildrenSize() != 1) {
+            return std::nullopt;
+        }
+        node = node->ChildPtr(0);
+    }
+    auto maybeUdf = TExprBase(node).Maybe<TCoUdf>();
+    if (!maybeUdf) {
+        return std::nullopt;
+    }
+    auto udf = maybeUdf.Cast();
+    if (udf.MethodName() != "Re2.Match") {
+        return std::nullopt;
+    }
+    // TODO deeper validation
+    auto maybeRunConfigValue = udf.RunConfigValue();
+    if (!maybeRunConfigValue) {
+        return std::nullopt;
+    }
+    auto runConfigValue = runConfigValue.Cast().Ref();
+    if (runConfigValue.ChildrenSize() != 2) {
+        return std::nullopt;
+    }
+    TLikeSettings settings;
+    
+    auto regexp = runConfigValue.ChildPtr(0);
+    if (!regexp->IsCallable("Apply") || regexp->ChildrenSize() != 2) {
+        return std::nullopt;
+    }
+    auto patternFromLike = regexp->ChildPtr(0);
+    if (!patternFromLike->IsCallable("Udf") || patternFromL) {
+        return std::nullopt;
+    }
+    udf.Ref
+        if (!udf || !UdfCanBePushed(udf.Cast(), apply.Ref().ChildrenList())) {
+            return false;
+        }
+}
+
 void CollectPredicates(
     TExprContext& ctx,
     const TExprBase& predicate,
