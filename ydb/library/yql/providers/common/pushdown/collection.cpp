@@ -825,10 +825,41 @@ std::optional<TLikeSettings> ExtractLikeSettings(TExprNodePtr node)
         return std::nullopt;
     }
     auto patternFromLike = regexp->ChildPtr(0);
-    if (!patternFromLike->IsCallable("Udf") || patternFromL) {
+    auto patternFromLikeUdf = patternFromLike.Maybe<TCoUdf>();
+    
+    if (!patternFromLikeUdf || patternFromLikeUdf.Cast().MethodName() != "Re2.PatternFromLike") {
         return std::nullopt;
     }
-    udf.Ref
+    settings.Pattern = regexp->ChildPtr(1);
+    auto just = runConfigValue.ChildPtr(1);
+    if (!just->IsCallable("Just") || just->ChildrenSize() != 1) {
+        return std::nullopt;
+    }
+    auto namedApply = just->ChildPtr(0);
+    if (!namedApply->IsCallable("NamedApply") || namedApply->ChildrenSize() < 2) {
+        return std::nullopt;
+    }
+    auto options = namedApply->ChildPtr(0);
+    auto optionsUdf = options->Maybe<TCoUdf>();
+    if (!optionsUdf || optionsUdf.Cast().MethodName() != "Re2.Options") {
+        return std::nullopt;
+    }
+    auto maybeAsStruct = namedApply->ChildPtr(2)->Cast<TCoAsStruct>();
+    if (!maybeAsStruct) {
+        return std::nullopt;
+    }
+    for (const auto& child: maybeAsStruct.Cast()) {
+        if (child.Size() != 2) {
+            return st::nullopt;
+        }
+        auto maybeName = child.Item(0).Maybe<TCoAtom>();
+        if (!maybeName) {
+            return false;
+        }
+        auto value = child.Item(1);
+        if (maybeName.StringValue() == "CaseSensitive") {
+            if (auto maybeJust = value.Maybe<TCoJust>()) {
+                value = maybeJust.Cast()
         if (!udf || !UdfCanBePushed(udf.Cast(), apply.Ref().ChildrenList())) {
             return false;
         }
