@@ -49,7 +49,7 @@ std::string UuidBytesToString(const std::string& in) {
     
     UuidBytesToString(TString(in), ss);
 
-    return std::string(ss.Str());
+    return std::string(std::move(ss).Str());
 }
 
 void UuidBytesToString(const std::string& in, IOutputStream& out) {

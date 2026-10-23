@@ -289,7 +289,7 @@ public:
                         << " path '" << GetProto()->path()
                         << "' has not been resolved yet";
 
-            errorMessage = explanation.Str();
+            errorMessage = std::move(explanation).Str();
             return false;
         }
         for (const NSchemeCache::TSchemeCacheNavigate::TEntry& entry : resolveNamesResult->ResultSet) {
@@ -302,7 +302,7 @@ public:
                             << " with access " << NACLib::AccessRightsToString(access)
                             << " to path '" << GetProto()->path() << "'";
 
-                errorMessage = explanation.Str();
+                errorMessage = std::move(explanation).Str();
                 return false;
             }
         }
@@ -538,7 +538,7 @@ public:
             if (it == ShardIdToReadState.end()) {
                 TStringStream ss;
                 ss << "Got unknown shardId from TEvReadResult# " << shardId << ", status# " << statusCode;
-                return ReplyWithError(statusCode, ss.Str(), &issues);
+                return ReplyWithError(statusCode, std::move(ss).Str(), &issues);
             }
 
             switch (statusCode) {
@@ -550,7 +550,7 @@ public:
                     TStringStream ss;
                     ss << "Reached MaxRetries count for DataShard# " << shardId << ", status# " << statusCode;
                     it->second.Status = statusCode;
-                    ReplyWithError(statusCode, ss.Str(), &issues);
+                    ReplyWithError(statusCode, std::move(ss).Str(), &issues);
                 } else {
                     SendRead(shardId, it->second);
                 }
@@ -565,7 +565,7 @@ public:
                     statusCode = Ydb::StatusIds::ABORTED;
                 }
                 it->second.Status = statusCode;
-                return ReplyWithError(statusCode, ss.Str(), &issues);
+                return ReplyWithError(statusCode, std::move(ss).Str(), &issues);
             }
             }
             if (!msg->Record.HasFinished() || !msg->Record.GetFinished()) {
@@ -737,7 +737,7 @@ public:
         ss << "]";
 
         if (hasActiveReads) {
-            YDB_LOG_WARN(ss.Str());
+            YDB_LOG_WARN(std::move(ss).Str());
         }
     }
 

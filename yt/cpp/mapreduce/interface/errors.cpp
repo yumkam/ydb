@@ -260,14 +260,14 @@ TString TYtError::GetYsonText() const
     TStringStream out;
     ::NYson::TYsonWriter writer(&out, NYson::EYsonFormat::Text);
     SerializeError(*this, &writer);
-    return std::move(out.Str());
+    return std::move(out).Str();
 }
 
 TString TYtError::ShortDescription() const
 {
     TStringStream out;
     WriteErrorDescription(*this, &out);
-    return std::move(out.Str());
+    return std::move(out).Str();
 }
 
 TString TYtError::FullDescription() const
@@ -275,7 +275,7 @@ TString TYtError::FullDescription() const
     TStringStream s;
     WriteErrorDescription(*this, &s);
     s << "; full error: " << GetYsonText();
-    return s.Str();
+    return std::move(s).Str();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

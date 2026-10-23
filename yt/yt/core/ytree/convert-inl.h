@@ -70,7 +70,7 @@ TYsonString ConvertToYsonStringNestingLimited(const T& value, int nestingLevelLi
         Serialize(value, &writer);
         writer.Flush();
     }
-    return NYson::TYsonString(std::move(stream.Str()), type);
+    return NYson::TYsonString(std::move(stream).Str(), type);
 }
 
 template <>

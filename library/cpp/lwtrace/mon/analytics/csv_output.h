@@ -46,7 +46,7 @@ inline TString ToCsv(const TTable& in, TString sep = TString("\t"), bool head = 
         }
         ss << Endl;
     }
-    return ss.Str();
+    return std::move(ss).Str();
 }
 
 }

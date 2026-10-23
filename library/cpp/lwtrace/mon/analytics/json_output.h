@@ -92,7 +92,7 @@ inline TString ToJsonFlot(const TTable& in, const TString& xno, const TVector<TS
         first = false;
     }
     ss << "\n]";
-    return ss.Str();
+    return std::move(ss).Str();
 }
 
 }

@@ -12,7 +12,7 @@ inline TString CompressYamlString(const TString& yamlStr) {
         TZstdCompress zstd(&s);
         Save(&zstd, yamlStr);
     }
-    return s.Str();
+    return std::move(s).Str();
 }
 
 inline TString DecompressYamlString(const TString& buffer) {

@@ -475,7 +475,7 @@ TVector<TString> GetFileWriteResult(const TTypeEnvironment& env, const IFunction
     }
     TVector<TString> res;
     res.reserve(spec.Outputs.size());
-    std::transform(streams.begin(), streams.end(), std::back_inserter(res), [] (TStringStream& s) { return s.Str(); });
+    std::transform(streams.begin(), streams.end(), std::back_inserter(res), [] (TStringStream& s) { return std::move(s).Str(); });
     return res;
 }
 

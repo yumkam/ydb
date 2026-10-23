@@ -319,7 +319,7 @@ void TStorageProxy::Handle(TEvCheckpointStorage::TEvCreateCheckpointRequest::TPt
                 TStringStream ss;
                 ss << "Graph checkpoints size limit exceeded: limit " << totalGraphCheckpointsSizeLimit
                    << ", current checkpoints size: " << totalGraphCheckpointsSize;
-                issues.AddIssue(std::move(ss.Str()));
+                issues.AddIssue(std::move(ss).Str());
             }
             if (std::holds_alternative<TString>(graphDesc)) {
                 return storage->CreateCheckpoint(coordinatorId, checkpointId, std::get<TString>(graphDesc), ECheckpointStatus::Pending);

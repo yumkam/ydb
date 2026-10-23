@@ -85,7 +85,7 @@ struct TBarrierInfo {
                 str << "(collect)";
             }
         }
-        return str.Str();
+        return std::move(str).Str();
     }
 };
 
@@ -322,7 +322,7 @@ TString FormatBitMask(ui64 mask, ui32 numBits) {
     for (ui32 i = 0; i < numBits; ++i) {
         str << (mask >> i & 1);
     }
-    return str.Str();
+    return std::move(str).Str();
 }
 
 TString FormatLayout(const TSubgroupPartLayout& layout, TBlobStorageGroupType type) {
@@ -367,7 +367,7 @@ TString FormatLayout(const TSubgroupPartLayout& layout, TBlobStorageGroupType ty
     }
 
     s << "}";
-    return s.Str();
+    return std::move(s).Str();
 }
 
 int main(int argc, char **argv) {

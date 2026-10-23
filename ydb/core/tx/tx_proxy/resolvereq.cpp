@@ -295,7 +295,7 @@ namespace {
                         }
 
                         IssueManager.RaiseIssue(MakeIssue(NKikimrIssues::TIssuesIds::GENERIC_RESOLVE_ERROR, ss.Str()));
-                        UnresolvedKeys.push_back(ss.Str());
+                        UnresolvedKeys.push_back(std::move(ss).Str());
                     }
                 }
 

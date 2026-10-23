@@ -4842,7 +4842,7 @@ struct MDTreeAsmWriterContext : public AsmWriterContext {
     unsigned InsertIdx = Buffer.size() - 1;
 
     printMetadataImplRec(SS, *MD, *this);
-    Buffer[InsertIdx].second = std::move(SS.str());
+    Buffer[InsertIdx].second = std::move(SS).str();
     --Level;
   }
 

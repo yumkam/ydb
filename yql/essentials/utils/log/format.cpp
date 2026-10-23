@@ -187,7 +187,7 @@ TString JsonFormat(const TLogRecord& rec) {
     }
     buf.EndObject();
     buf.EndObject();
-    return std::move(out.Str());
+    return std::move(out).Str();
 }
 
 TAutoPtr<TLogBackend> MakeFormattingLogBackend(TFormatter formatter, bool isStrict, TAutoPtr<TLogBackend> child) {

@@ -62,7 +62,7 @@ TString TDurationHistogram::LabelBefore(unsigned i) {
     } else {
         ss << MinutesRound(d) << "m";
     }
-    return ss.Str();
+    return std::move(ss).Str();
 }
 
 TString TDurationHistogram::PrintToString() const {
@@ -70,5 +70,5 @@ TString TDurationHistogram::PrintToString() const {
     for (auto time : Times) {
         ss << time << "\n";
     }
-    return ss.Str();
+    return std::move(ss).Str();
 }

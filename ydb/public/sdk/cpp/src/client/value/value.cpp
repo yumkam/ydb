@@ -581,7 +581,7 @@ std::string FormatType(const TType& type) {
     TTypeParser parser(type);
     TStringStream out;
     FormatTypeInternal(parser, out);
-    return out.Str();
+    return std::move(out).Str();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1037,7 +1037,7 @@ std::string TUuidValue::ToString() const {
     static_assert(sizeof(dw) == sizeof(Buf_.Bytes));
     std::memcpy(dw, Buf_.Bytes, sizeof(dw));
     NUuid::UuidToString(dw, s);
-    return s.Str();
+    return std::move(s).Str();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

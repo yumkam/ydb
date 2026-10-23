@@ -368,7 +368,7 @@ public:
         for (const auto& item: Ranges) {
             ss << item.Key << item.Range.Print();
         }
-        return ss.Str();
+        return std::move(ss).Str();
     }
 };
 

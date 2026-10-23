@@ -130,7 +130,7 @@ size_t GetMemoryMapsCount() {
 TString GetMemoryMapsString() {
     TStringStream ss;
     ss << " (maps: " << GetMemoryMapsCount() << " vs " << GetMaxMemoryMaps() << ")";
-    return ss.Str();
+    return std::move(ss).Str();
 }
 
 } // namespace NKikimr

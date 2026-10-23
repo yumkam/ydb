@@ -20,7 +20,7 @@ TYsonString ConvertToYsonStringNestingLimited(const TYsonString& value, int nest
         cursor.TransferComplexValue(&writer);
         writer.Finish();
     }
-    return TYsonString(std::move(stream.Str()), value.GetType());
+    return TYsonString(std::move(stream).Str(), value.GetType());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

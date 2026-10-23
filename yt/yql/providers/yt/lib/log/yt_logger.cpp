@@ -118,14 +118,14 @@ public:
         {
             TStringStream out;
             Printf(out, format, args);
-            message = std::move(out.Str());
+            message = std::move(out).Str();
         }
 
         TString path;
         {
             TStringStream out;
             NLog::OutputLogCtx(&out, false);
-            path = std::move(out.Str());
+            path = std::move(out).Str();
         }
 
         TLogRecord record(NLog::TLevelHelpers::ToLogPriority(yqlLevel), message.data(), message.length());

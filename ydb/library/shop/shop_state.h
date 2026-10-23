@@ -64,7 +64,7 @@ struct TMachineMask {
             }
             ss << (Get(idx)? '1': '0');
         }
-        return ss.Str();
+        return std::move(ss).Str();
     }
 };
 

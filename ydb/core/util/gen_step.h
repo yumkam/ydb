@@ -47,7 +47,7 @@ namespace NKikimr {
         TString ToString() const {
             TStringStream s;
             Output(s);
-            return s.Str();
+            return std::move(s).Str();
         }
 
         TGenStep Previous() const {

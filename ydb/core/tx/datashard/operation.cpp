@@ -239,7 +239,7 @@ TString TOperation::DumpDependencies() const
 {
     TStringStream ss;
     PrintDeps(this, ss);
-    return ss.Str();
+    return std::move(ss).Str();
 }
 
 EExecutionUnitKind TOperation::GetCurrentUnit() const
@@ -315,7 +315,7 @@ TString TOperation::ExecutionProfileLogString(ui64 tabletId) const
                << " CP:" << profile.CompleteTime;
         }
     }
-    return ss.Str();
+    return std::move(ss).Str();
 }
 
 bool TOperation::HasRuntimeConflicts() const noexcept

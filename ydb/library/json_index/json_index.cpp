@@ -930,7 +930,7 @@ TString FormatJsonIndexToken(const TString& pathToken, const TString& paramName)
 
     writer.CloseMap();
     writer.Flush();
-    return ss.Str();
+    return std::move(ss).Str();
 }
 
 }   // namespace NKikimr::NJsonIndex

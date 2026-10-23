@@ -1864,7 +1864,7 @@ bool NKikimr::NStorage::DeriveStorageConfig(const NKikimrConfig::TAppConfig& app
                     const auto& [nodeId, pdiskId] = id;
                     err << " [" << nodeId << ':' << pdiskId << ']';
                 }
-                *errorReason = std::move(err.Str());
+                *errorReason = std::move(err).Str();
                 return false;
             }
 
@@ -1902,7 +1902,7 @@ bool NKikimr::NStorage::DeriveStorageConfig(const NKikimrConfig::TAppConfig& app
                     const auto& [nodeId, pdiskId, vdiskSlotId] = id;
                     err << " [" << nodeId << ':' << pdiskId << ':' << vdiskSlotId << ']';
                 }
-                *errorReason = std::move(err.Str());
+                *errorReason = std::move(err).Str();
                 return false;
             }
 

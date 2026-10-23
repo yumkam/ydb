@@ -64,5 +64,5 @@ TString TAcceptorStatus::PrintToString() const {
 
     ss << p.PrintToString();
 
-    return ss.Str();
+    return std::move(ss).Str();
 }

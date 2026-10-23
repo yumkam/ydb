@@ -235,7 +235,7 @@ void TYsonStructMeta::LoadStruct(
             NYson::TCheckedInDebugYsonTokenWriter writer(&ss);
             cursor->TransferComplexValue(&writer);
         }
-        auto data = std::move(ss.Str());
+        auto data = std::move(ss).Str();
         const auto& canonicalKey = parameter->GetKey();
         auto aliasedDataIt = aliasedData.find(canonicalKey);
         if (aliasedDataIt != aliasedData.end()) {

@@ -19,7 +19,7 @@ TBusSessionConfig::TBusSessionConfig()
 TString TBusSessionConfig::PrintToString() const {
     TStringStream ss;
     BUS_SESSION_CONFIG_MAP(STRUCT_FIELD_PRINT, )
-    return ss.Str();
+    return std::move(ss).Str();
 }
 
 static int ParseDurationForMessageBus(const char* option) {

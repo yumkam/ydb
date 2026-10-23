@@ -556,7 +556,7 @@ struct TAdHocTraceConfig {
             else
                 ss << ".d" << logDurationUs << "us";
         }
-        return ss.Str();
+        return std::move(ss).Str();
     }
 
     bool IsValid() const
@@ -893,7 +893,7 @@ private:
             ss << "}";
         }
         ss << "}";
-        return ss.Str();
+        return std::move(ss).Str();
     }
 
     static double Timestamp(ui64 cycles)
@@ -916,7 +916,7 @@ TString MakeUrl(const TCgiParameters& e, const THashMap<TString, TString>& value
         ss << (first? "?": "&") << k << "=" << v;
         first = false;
     }
-    return ss.Str();
+    return std::move(ss).Str();
 }
 
 TString MakeUrl(const TCgiParameters& e, const TString& key, const TString& value, bool keep = false)
@@ -930,7 +930,7 @@ TString MakeUrl(const TCgiParameters& e, const TString& key, const TString& valu
         }
     }
     ss << (first? "?": "&") << key << "=" << value;
-    return ss.Str();
+    return std::move(ss).Str();
 }
 
 TString MakeUrlAdd(const TCgiParameters& e, const TString& key, const TString& value)
@@ -942,7 +942,7 @@ TString MakeUrlAdd(const TCgiParameters& e, const TString& key, const TString& v
         first = false;
     }
     ss << (first? "?": "&") << key << "=" << value;
-    return ss.Str();
+    return std::move(ss).Str();
 }
 
 TString MakeUrlReplace(const TCgiParameters& e, const TString& key, const TString& oldValue, const TString& newValue)
@@ -965,7 +965,7 @@ TString MakeUrlReplace(const TCgiParameters& e, const TString& key, const TStrin
     if (!inserted) {
         ss << (first? "?": "&") << key << "=" << newValue;
     }
-    return ss.Str();
+    return std::move(ss).Str();
 }
 
 TString MakeUrlErase(const TCgiParameters& e, const TString& key, const TString& value)
@@ -978,7 +978,7 @@ TString MakeUrlErase(const TCgiParameters& e, const TString& key, const TString&
             first = false;
         }
     }
-    return ss.Str();
+    return std::move(ss).Str();
 }
 
 TString EscapeSubvalue(const TString& s)
@@ -1213,7 +1213,7 @@ public:
             TContainer container(ss);
             ss << Content;
         }
-        HttpResponse = ss.Str();
+        HttpResponse = std::move(ss).Str();
     }
 
     explicit TPageGen(const TString& content = TString())
@@ -1616,7 +1616,7 @@ private:
                      "Trace 10000 tracks</a></li>"
                  "</ul>"
            "</div>";
-        return ss.Str();
+        return std::move(ss).Str();
     }
 
     TString ProbeHtml(const TString& provider, const TString& probe)
@@ -1645,7 +1645,7 @@ private:
                      "Trace 10000 tracks</a></li>"
                  "</ul>"
            "</div>";
-        return ss.Str();
+        return std::move(ss).Str();
     }
 };
 
@@ -1914,7 +1914,7 @@ private:
             if ((terms > 0 && terms < 2) || ( terms == 0 && ms))    { ss << (ss.Str()? " ": "") << ms   << "ms"; terms++; }
             if ((terms > 0 && terms < 2) || ( terms == 0 && us))    { ss << (ss.Str()? " ": "") << us   << "us"; terms++; }
         }
-        return ss.Str();
+        return std::move(ss).Str();
     }
 };
 
@@ -2177,7 +2177,7 @@ static TString EscapeJSONString(const TString& s)
 {
     TStringStream ss;
     EscapeJSONString(ss, s);
-    return ss.Str();
+    return std::move(ss).Str();
 }
 
 class TLogJsonPrinter {
@@ -2576,7 +2576,7 @@ private:
             ss << (first? "": "|") << GetParam(item, paramValues, groupParam);
             first = false;
         }
-        return ss.Str();
+        return std::move(ss).Str();
     }
 
     void ParseItems(TThread::TId tid, const NLWTrace::TLogItem& item)
@@ -3751,7 +3751,7 @@ private:
             ss << (first? "": "|") << GetParam(item, paramValues, groupParam);
             first = false;
         }
-        return ss.Str();
+        return std::move(ss).Str();
     }
 
     void AddItemToTrack(TThread::TId tid, const NLWTrace::TLogItem& item)
@@ -3999,7 +3999,7 @@ private:
                 printer.OutputFooter(TraceMngr->GetTrace(id));
                 out << HTTPOKJSON;
                 out << ss.Str();
-            } if (e.Get("format") == "json2") {
+            } else if (e.Get("format") == "json2") {
                 TLogTextPrinter printer(e);
                 for (const TString& id : Subvalues(e, "id")) {
                     CheckAdHocTrace(id, TDuration::Minutes(1));

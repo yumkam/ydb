@@ -92,7 +92,7 @@ public:
         }
         TStringStream str;
         RenderOperationLog(str, count, offset);
-        TActivationContext::Send(new IEventHandle(RespondTo, Self->SelfId(), new NMon::TEvRemoteHttpInfoRes(str.Str())));
+        TActivationContext::Send(new IEventHandle(RespondTo, Self->SelfId(), new NMon::TEvRemoteHttpInfoRes(std::move(str).Str())));
         return true;
     }
 
@@ -242,7 +242,7 @@ public:
         }
         TStringStream str;
         RenderOperationLogEntry(str);
-        TActivationContext::Send(new IEventHandle(RespondTo, Self->SelfId(), new NMon::TEvRemoteHttpInfoRes(str.Str())));
+        TActivationContext::Send(new IEventHandle(RespondTo, Self->SelfId(), new NMon::TEvRemoteHttpInfoRes(std::move(str).Str())));
         return true;
     }
 
@@ -469,7 +469,7 @@ public:
                                 msg << "<br/>PDiskId# " << *pdiskId;
                             }
 
-                            Events.emplace_front(timestamp, msg.Str(), std::move(reassign));
+                            Events.emplace_front(timestamp, std::move(msg).Str(), std::move(reassign));
                             auto& j = Events.front().Json;
                             j["Event"] = "ReassignGroupDisk";
                             j["VDiskId"] = ToJson(vdiskId);
@@ -485,7 +485,7 @@ public:
                             msg << "Group sanitizing request"
                                 << "<br/>GroupId# " << groupId;
 
-                            Events.emplace_front(timestamp, msg.Str(), std::move(reassign));
+                            Events.emplace_front(timestamp, std::move(msg).Str(), std::move(reassign));
                             auto& j = Events.front().Json;
                             j["Event"] = "SanitizeGroup";
                             j["GroupId"] = ToString(groupId);
@@ -521,7 +521,7 @@ public:
                             }
 
                             msg << "<br/>to " << NKikimrBlobStorage::EDriveStatus_Name(cmd.GetStatus());
-                            Events.emplace_front(timestamp, msg.Str(), std::move(reassign));
+                            Events.emplace_front(timestamp, std::move(msg).Str(), std::move(reassign));
                             auto& j = Events.front().Json;
                             j["Event"] = "UpdateDriveStatus";
                             j["FQDN"] = ToJsonOrNullOnDefault(fqdn);
@@ -623,7 +623,7 @@ public:
         }
 
         Self->RenderFooter(s);
-        return s.Str();
+        return std::move(s).Str();
     }
 
     TString GenerateJson() {
@@ -651,7 +651,7 @@ public:
         json["Events"] = std::move(events);
         TStringStream s;
         NJson::WriteJson(&s, &json);
-        return s.Str();
+        return std::move(s).Str();
     }
 };
 
@@ -740,7 +740,7 @@ public:
 
         TStringStream stream;
         NJson::WriteJson(&stream, &json);
-        Response = stream.Str();
+        Response = std::move(stream).Str();
 
         return true;
     }
@@ -880,7 +880,7 @@ void TBlobStorageController::ProcessPostQuery(const NActorsProto::TRemoteHttpInf
                     }
                     s << data;
 
-                    Send(Sender, new NMon::TEvRemoteBinaryInfoRes(s.Str()));
+                    Send(Sender, new NMon::TEvRemoteBinaryInfoRes(std::move(s).Str()));
                     PassAway();
                 }
             };
@@ -1027,7 +1027,7 @@ bool TBlobStorageController::OnRenderAppHtmlPage(NMon::TEvRemoteHttpInfo::TPtr e
     if (tx) {
         Execute(tx.Release());
     } else {
-        Send(ev->Sender, new NMon::TEvRemoteHttpInfoRes(str.Str()));
+        Send(ev->Sender, new NMon::TEvRemoteHttpInfoRes(std::move(str).Str()));
     }
 
     return true;

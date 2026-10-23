@@ -346,7 +346,7 @@ TNodePairRef TMapping::at(int index) const {
     Y_ENSURE_EX(res, ({
         TStringStream ss;
         ss << "No such child: " << Path() << "/" << index;
-        TFyamlEx(ss.Str());
+        TFyamlEx(std::move(ss).Str());
     }));
     return TNodePairRef(res);
 }
@@ -362,7 +362,7 @@ TNodeRef TMapping::at(const TString& index) const {
     Y_ENSURE_EX(res, ({
         TStringStream ss;
         ss << "No such child: " << Path() << "/" << index;
-        TFyamlEx(ss.Str());
+        TFyamlEx(std::move(ss).Str());
     }));
     return TNodeRef(res);
 }
@@ -373,7 +373,7 @@ TNodePairRef TMapping::pair_at(const TString& index) const {
     Y_ENSURE_EX(res, ({
         TStringStream ss;
         ss << "No such child: " << Path() << "/" << index;
-        TFyamlEx(ss.Str());
+        TFyamlEx(std::move(ss).Str());
     }));
     return TNodePairRef(res);
 }
@@ -505,7 +505,7 @@ TNodeRef TSequence::at(int index) const {
     Y_ENSURE_EX(res, ({
         TStringStream ss;
         ss << "No such index: " << Path() << "/" << index;
-        TFyamlEx(ss.Str());
+        TFyamlEx(std::move(ss).Str());
     }));
     return TNodeRef(res);
 }
@@ -1065,12 +1065,12 @@ void ThrowAllExceptionsIfAny(fy_diag* diag) {
     if (err != nullptr) {
         TStringStream ss;
         ss << err->line << ":" << err->column << " " << err->msg;
-        TFyamlEx ex(ss.Str());
+        TFyamlEx ex(std::move(ss).Str());
 
         while ((err = fy_diag_errors_iterate(diag, &iter)) != nullptr) {
             TStringStream ss;
             ss << err->line << ":" << err->column << " " << err->msg;
-            ex.AddError(ss.Str());
+            ex.AddError(std::move(ss).Str());
         }
 
         ythrow ex;
@@ -1084,7 +1084,7 @@ void RethrowError(fy_diag* diag) {
     while ((err = fy_diag_errors_iterate(diag, &iter)) != nullptr) {
         ss << err->line << ":" << err->column << " " << err->msg << "\n";
     }
-    ythrow TFyamlEx(ss.Str());
+    ythrow TFyamlEx(std::move(ss).Str());
 }
 
 void RethrowOnError(bool isError, fy_node* node) {

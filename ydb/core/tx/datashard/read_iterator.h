@@ -36,7 +36,7 @@ struct TReadIteratorId {
     TString ToString() const {
         TStringStream ss;
         ss << "{" << Sender << ", " << ReadId << "}";
-        return ss.Str();
+        return std::move(ss).Str();
     }
 };
 

@@ -1696,7 +1696,7 @@ TString FormatType(const TTypeAnnotationNode* typeNode)
     TStringStream ss;
     TTypePrinter printer(ss);
     typeNode->Accept(printer);
-    return ss.Str();
+    return std::move(ss).Str();
 }
 
 } // namespace NYql

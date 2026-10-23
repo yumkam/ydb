@@ -671,7 +671,7 @@ namespace NActors {
                 if (!Common->ValidateCompatibilityInfo(proto.GetCompatibilityInfo(), errorReason)) {
                     TStringStream s("Local and peer CompatibilityInfo are incompatible");
                     s << ", errorReason# " << errorReason;
-                    errorCallback(s.Str());
+                    errorCallback(std::move(s).Str());
                 }
             } else if (proto.HasVersionTag() && Common->ValidateCompatibilityOldFormat) {
                 TInterconnectProxyCommon::TVersionInfo oldFormat;
@@ -683,7 +683,7 @@ namespace NActors {
                 if (!Common->ValidateCompatibilityOldFormat(oldFormat, errorReason)) {
                     TStringStream s("Local CompatibilityInfo and peer TVersionInfo are incompatible");
                     s << ", errorReason# " << errorReason;
-                    errorCallback(s.Str());
+                    errorCallback(std::move(s).Str());
                 }
             } else if (proto.HasVersionTag()) {
                 ValidateVersionTag(proto, std::forward<TCallback>(errorCallback));
@@ -719,7 +719,7 @@ namespace NActors {
                             s << (std::exchange(first, false) ? "" : " ") << tag;
                         }
                         s << "]";
-                        errorCallback(s.Str());
+                        errorCallback(std::move(s).Str());
                     }
                 }
             }
@@ -737,7 +737,7 @@ namespace NActors {
                     s << *it;
                 }
                 s << "]";
-                return s.Str();
+                return std::move(s).Str();
             };
             if (!Common->AcceptUUID) {
                 return; // promiscuous mode -- we accept every other peer
@@ -1254,7 +1254,7 @@ namespace NActors {
                     s << it->GetAddress();
                 }
                 s << ']';
-                return s.Str();
+                return std::move(s).Str();
             };
             Fail(TEvHandshakeFail::HANDSHAKE_FAIL_PERMANENT, TStringBuilder() << "Connecting node does not resolve to peer address"
                 << " PeerAddr# " << PeerAddr << " AddressList# " << makeList(), true);

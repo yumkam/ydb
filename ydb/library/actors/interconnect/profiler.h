@@ -135,7 +135,7 @@ namespace NActors {
                 }
             }
 
-            return s.Str();
+            return std::move(s).Str();
         }
     };
 

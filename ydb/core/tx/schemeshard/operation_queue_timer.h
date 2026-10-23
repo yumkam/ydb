@@ -176,7 +176,7 @@ struct TShardCompactionInfo {
            << ", Rows# " << RowCount
            << ", Deletes# " << RowDeletes
            << ", Compaction# " << TInstant::Seconds(LastFullCompactionTs) << "}";
-        return ss.Str();
+        return std::move(ss).Str();
     }
 };
 
@@ -441,7 +441,7 @@ public:
         if (!QueueRowDeletes.Empty())
             ss << QueueRowDeletes.Front();
         ss << "}";
-        return ss.Str();
+        return std::move(ss).Str();
     }
 };
 

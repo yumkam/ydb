@@ -423,7 +423,7 @@ TString TDnsCache::THost::AddrsV4ToString() const {
         ss << (first ? "" : " ") << IpToString(addr);
         first = false;
     }
-    return ss.Str();
+    return std::move(ss).Str();
 }
 
 TString TDnsCache::THost::AddrsV6ToString() const {
@@ -439,7 +439,7 @@ TString TDnsCache::THost::AddrsV6ToString() const {
         ss << (first ? "" : " ") << NAddr::PrintHost(addr6);
         first = false;
     }
-    return ss.Str();
+    return std::move(ss).Str();
 }
 
 TDnsCache::TAresLibInit::TAresLibInit() {

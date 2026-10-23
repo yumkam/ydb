@@ -256,7 +256,7 @@ TString TExecutor::GetStatus() const {
 TString TExecutor::GetStatusSingleLine() const {
     TStringStream ss;
     ss << "work items: " << GetWorkQueueSize();
-    return ss.Str();
+    return std::move(ss).Str();
 }
 
 TExecutorStatus TExecutor::GetStatusRecordInternal() const {
@@ -271,7 +271,7 @@ TExecutorStatus TExecutor::GetStatusRecordInternal() const {
         for (unsigned i = 0; i < WorkerThreads.size(); ++i) {
             ss << "-- " << AtomicGet(*AtomicGet(WorkerThreads[i]->WhatThreadDoesLocation)) << "\n";
         }
-        r.Status = ss.Str();
+        r.Status = std::move(ss).Str();
     }
 
     r.History = Impl->History.Capture();

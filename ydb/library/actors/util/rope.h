@@ -817,7 +817,7 @@ public:
             s << " [" << chunk.Begin - data << ", " << chunk.End - data << ")@" << chunk.Backend.UniqueId();
         }
         s << "}";
-        return s.Str();
+        return std::move(s).Str();
     }
 
     explicit operator TRcBuf() {

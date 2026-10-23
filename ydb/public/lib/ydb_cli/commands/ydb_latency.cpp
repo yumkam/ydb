@@ -429,7 +429,7 @@ int TCommandLatency::Run(TConfig& config) {
             }
         }
         ss << Endl;
-        TString header = ss.Str();
+        TString header = std::move(ss).Str();
 
         for (auto percentile: Percentiles) {
             Cout << "Latencies, p" << percentile << Endl;

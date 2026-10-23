@@ -382,7 +382,7 @@ std::string ParseAnyValue(TYsonPullParserCursor* cursor)
         cursor->TransferComplexValue(&writer);
         writer.Flush();
     }
-    return std::move(stream.Str());
+    return std::move(stream).Str();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

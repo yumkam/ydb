@@ -306,7 +306,7 @@ TString THttpHeader::GetUrl(bool needProxy) const
 
     if (needProxy && !ProxyAddress_.empty()) {
         url << ProxyAddress_ << "/";
-        return url.Str();
+        return std::move(url).Str();
     }
 
     if (!ProxyAddress_.empty()) {
@@ -319,7 +319,7 @@ TString THttpHeader::GetUrl(bool needProxy) const
         url << "/" << Command_;
     }
 
-    return url.Str();
+    return std::move(url).Str();
 }
 
 TMaybe<TString> THttpHeader::GetRequestCompression() const
@@ -346,7 +346,7 @@ TString THttpHeader::GetHeaderAsString(const TString& hostName, const TString& r
 
     result << "\r\n";
 
-    return result.Str();
+    return std::move(result).Str();
 }
 
 NHttp::THeadersPtrWrapper THttpHeader::GetHeader(const TString& hostName, const TString& requestId, bool includeParameters) const

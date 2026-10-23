@@ -199,7 +199,7 @@ public:
         TStatusPrinter v(treeWidth);
         v.Visit(planner->GetRoot());
         ss << v.Str() << "\n";
-        return ss.Str();
+        return std::move(ss).Str();
     }
 };
 

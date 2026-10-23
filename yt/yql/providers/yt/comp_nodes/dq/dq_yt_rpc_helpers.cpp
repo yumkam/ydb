@@ -8,7 +8,7 @@ NYT::NYPath::TRichYPath ConvertYPathFromOld(const NYT::TRichYPath& richYPath) {
     TStringStream ss;
     NYT::PathToNode(richYPath).Save(&ss);
     NYT::NYPath::TRichYPath path;
-    NYT::NYPath::Deserialize(path, NYT::NYTree::ConvertToNode(NYT::NYson::TYsonString(ss.Str())));
+    NYT::NYPath::Deserialize(path, NYT::NYTree::ConvertToNode(NYT::NYson::TYsonString(std::move(ss).Str())));
     return path;
 }
 
@@ -69,14 +69,14 @@ std::unique_ptr<TSettingsHolder> CreateInputStreams(bool isArrow, const TString&
         if (!samplingSpec.IsUndefined()) {
             TStringStream ss;
             samplingSpec.Save(&ss);
-            request->set_config(ss.Str());
+            request->set_config(std::move(ss).Str());
         }
 
         ConfigureTransaction(request, richYPath);
         // Get skiff format yson string
         TStringStream fmt;
         format.Config.Save(&fmt);
-        request->set_format(fmt.Str());
+        request->set_format(std::move(fmt).Str());
 
         requests.emplace_back(std::move(request));
     }

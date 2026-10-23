@@ -22,7 +22,7 @@ TString Err2Str(NYql::TAstParseResult& res, EDebugOutput debug = EDebugOutput::N
     if (debug == EDebugOutput::ToCerr) {
         Cerr << s.Str() << Endl;
     }
-    return s.Str();
+    return std::move(s).Str();
 }
 
 NYql::TAstParseResult SqlToYqlWithMode(const TString& query, NSQLTranslation::ESqlMode mode = NSQLTranslation::ESqlMode::QUERY, size_t maxErrors = 10, const TString& provider = {}, EDebugOutput debug = EDebugOutput::None) {

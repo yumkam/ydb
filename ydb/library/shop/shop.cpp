@@ -65,7 +65,7 @@ TString TFlow::DebugDump() const
         }
         ss << " ]" << Endl;
     }
-    return ss.Str();
+    return std::move(ss).Str();
 }
 
 void TJob::AddOp(ui64 estcost)
@@ -98,7 +98,7 @@ TString TJob::DebugDump() const
            << " State:" << op.StateName()
            << Endl;
     }
-    return ss.Str();
+    return std::move(ss).Str();
 }
 
 void TShop::StartJob(TJob* job, double now)

@@ -245,7 +245,7 @@ public:
                 if (dumpStep) {
                     s << "/" << Step;
                 }
-                return std::move(s.Str());
+                return std::move(s).Str();
             }
         };
 

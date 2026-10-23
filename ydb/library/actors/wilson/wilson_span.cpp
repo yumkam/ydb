@@ -115,7 +115,7 @@ namespace NWilson {
                 TStringStream err;
                 err << "TSpan instance incorrectly overwritten at:\n";
                 FormatBackTrace(&err);
-                EndError(std::move(err.Str()));
+                EndError(std::move(err).Str());
             }
             Data = std::exchange(other.Data, nullptr);
         }

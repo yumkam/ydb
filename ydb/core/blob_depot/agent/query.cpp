@@ -349,7 +349,7 @@ namespace NKikimr::NBlobDepot {
             if (const ui64 tabletId = GetTabletId()) {
                 s << '@' << tabletId;
             }
-            QueryIdString = std::move(s.Str());
+            QueryIdString = std::move(s).Str();
         }
         return QueryIdString;
     }

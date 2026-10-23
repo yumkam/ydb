@@ -42,7 +42,7 @@ inline TString ToHtml(const TTable& in)
     }
     ss << "</tbody></table>";
 
-    return ss.Str();
+    return std::move(ss).Str();
 }
 
 inline TString ToTransposedHtml(const TTable& in)
@@ -80,7 +80,7 @@ inline TString ToTransposedHtml(const TTable& in)
     }
     ss << "</tbody></table>";
 
-    return ss.Str();
+    return std::move(ss).Str();
 }
 
 }

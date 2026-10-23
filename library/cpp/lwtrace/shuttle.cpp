@@ -11,7 +11,7 @@ namespace NLWTrace {
     inline TString CurrentBackTrace() {
         TStringStream ss;
         FormatBackTrace(&ss);
-        return ss.Str();
+        return std::move(ss).Str();
     }
 
     void TOrbit::LockFailed() {

@@ -123,7 +123,7 @@ std::string ProtoToString(const Ydb::TOperationId& proto) {
             }
         }
     }
-    return res.Str();
+    return std::move(res).Str();
 }
 
 class TOperationId::TImpl {

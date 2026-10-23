@@ -258,7 +258,7 @@ TString FormatColumnOrder(const TMaybe<TColumnOrder>& columnOrder, TMaybe<size_t
     } else {
         ss << "default";
     }
-    return ss.Str();
+    return std::move(ss).Str();
 }
 
 ui64 AddColumnOrderHash(const TMaybe<TColumnOrder>& columnOrder, ui64 hash) {

@@ -72,7 +72,7 @@ public:
 
         TStringStream json;
         TProtoToJson::ProtoToJson(json, StorageStats, JsonSettings);
-        Send(Initiator, new NMon::TEvHttpInfoRes(Viewer->GetHTTPOKJSON(Event->Get(), std::move(json.Str())), 0, NMon::IEvHttpInfoRes::EContentType::Custom));
+        Send(Initiator, new NMon::TEvHttpInfoRes(Viewer->GetHTTPOKJSON(Event->Get(), std::move(json).Str()), 0, NMon::IEvHttpInfoRes::EContentType::Custom));
         PassAway();
     }
 
