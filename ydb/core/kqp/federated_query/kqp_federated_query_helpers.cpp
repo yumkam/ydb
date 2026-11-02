@@ -187,11 +187,13 @@ std::shared_ptr<NYql::IYdbExternalMetadataClientCache> TYdbExternalResources::Ge
 
 std::unique_ptr<NYdb::TDriver> MakeYdbDriver(NKikimr::TDeferredActorLogBackend::TSharedAtomicActorSystemPtr actorSystemPtr,
     const NKikimrConfig::TStreamingQueriesConfig::TExternalTopicsSettings& config) {
+    constexpr ui64 maxMessageSize = 136314880;   //  logbroker default grpc max message size
     NYdb::TDriverConfig cfg;
     cfg.SetLog(std::make_unique<NKikimr::TDeferredActorLogBackend>(actorSystemPtr, NKikimrServices::EServiceKikimr::YDB_SDK));
     cfg.SetDiscoveryMode(NYdb::EDiscoveryMode::Async);
     cfg.SetMaxMessageSize(130_MB);
     cfg.SetMaxQueuedRequests(std::numeric_limits<i64>::max());
+    cfg.SetMaxMessageSize(maxMessageSize);
 
     auto driver = std::make_unique<NYdb::TDriver>(cfg);
 
