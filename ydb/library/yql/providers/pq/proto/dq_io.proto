@@ -124,6 +124,7 @@ message TDqPqTopicSource {
     TWriteTimePredicate WriteTimePredicate = 34;
     bool UsedPartitionPredicate = 35;
     bool AllowConsumerRewindForDisposition = 36;
+    TString FederatedClusterName = 37;
 }
 
 message TDqPqTopicSink {

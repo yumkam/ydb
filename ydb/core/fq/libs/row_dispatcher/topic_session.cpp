@@ -161,6 +161,7 @@ private:
             , Predicate(ev->Get()->Record.GetSource().GetPredicate())
             , WatermarkExpr(ev->Get()->Record.GetSource().GetWatermarkExpr())
             , Columns(GetColumns(ev->Get()->Record.GetSource()))
+            , FederatedClusterName(ev->Get()->Record.GetSource().GetFederatedClusterName())
             , ConsumerName(ev->Get()->Record.GetSource().GetConsumerName())
             , UseSsl(ev->Get()->Record.GetSource().GetUseSsl())
             , UseActorSystemThreads(ev->Get()->Record.GetSource().GetUseActorSystemThreadsInTopicClient())

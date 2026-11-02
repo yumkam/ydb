@@ -1479,6 +1479,7 @@ void TDqPqRdReadActor::StartCluster(ui32 clusterIndex) {
     NPq::NProto::TDqPqTopicSource sourceParams = SourceParams;
     sourceParams.SetEndpoint(TString(Clusters[clusterIndex].Info.Endpoint));
     sourceParams.SetDatabase(TString(Clusters[clusterIndex].Info.Path));
+    sourceParams.SetFederatedClusterName(TString(Clusters[clusterIndex].Info.Name));
     TVector<NPq::NProto::TDqReadTaskParams> readParams = ReadParams;
     for (auto& readParam : readParams) {
         for (auto& partitionParam : *readParam.MutablePartitioningParams()) {
