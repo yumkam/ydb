@@ -849,6 +849,7 @@ namespace Tests {
         EnableGRpc(NYdbGrpc::TServerOptions()
             .SetHost("localhost")
             .SetPort(port)
+            .SetMaxMessageSize(Settings->AppConfig->GetGRpcConfig().GetMaxMessageSize())
             .SetLogger(NYdbGrpc::CreateActorSystemLogger(*Runtime->GetActorSystem(grpcServiceNodeId), NKikimrServices::GRPC_SERVER)),
             grpcServiceNodeId, tenant
         );
