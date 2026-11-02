@@ -422,6 +422,14 @@ void RunArgumentQueries(const TExecutionOptions& executionOptions, TKqpRunner& r
                 throw exception;
             }
         }
+
+    if (executionOptions.HasResults()) {
+        try {
+            runner.PrintScriptResults();
+        } catch (...) {
+            ythrow yexception() << "Failed to print script results, reason:\n" << CurrentExceptionMessage();
+        }
+    }
     }
 
     if (durations.size() > 1 && verbosityLevel >= TYdbSetupSettings::EVerbosity::Info) {
@@ -431,14 +439,6 @@ void RunArgumentQueries(const TExecutionOptions& executionOptions, TKqpRunner& r
     }
 
     runner.FinalizeRunner();
-
-    if (executionOptions.HasResults()) {
-        try {
-            runner.PrintScriptResults();
-        } catch (...) {
-            ythrow yexception() << "Failed to print script results, reason:\n" << CurrentExceptionMessage();
-        }
-    }
 }
 
 void RunAsDaemon() {
