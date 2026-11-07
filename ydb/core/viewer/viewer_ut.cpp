@@ -1,6 +1,7 @@
 #include "ut/ut_utils.h"
 #include <ydb/core/mon/ut_utils/ut_utils.h>
 #include <ydb/core/path_aliasing/path_normalizer.h>
+#include <ydb/library/testlib/helpers.h>
 
 #include <library/cpp/testing/unittest/registar.h>
 #include <library/cpp/testing/unittest/tests_data.h>
@@ -20,6 +21,7 @@
 #include "query_autocomplete_helper.h"
 #include "viewer_database_stats.h"
 #include "viewer_groups.h"
+#include "viewer_healthcheck.h"
 #include "viewer_nodelist.h"
 
 #include <library/cpp/testing/unittest/registar.h>
@@ -372,6 +374,69 @@ Y_UNIT_TEST_SUITE(Viewer) {
 
         auto handler = std::make_unique<TStorageGroups>(nullptr, ev);
         UNIT_ASSERT(handler);
+        ev = IEventHandle::Downcast<NHttp::TEvHttpProxy::TEvHttpIncomingRequest>(
+            new IEventHandle(TActorId(), TActorId(), new NHttp::TEvHttpProxy::TEvHttpIncomingRequest(request)));
+        ev->Get()->Database = "/Root/resolved_database";
+        auto healthcheck = std::make_unique<TJsonHealthCheck>(nullptr, ev);
+        UNIT_ASSERT_VALUES_EQUAL(healthcheck->MakeSelfCheckRequest()->Database, "/Root/resolved_database");
+    }
+
+    Y_UNIT_TEST_TWIN(QueryDatabaseResolvedBeforeLookup, enableRelativePaths) {
+        TPortManager tp;
+        auto settings = TServerSettings(tp.GetPort())
+                .SetNodeCount(1)
+                .SetUseRealThreads(false)
+                .SetDomainName("Root")
+                .SetUseSectorMap(true)
+                .InitKikimrRunConfig();
+        settings.FeatureFlags.SetEnableRelativePaths(enableRelativePaths);
+        auto* rule = settings.AppConfig->MutableResourcePathPrefixMapping()->AddRules();
+        rule->SetSrc("/Root/folder");
+        rule->SetDst("/Root/resolved_folder");
+        TServer server(settings);
+        auto& runtime = *server.GetRuntime();
+
+        const std::pair<TString, TString> databases[] = {
+            {"viewer_relative_database", "Root/viewer_relative_database"},
+            {"folder/viewer_relative_database", "Root/resolved_folder/viewer_relative_database"},
+            {"Root/viewer_relative_database", "Root/Root/viewer_relative_database"},
+            {"/Root/viewer_relative_database", "Root/viewer_relative_database"},
+        };
+        for (const auto& [database, resolved] : databases) {
+            for (bool jsonBody : {false, true}) {
+                TVector<TString> navigatedPaths;
+                auto observer = runtime.AddObserver<TEvTxProxySchemeCache::TEvNavigateKeySet>([&](auto& ev) {
+                    for (const auto& entry : ev->Get()->Request->ResultSet) {
+                        if (!entry.Path.empty() && entry.Path.back() == "viewer_relative_database") {
+                            navigatedPaths.push_back(JoinPath(entry.Path));
+                        }
+                    }
+                });
+                NJson::TJsonValue body;
+                body["query"] = "SELECT 1;";
+                TString url = "/viewer/query?direct=1";
+                if (jsonBody) {
+                    body["database"] = database;
+                } else {
+                    url += "&database=" + database;
+                }
+                const TString serializedBody = NJson::WriteJson(body, false);
+                auto endpoint = std::make_shared<NHttp::THttpEndpointInfo>();
+                NHttp::THttpIncomingRequestPtr request = new NHttp::THttpIncomingRequest(
+                    TStringBuilder() << "POST " << url << " HTTP/1.1\r\nContent-Type: application/json\r\nContent-Length: "
+                        << serializedBody.size() << "\r\n\r\n" << serializedBody,
+                    endpoint, {});
+                auto sender = runtime.AllocateEdgeActor();
+                auto requestEvent = new NHttp::TEvHttpProxy::TEvHttpIncomingRequest(request);
+                requestEvent->PathNormalizer = std::make_shared<const std::function<TString(TStringBuf)>>(
+                    [normalizer = runtime.GetAppData().GetPathNormalizer()](TStringBuf path) { return normalizer->NormalizePath(path); });
+                runtime.Send(new IEventHandle(MakeViewerID(0), sender, requestEvent));
+                TAutoPtr<IEventHandle> handle;
+                UNIT_ASSERT(runtime.GrabEdgeEvent<NHttp::TEvHttpProxy::TEvHttpOutgoingResponse>(handle, TDuration::Seconds(30)));
+                UNIT_ASSERT_VALUES_EQUAL(navigatedPaths.size(), 1);
+                UNIT_ASSERT_VALUES_EQUAL(navigatedPaths.front(), enableRelativePaths ? resolved : JoinPath(SplitPath(database)));
+            }
+        }
     }
 
     Y_UNIT_TEST(TraceVerbosityLimitControl) {
@@ -1193,7 +1258,9 @@ Y_UNIT_TEST_SUITE(Viewer) {
     }
 
     void CheckStorageLimitWithGroupSizeInUnits(bool enforcedSlotSize, bool cluster = false,
-            std::optional<ui64> userChunkPoolSize = {}, bool overflowingQuota = false)
+            std::optional<ui64> userChunkPoolSize = {}, bool overflowingQuota = false,
+            ui64 tablesSize = 0, ui64 topicsSize = 0, std::optional<TString> poolUsageKind = "ssd",
+            TString expectedTablesStorageType = "SSD")
     {
         TPortManager tp;
         auto settings = TServerSettings(tp.GetPort(2134))
@@ -1231,6 +1298,17 @@ Y_UNIT_TEST_SUITE(Viewer) {
                         auto* pool = domain->AddStoragePools();
                         pool->SetName(kind);
                         pool->SetKind(kind);
+                    }
+                    if (tablesSize || topicsSize) {
+                        auto* diskSpaceUsage = domain->MutableDiskSpaceUsage();
+                        if (poolUsageKind) {
+                            auto* poolUsage = diskSpaceUsage->AddStoragePoolsUsage();
+                            poolUsage->SetPoolKind(*poolUsageKind);
+                            poolUsage->SetTotalSize(tablesSize);
+                        } else {
+                            diskSpaceUsage->MutableTables()->SetTotalSize(tablesSize);
+                        }
+                        diskSpaceUsage->MutableTopics()->SetDataSize(topicsSize);
                     }
                     break;
                 }
@@ -1347,10 +1425,10 @@ Y_UNIT_TEST_SUITE(Viewer) {
         const auto& tenants = json["TenantInfo"].GetArray();
         UNIT_ASSERT_VALUES_EQUAL(tenants.size(), 1);
         const auto& tenant = tenants[0];
+        const auto& storage = tenant["DatabaseStorage"].GetArray();
         UNIT_ASSERT_VALUES_EQUAL(tenant["StorageAllocatedLimit"].GetString(),
             ToString(saturatedQuota ? Max<ui64>() : fixedQuota + (enforcedSlotSize ? 500 : 600)));
         UNIT_ASSERT_VALUES_EQUAL(tenant["StorageAllocatedSize"].GetString(), "50");
-        const auto& storage = tenant["DatabaseStorage"].GetArray();
         UNIT_ASSERT_VALUES_EQUAL(storage.size(), 2);
         for (const auto& usage : storage) {
             const auto& type = usage["Type"].GetString();
@@ -1360,6 +1438,12 @@ Y_UNIT_TEST_SUITE(Viewer) {
                 : ToString(saturatedQuota ? Max<ui64>() : fixedQuota + (enforcedSlotSize ? 260 : 300));
             UNIT_ASSERT_VALUES_EQUAL(usage["Limit"].GetString(), expectedLimit);
             UNIT_ASSERT_VALUES_EQUAL(usage["Size"].GetString(), type == "SSD" ? "20" : "30");
+        }
+        if (tablesSize || topicsSize) {
+            const auto& tablesStorage = tenant["TablesStorage"].GetArray();
+            UNIT_ASSERT_VALUES_EQUAL(tablesStorage.size(), 1);
+            UNIT_ASSERT_VALUES_EQUAL(tablesStorage[0]["Type"].GetString(), expectedTablesStorageType);
+            UNIT_ASSERT_VALUES_EQUAL(tablesStorage[0]["Size"].GetString(), ToString(tablesSize + topicsSize));
         }
     }
 
@@ -1371,6 +1455,17 @@ Y_UNIT_TEST_SUITE(Viewer) {
     Y_UNIT_TEST(TenantInfoStorageLimitWithGroupSizeInUnitsAndEnforcedSlotSize)
     {
         CheckStorageLimitWithGroupSizeInUnits(true);
+    }
+
+    Y_UNIT_TEST(TenantInfoTablesStorageIncludesTopicsWithPoolUsage)
+    {
+        CheckStorageLimitWithGroupSizeInUnits(false, false, {}, false, 100, 200);
+    }
+
+    Y_UNIT_TEST(TenantInfoTablesStorageIncludesTopicsWithoutPoolUsage)
+    {
+        CheckStorageLimitWithGroupSizeInUnits(false, false, {}, false, 0, 200,
+            std::nullopt);
     }
 
     Y_UNIT_TEST(ClusterStorageLimitWithGroupSizeInUnits)
