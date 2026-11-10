@@ -1363,7 +1363,7 @@ class TestJoinYdbStreaming(StreamingTestBase):
                         )
                     )            ;
             $input = SELECT e.*, $event_time(ts) AS event_time FROM $input AS e;
-            $input = SELECT * FROM $input AS e WITH (
+            $input = SELECT * FROM $input WITH (
                         WATERMARK = event_time - Interval('PT3S'),
                         WATERMARK_GRANULARITY = 'PT2S'
                         {idle_clause}
