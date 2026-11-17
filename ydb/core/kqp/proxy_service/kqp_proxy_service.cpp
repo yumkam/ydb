@@ -1564,8 +1564,9 @@ public:
             }
 
             ProcessMonShutdownQueue(wantsToShutdown);
+            str << "HTTP/1.1 200 Ok\r\nConnection: close\r\nContent-Type: application/json\r\n\r\n";
             str << "{\"status\": \"OK\", \"queueSize\": " << wantsToShutdown << "}";
-            Send(ev->Sender, new NMon::TEvHttpInfoRes(str.Str()));
+            Send(ev->Sender, new NMon::TEvHttpInfoRes(str.Str(), 0, NMon::TEvHttpInfoRes::EContentType::Custom));
             return;
         }
 
