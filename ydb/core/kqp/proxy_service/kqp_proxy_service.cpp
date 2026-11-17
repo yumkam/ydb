@@ -1586,7 +1586,7 @@ public:
 
             ProcessMonShutdownQueue(wantsToShutdown);
             str << "{\"status\": \"OK\", \"queueSize\": " << wantsToShutdown << "}";
-            Send(ev->Sender, new NMon::TEvHttpInfoRes(str.Str()));
+            Send(ev->Sender, new NMon::TEvRemoteJsonInfoRes(str.Str()));
             return;
         }
 
