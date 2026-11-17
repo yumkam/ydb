@@ -1585,6 +1585,7 @@ public:
             }
 
             ProcessMonShutdownQueue(wantsToShutdown);
+            str << NMonitoring::HTTPOKJSON;
             str << "{\"status\": \"OK\", \"queueSize\": " << wantsToShutdown << "}";
             Send(ev->Sender, new NMon::TEvHttpInfoRes(str.Str()));
             return;
